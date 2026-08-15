@@ -3,11 +3,11 @@
   "budget_cap_usd": 50,
   "roles": {
     "extractor": {
-      "model": "google/gemini-2.0-flash-001",
+      "model": "google/gemini-2.5-flash-lite",
       "timeout_ms": 60000
     },
     "judge": {
-      "model": "anthropic/claude-3.5-sonnet",
+      "model": "google/gemini-2.5-flash",
       "timeout_ms": 30000
     },
     "answer": {
@@ -16,13 +16,17 @@
     }
   },
   "prices": {
-    "google/gemini-2.0-flash-001": {
+    "google/gemini-2.5-flash-lite": {
       "in_per_mtok": 0.1,
       "out_per_mtok": 0.4
     },
-    "anthropic/claude-3.5-sonnet": {
-      "in_per_mtok": 3.0,
-      "out_per_mtok": 15.0
+    "google/gemini-2.5-flash": {
+      "in_per_mtok": 0.3,
+      "out_per_mtok": 2.5
+    },
+    "qwen/qwen3.7-flash": {
+      "in_per_mtok": 0.03,
+      "out_per_mtok": 0.13
     }
   }
 }
