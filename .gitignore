@@ -1,0 +1,10 @@
+node_modules/
+.next/
+dist/
+.env*
+*.log
+var/
+data-raw/
+hydradb-data/
+s3cache/
+.claude/specs.local.md
