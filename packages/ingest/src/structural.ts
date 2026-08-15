@@ -1,0 +1,103 @@
+// packages/ingest/src/structural.ts — the deterministic structural pass (spec 31 §3.1, S1).
+//
+// Zero LLM. This pass alone makes a history queryable and citable — it is the Tier-3 floor made
+// structural, and it must run before any budget is spent. Every row carries EVERY property (the
+// graph is null-free; unknowns use typed sentinels), so a SET never writes a null.
+
+import { keys, vid } from '@errata/graph';
+import type { EdgeBatch, NodeBatch } from '@errata/graph';
+import type { History } from './reader.js';
+import { truncate } from './reader.js';
+import { isSalient, tokenize } from './text.js';
+
+const NA_CONF = -1.0;
+
+export interface StructuralResult {
+  nodes: NodeBatch[];
+  edges: EdgeBatch[];
+  /** turnId → salient, so the extractor and the graph agree on the gate. */
+  salience: Map<string, boolean>;
+  counts: { sessions: number; turns: number; speakers: number; salient: number };
+}
+
+export function buildStructural(history: History, runId: string, ingestTime: number): StructuralResult {
+  const h = history.historyId;
+  const sessionRows: Record<string, unknown>[] = [];
+  const turnRows: Record<string, unknown>[] = [];
+  const speakerRows: Record<string, unknown>[] = [];
+  const statedIn: Record<string, unknown>[] = [];
+  const salience = new Map<string, boolean>();
+  let salientN = 0;
+
+  // two speakers per history
+  for (const role of ['user', 'assistant'] as const) {
+    const key = keys.speaker(h, role);
+    speakerRows.push({
+      id: vid(key), key, history_id: h, role, display: role === 'user' ? 'User' : 'Assistant',
+      event_time: -1, event_time_iso: '', ingest_time: ingestTime, confidence: NA_CONF, provenance: 'EXTRACTED', run_id: runId,
+    });
+  }
+
+  for (const session of history.sessions) {
+    const sKey = keys.session(h, session.sessionId);
+    const sId = vid(sKey);
+    sessionRows.push({
+      id: sId, key: sKey, history_id: h, session_id: session.sessionId, session_date_iso: session.dateIso,
+      turn_count: session.turns.length, ordinal: session.ordinal,
+      event_time: session.epoch, event_time_iso: session.dateIso, ingest_time: ingestTime,
+      confidence: NA_CONF, provenance: 'EXTRACTED', run_id: runId,
+    });
+
+    let firstUser = true;
+    for (const turn of session.turns) {
+      const isFirstUser = firstUser && turn.role === 'user';
+      if (turn.role === 'user') firstUser = false;
+      const salient = isSalient(turn, isFirstUser);
+      salience.set(turn.turnId, salient);
+      if (salient) salientN++;
+
+      const tKey = keys.turn(h, session.sessionId, turn.turnIdx);
+      const tId = vid(tKey);
+      turnRows.push({
+        id: tId, key: tKey, history_id: h, session_id: session.sessionId, turn_id: turn.turnId, turn_idx: turn.turnIdx,
+        role: turn.role, text: truncate(turn.text), token_count: tokenize(turn.text).length, salient,
+        event_time: session.epoch, event_time_iso: session.dateIso, ingest_time: ingestTime,
+        confidence: NA_CONF, provenance: 'EXTRACTED', run_id: runId,
+      });
+
+      // STATED_IN: Turn → Session and Turn → Speaker
+      const spKey = keys.speaker(h, turn.role);
+      for (const [dstKey, dstId] of [
+        [sKey, sId],
+        [spKey, vid(spKey)],
+      ] as const) {
+        const eKey = keys.edge('STATED_IN', tKey, dstKey);
+        statedIn.push({
+          id: vid(eKey), src: tId, dst: dstId, key: eKey, history_id: h,
+          event_time: session.epoch, event_time_iso: session.dateIso, ingest_time: ingestTime,
+          confidence: NA_CONF, provenance: 'EXTRACTED', run_id: runId,
+        });
+      }
+    }
+  }
+
+  const nodes: NodeBatch[] = [
+    { label: 'Speaker', rows: speakerRows },
+    { label: 'Session', rows: sessionRows },
+    { label: 'Turn', rows: turnRows },
+  ];
+  // STATED_IN endpoints are polymorphic; split by dstLabel so each batch has one (type,src,dst) triple.
+  const toSession = statedIn.filter((_, i) => i % 2 === 0);
+  const toSpeaker = statedIn.filter((_, i) => i % 2 === 1);
+  const edges: EdgeBatch[] = [
+    { type: 'STATED_IN', srcLabel: 'Turn', dstLabel: 'Session', rows: toSession },
+    { type: 'STATED_IN', srcLabel: 'Turn', dstLabel: 'Speaker', rows: toSpeaker },
+  ];
+
+  return {
+    nodes,
+    edges,
+    salience,
+    counts: { sessions: sessionRows.length, turns: turnRows.length, speakers: speakerRows.length, salient: salientN },
+  };
+}

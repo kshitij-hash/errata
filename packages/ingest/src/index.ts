@@ -1,7 +1,8 @@
-// @errata/ingest — pipeline CLI + LongMemEval reader.
-import { version as core } from '@errata/core';
-import { version as graph } from '@errata/graph';
-import { version as llm } from '@errata/llm';
-
-export const version = '0.0.0';
-export const dependsOn = { core, graph, llm } as const;
+// @errata/ingest — LongMemEval reader + deterministic write-path pipeline.
+export * from './reader.js';
+export * from './text.js';
+export * from './structural.js';
+export * from './extract.js';
+export * from './build.js';
+export * from './lexicon.js';
+export * from './pipeline.js';
