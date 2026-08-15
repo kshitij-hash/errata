@@ -1,0 +1,22 @@
+packages:
+  - apps/*
+  - packages/*
+
+saveExact: true
+savePrefix: ''
+
+allowBuilds: {}
+strictDepBuilds: true
+dangerouslyAllowAllBuilds: false
+
+minimumReleaseAge: 4320
+minimumReleaseAgeExclude: []
+
+audit:
+  level: high
+  ignore: []
+
+catalog:
+  typescript: 6.0.3
+  zod: 4.4.3
+  vitest: 4.1.10

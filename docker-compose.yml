@@ -1,0 +1,72 @@
+# docker-compose.yml — LOCAL ONLY. Everything binds 127.0.0.1 (build plan §5).
+name: errata
+
+services:
+  minio:
+    image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - ./.data/minio:/data
+    ports:
+      - "127.0.0.1:9000:9000"          # loopback only — never 0.0.0.0
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+
+  minio-init:
+    # Deviation from the spec recipe: the pinned minio/mc image does not resolve `mc`
+    # on PATH under `sh -c` (exit 127), so we drop the shell wrapper and use mc's
+    # MC_HOST_<alias> env config with the image's default mc entrypoint.
+    image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    depends_on:
+      minio: { condition: service_healthy }
+    environment:
+      MC_HOST_m: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin}@minio:9000
+    command: ["mb", "--ignore-existing", "m/hydra"]
+    restart: "no"
+
+  hydradb:
+    image: ghcr.io/hydra-db/hydradb@sha256:db78309a233be54662db29744047e985a39b51c45a270d1a1f47c31a62cdb709
+    depends_on:
+      minio-init: { condition: service_completed_successfully }
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"     # image runs as UID 10001; bind mount is yours
+    environment:
+      # --- object store: S3/MinIO, NEVER CLOUD_PROVIDER=local (constraints §5) ---
+      CLOUD_PROVIDER: aws
+      AWS_BUCKET: hydra
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_ENDPOINT: http://minio:9000                # compose user-defined network; resolves on macOS+Linux
+      AWS_ALLOW_HTTP: "true"
+      # --- graph identity ---
+      GRAPH_NAMESPACE: default
+      GRAPH_ID: default
+      GRAPH_CELL_ID: cell-0
+      GRAPH_CELLS: cell-0
+      GRAPH_NODE_ID: node-0
+      GRAPH_BOLT_NODE_ADDRESSES: node-0=0.0.0.0:7687
+      GRAPH_ADVERTISED_BOLT_ADDR: hydradb:7687       # never consulted — we use bolt:// everywhere
+      GRAPH_DATA_CACHE_DIR: /cache
+      GRAPH_AUTH_TOKEN_FILE: /data/auth-token
+      GRAPH_ALLOW_PLAINTEXT: "true"                  # TLS is required by default; without this
+                                                     # nothing listens in the clear
+      RUST_MIN_STACK: "33554432"                     # 32 MiB. WITHOUT THIS THE NODE SERVES
+                                                     # /readyz THEN ABORTS ON THE FIRST QUERY.
+    volumes:
+      - ./.data/hydra:/data                          # LOCAL_PATH dir must pre-exist — see stack-init.sh
+      - ./.data/cache:/cache
+    ports:
+      - "127.0.0.1:7687:7687"        # Bolt
+      - "127.0.0.1:8443:8443"        # HTTP JSON/NDJSON (plaintext despite the port number)
+      - "127.0.0.1:9090:9090"        # admin: /readyz, /metrics
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9090/readyz || exit 1"]
+      interval: 3s
+      timeout: 2s
+      retries: 30

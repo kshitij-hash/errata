@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.spec.ts", "dist"],
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../packages/graph" },
+    { "path": "../../packages/llm" }
+  ]
+}

@@ -1,8 +1,14 @@
 node_modules/
-.next/
 dist/
-.env*
+*.tsbuildinfo
+.next/
+coverage/
 *.log
+.data/
+backups/
+.env
+.env.*
+!.env.example
 var/
 data-raw/
 hydradb-data/

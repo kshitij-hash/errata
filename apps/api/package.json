@@ -1,0 +1,19 @@
+{
+  "name": "@errata/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "dev": "node --watch dist/index.js"
+  },
+  "dependencies": {
+    "@errata/core": "workspace:*",
+    "@errata/graph": "workspace:*",
+    "@errata/llm": "workspace:*",
+    "@hono/node-server": "2.1.0",
+    "hono": "4.13.1",
+    "zod": "catalog:"
+  }
+}

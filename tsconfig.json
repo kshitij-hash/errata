@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/graph" },
+    { "path": "packages/llm" },
+    { "path": "packages/ingest" },
+    { "path": "apps/api" }
+  ]
+}
