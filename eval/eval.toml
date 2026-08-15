@@ -31,9 +31,9 @@ abstention_floor = 5     # smoke relaxation: at least this many abstentions when
 [models]
 answer             = "qwen/qwen3.7-flash"          # held constant across ALL THREE arms
 answer_sensitivity = "google/gemini-3.7-flash"     # footnote check only
-judge_primary      = "openai/gpt-5.4-mini"
-judge_escalation   = "openai/gpt-5.4"              # used iff primary fails the FAR gate
-judge_fallback     = "anthropic/claude-sonnet-4.6" # outage only, disclosed if used
+judge_primary      = "anthropic/claude-sonnet-5"
+judge_escalation   = "anthropic/claude-opus-5"     # used iff primary fails the FAR gate
+judge_fallback     = "openai/gpt-5.6-terra"        # outage only, disclosed if used
 perturber          = "google/gemini-3.7-flash"     # builds the judge control set
 embedder           = "BAAI/bge-small-en-v1.5"      # LOCAL, naive arm + the demo beat
 

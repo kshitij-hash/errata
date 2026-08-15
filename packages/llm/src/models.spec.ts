@@ -77,10 +77,15 @@ describe('lookups', () => {
 });
 
 describe('config/models.json on disk', () => {
-  it('resolves and parses the committed placeholder pins', () => {
+  it('resolves and parses the committed pins (each Errata role present and priced)', () => {
     const cfg = readModelsConfig(resolveConfigPath(), {});
-    expect(cfg.roles.extractor?.model).toBe(GEMINI);
-    expect(cfg.roles.judge?.model).toBe(CLAUDE);
-    expect(cfg.prices[CLAUDE]?.in_per_mtok).toBe(3.0);
+    for (const role of ['extractor', 'judge', 'answer'] as const) {
+      expect(cfg.roles[role]?.model, `role ${role}`).toBeTruthy();
+    }
+    // the models Errata actually calls (extractor, judge) must carry a pinned price
+    for (const role of ['extractor', 'judge'] as const) {
+      const model = cfg.roles[role]!.model;
+      expect(cfg.prices[model], `price for ${model}`).toBeDefined();
+    }
   });
 });

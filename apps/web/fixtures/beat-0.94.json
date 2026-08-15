@@ -1,0 +1,14 @@
+{
+  "query": "What model does the user prefer for their coding assistant?",
+  "candidates": [
+    {
+      "text": "The user now prefers Qwen3.7-Flash for their coding assistant.",
+      "cosine": 0.6945
+    },
+    {
+      "text": "The user prefers GPT-4o for their coding assistant.",
+      "cosine": 0.7416
+    }
+  ],
+  "embedder": "BAAI/bge-small-en-v1.5"
+}

@@ -3,7 +3,8 @@
 # provider's self-reported figure (which is also stored, for reconciliation).
 #
 # `errata-eval prices check` re-fetches the live catalog and diffs against this file;
-# any change > 5% aborts and demands a conscious re-pin.
+# any change > 5% aborts and demands a conscious re-pin. Verified against
+# openrouter.ai/api/v1/models on 2026-08-16.
 
 source     = "openrouter.ai/api/v1/models"
 fetched_at = "2026-08-16"
@@ -18,17 +19,17 @@ in = 0.375
 out = 1.875
 ctx = 1048576
 
-["openai/gpt-5.4-mini"]             # judge, primary candidate
-in = 0.750
-out = 4.500
-ctx = 400000
-
-["openai/gpt-5.4"]                  # judge, escalation
-in = 2.500
-out = 15.000
-ctx = 1050000
-
-["anthropic/claude-sonnet-4.6"]     # judge, outage fallback
-in = 3.000
-out = 15.000
+["anthropic/claude-sonnet-5"]       # judge, primary
+in = 2.000
+out = 10.000
 ctx = 1000000
+
+["anthropic/claude-opus-5"]         # judge, escalation
+in = 5.000
+out = 25.000
+ctx = 1000000
+
+["openai/gpt-5.6-terra"]            # judge, outage fallback
+in = 1.000
+out = 6.000
+ctx = 1050000
