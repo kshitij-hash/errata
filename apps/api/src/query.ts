@@ -180,7 +180,9 @@ export async function askQuery(client: GraphClient, historyId: string, question:
   // the losing pane of demo beat 1: what a vector store returns for this question (served from the
   // committed bge-small fixture, R4). Only attached when the question matches the fixture's query.
   const beat = beatFixture();
-  const top = beat?.candidates[0];
+  // a vector store returns the HIGHEST-cosine candidate — which in the beat is the *superseded*
+  // claim, the whole point of the demo (similarity ranks the stale fact above the current one).
+  const top = beat?.candidates.slice().sort((a, b) => b.cosine - a.cosine)[0];
   const vector_baseline =
     beat && top && tokenF1(tokens, contentTokens(beat.query)) >= 0.5
       ? { answer: top.text, cosine: top.cosine, citation: top.citation ?? null, embedder: beat.embedder }
