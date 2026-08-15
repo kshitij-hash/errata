@@ -45,8 +45,10 @@ const EDGE_PROPS: Record<EdgeType, readonly string[]> = {
   CONTRADICTS: ['key', 'history_id', 'judge_status', 'judge_model', 'rationale', 'event_time', 'ingest_time', 'event_time_iso', 'confidence', 'provenance', 'run_id'],
 };
 
+// Single-line SET is required by HydraDB's vertex/edge upsert recognizer; a comma-separated list of
+// property assignments after one `SET` (with the label folded into the node SET) is the accepted form.
 function setClause(alias: string, props: readonly string[]): string {
-  return props.map((p) => `    ${alias}.${p} = row.${p}`).join(',\n');
+  return props.map((p) => `${alias}.${p} = row.${p}`).join(', ');
 }
 
 // ---------- write path (spec 31 §4.1, §4.2) ----------
@@ -56,8 +58,7 @@ export function upsertNodes(label: NodeLabel, rows: Record<string, unknown>[]): 
   const text =
     `UNWIND $rows AS row\n` +
     `MERGE (n {id: row.id})\n` +
-    `SET n:${label},\n` +
-    setClause('n', NODE_PROPS[label]);
+    `SET n:${label}, ${setClause('n', NODE_PROPS[label])}`;
   return { text, params: { rows } };
 }
 
@@ -72,7 +73,7 @@ export function upsertEdges(
     `UNWIND $rows AS row\n` +
     `MATCH (s:${srcLabel} {id: row.src}), (d:${dstLabel} {id: row.dst})\n` +
     `MERGE (s)-[r:${type} {id: row.id}]->(d)\n` +
-    setClause('r', EDGE_PROPS[type]);
+    `SET ${setClause('r', EDGE_PROPS[type])}`;
   return { text, params: { rows } };
 }
 

@@ -2,3 +2,4 @@
 export * from './ids.js';
 export * from './cypher.js';
 export * from './linter.js';
+export * from './bolt.js';

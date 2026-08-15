@@ -95,6 +95,14 @@ describe('cypher builders (spec 31 §7 tests 42-44)', () => {
     const s = cy.upsertEdges('SUPERSEDES', 'Claim', 'Claim', [sampleEdgeRow()]);
     expect(s.text).toContain('MATCH (s:Claim {id: row.src}), (d:Claim {id: row.dst})');
     expect(s.text).toContain('MERGE (s)-[r:SUPERSEDES {id: row.id}]->(d)');
+    expect(s.text).toContain('SET r.key = row.key'); // the SET keyword must be present (regression guard)
+  });
+
+  it('43c: every write builder carries a single-line SET clause', () => {
+    for (const s of stmts().filter((x) => x.text.startsWith('UNWIND'))) {
+      const setLines = s.text.split('\n').filter((l) => l.trimStart().startsWith('SET '));
+      expect(setLines).toHaveLength(1); // exactly one SET line, single-line form
+    }
   });
 
   it('44: every multi-hop read names its interior nodes (no ]->() )', () => {
