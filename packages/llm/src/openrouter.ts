@@ -317,9 +317,8 @@ export class OpenRouterClient {
           latency_ms: latency,
           cost_usd: 0,
         });
-        if (attempt >= MAX_ATTEMPTS || this.now() - start >= UNIT_DEADLINE_MS) {
-          throw new RetryExhaustedError(0, attempt);
-        }
+        if (attempt >= MAX_ATTEMPTS) throw new RetryExhaustedError(0, attempt);
+        if (this.now() - start >= UNIT_DEADLINE_MS) continue; // let the top-of-loop mark PARTIAL
         await this.sleep(this.backoffMs(attempt));
         continue;
       }
@@ -383,9 +382,8 @@ export class OpenRouterClient {
           latency_ms: latency,
           cost_usd: 0,
         });
-        if (attempt >= MAX_ATTEMPTS || this.now() - start >= UNIT_DEADLINE_MS) {
-          throw new RetryExhaustedError(status, attempt);
-        }
+        if (attempt >= MAX_ATTEMPTS) throw new RetryExhaustedError(status, attempt);
+        if (this.now() - start >= UNIT_DEADLINE_MS) continue; // let the top-of-loop mark PARTIAL
         await this.sleep(retryAfterMs ?? this.backoffMs(attempt));
         continue;
       }
