@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { version } from './index.js';
+import { describe, it, expect } from 'vitest';
+import * as core from './index.js';
 
-describe('@errata/core', () => {
-  it('exposes a version', () => {
-    expect(version).toBe('0.0.0');
+describe('@errata/core public surface', () => {
+  it('exports the domain functions', () => {
+    for (const fn of ['resolveBelief', 'resolveAsOf', 'diffChain', 'scoreEvidence', 'decide', 'resolveAttribute']) {
+      expect(typeof (core as Record<string, unknown>)[fn]).toBe('function');
+    }
   });
 });

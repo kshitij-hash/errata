@@ -1,0 +1,406 @@
+{
+  "_doc": "Canonical vid golden vectors. vid(key)=be_uint64(blake2b(key,dkLen=8))>>11. Asserted by packages/graph vitest AND eval pytest (spec 31 \u00a72.3, R1).",
+  "_count": 100,
+  "vectors": [
+    {
+      "key": "h:example_001|s:s1",
+      "vid": 7862553160419294
+    },
+    {
+      "key": "h:example_001|s:s1|t:0",
+      "vid": 5479740539491446
+    },
+    {
+      "key": "h:example_001|s:s1|t:1",
+      "vid": 283929360989714
+    },
+    {
+      "key": "h:example_001|s:s1|t:7",
+      "vid": 8982123970240763
+    },
+    {
+      "key": "h:example_001|s:s1|t:23",
+      "vid": 3800199718340353
+    },
+    {
+      "key": "h:example_001|s:s3",
+      "vid": 8352207286129405
+    },
+    {
+      "key": "h:example_001|s:s3|t:0",
+      "vid": 627207347729715
+    },
+    {
+      "key": "h:example_001|s:s3|t:1",
+      "vid": 4656913855228295
+    },
+    {
+      "key": "h:example_001|s:s3|t:7",
+      "vid": 4917113930243640
+    },
+    {
+      "key": "h:example_001|s:s3|t:23",
+      "vid": 5518765568248388
+    },
+    {
+      "key": "h:example_001|s:s11",
+      "vid": 2995052984073449
+    },
+    {
+      "key": "h:example_001|s:s11|t:0",
+      "vid": 5553487255501847
+    },
+    {
+      "key": "h:example_001|s:s11|t:1",
+      "vid": 8857124541172525
+    },
+    {
+      "key": "h:example_001|s:s11|t:7",
+      "vid": 5747710260149048
+    },
+    {
+      "key": "h:example_001|s:s11|t:23",
+      "vid": 2498566976041671
+    },
+    {
+      "key": "h:example_001|sp:user",
+      "vid": 1689828356949339
+    },
+    {
+      "key": "h:example_001|sp:assistant",
+      "vid": 1632699381983119
+    },
+    {
+      "key": "h:example_042_abs|s:s1",
+      "vid": 2411078728880092
+    },
+    {
+      "key": "h:example_042_abs|s:s1|t:0",
+      "vid": 6451637940194503
+    },
+    {
+      "key": "h:example_042_abs|s:s1|t:1",
+      "vid": 3896603980001468
+    },
+    {
+      "key": "h:example_042_abs|s:s1|t:7",
+      "vid": 5056035924734150
+    },
+    {
+      "key": "h:example_042_abs|s:s1|t:23",
+      "vid": 8759934971004192
+    },
+    {
+      "key": "h:example_042_abs|s:s3",
+      "vid": 8444998639570486
+    },
+    {
+      "key": "h:example_042_abs|s:s3|t:0",
+      "vid": 5191205064495106
+    },
+    {
+      "key": "h:example_042_abs|s:s3|t:1",
+      "vid": 1935299345850194
+    },
+    {
+      "key": "h:example_042_abs|s:s3|t:7",
+      "vid": 807235344361968
+    },
+    {
+      "key": "h:example_042_abs|s:s3|t:23",
+      "vid": 5848926698453276
+    },
+    {
+      "key": "h:example_042_abs|s:s11",
+      "vid": 1727627993385856
+    },
+    {
+      "key": "h:example_042_abs|s:s11|t:0",
+      "vid": 3345090845179636
+    },
+    {
+      "key": "h:example_042_abs|s:s11|t:1",
+      "vid": 7291032631257455
+    },
+    {
+      "key": "h:example_042_abs|s:s11|t:7",
+      "vid": 7179357390832113
+    },
+    {
+      "key": "h:example_042_abs|s:s11|t:23",
+      "vid": 75864561864977
+    },
+    {
+      "key": "h:example_042_abs|sp:user",
+      "vid": 4384196280086477
+    },
+    {
+      "key": "h:example_042_abs|sp:assistant",
+      "vid": 8875002923523391
+    },
+    {
+      "key": "h:example_001|e:acme corp",
+      "vid": 5076656119590564
+    },
+    {
+      "key": "h:example_001|e:globex",
+      "vid": 1740548529428905
+    },
+    {
+      "key": "h:example_001|e:the user",
+      "vid": 4596807325308911
+    },
+    {
+      "key": "h:example_001|e:san francisco",
+      "vid": 274034907883000
+    },
+    {
+      "key": "h:example_001|e:golden retriever",
+      "vid": 5460860606479470
+    },
+    {
+      "key": "h:example_042_abs|e:acme corp",
+      "vid": 7321945935462245
+    },
+    {
+      "key": "h:example_042_abs|e:globex",
+      "vid": 1374306269099070
+    },
+    {
+      "key": "h:example_042_abs|e:the user",
+      "vid": 5341829521596020
+    },
+    {
+      "key": "h:example_042_abs|e:san francisco",
+      "vid": 8513585922589330
+    },
+    {
+      "key": "h:example_042_abs|e:golden retriever",
+      "vid": 7000695665799075
+    },
+    {
+      "key": "h:example_001|c:f4a9ba538cf35bbc",
+      "vid": 716327159514088
+    },
+    {
+      "key": "h:example_001|c:8c5e8401ba2f2952",
+      "vid": 569190641333106
+    },
+    {
+      "key": "h:example_001|c:746d17e7ff06cfde",
+      "vid": 1941197001903692
+    },
+    {
+      "key": "h:example_042_abs|c:152a23cc8078a0ff",
+      "vid": 2285504456369002
+    },
+    {
+      "key": "h:example_042_abs|c:6dba09d87c3cde1f",
+      "vid": 3678963485013268
+    },
+    {
+      "key": "edge:SUPERSEDES:h:example_001|c:8c5e8401ba2f2952:h:example_001|c:f4a9ba538cf35bbc",
+      "vid": 702257098232540
+    },
+    {
+      "key": "edge:CONTRADICTS:h:example_001|c:8c5e8401ba2f2952:h:example_001|c:f4a9ba538cf35bbc",
+      "vid": 4447982355942535
+    },
+    {
+      "key": "edge:ABOUT:h:example_001|c:f4a9ba538cf35bbc:h:example_001|e:acme corp",
+      "vid": 6886556942304654
+    },
+    {
+      "key": "edge:STATED_IN:h:example_001|c:f4a9ba538cf35bbc:h:example_001|s:s3|t:11",
+      "vid": 1154452966903336
+    },
+    {
+      "key": "edge:SUPPORTS:h:example_001|c:f4a9ba538cf35bbc:h:example_001|c:f4a9ba538cf35bbc",
+      "vid": 1285835618159736
+    },
+    {
+      "key": "h:example_001|e:x|e:y",
+      "vid": 1899492663796021
+    },
+    {
+      "key": "h:example_001|e:x",
+      "vid": 1450640673078370
+    },
+    {
+      "key": "h:example_001|s:s3|t:11",
+      "vid": 1735806462117384
+    },
+    {
+      "key": "h:example_001|e:caf\u00e9 m\u00fcnchen",
+      "vid": 1003213834004696
+    },
+    {
+      "key": "h:example_001|e:  leading and trailing  ",
+      "vid": 8981972196442545
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_000",
+      "vid": 4326351609509750
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_001",
+      "vid": 8804077886584836
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_002",
+      "vid": 8643181294645009
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_003",
+      "vid": 8332287412101600
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_004",
+      "vid": 6780823453494792
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_005",
+      "vid": 1306574784601481
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_006",
+      "vid": 826346914067403
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_007",
+      "vid": 4561375348280679
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_008",
+      "vid": 3566388811407898
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_009",
+      "vid": 2932617695474791
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_010",
+      "vid": 178409205848423
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_011",
+      "vid": 4287650391677652
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_012",
+      "vid": 3030257433634125
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_013",
+      "vid": 1271287985152599
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_014",
+      "vid": 7380966357973603
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_015",
+      "vid": 8673035852406594
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_016",
+      "vid": 717024335615291
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_017",
+      "vid": 4679314327632627
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_018",
+      "vid": 5410703650970359
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_019",
+      "vid": 4514664454742374
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_020",
+      "vid": 3443138296175052
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_021",
+      "vid": 6602467962169420
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_022",
+      "vid": 2080415287789067
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_023",
+      "vid": 3326400915832507
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_024",
+      "vid": 2058721813130511
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_025",
+      "vid": 4245995164477488
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_026",
+      "vid": 8026885810395646
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_027",
+      "vid": 4938060285829358
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_028",
+      "vid": 7043195548636483
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_029",
+      "vid": 6235152150998728
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_030",
+      "vid": 6388506471200109
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_031",
+      "vid": 6069946099725397
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_032",
+      "vid": 5186201509589965
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_033",
+      "vid": 8895775499742830
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_034",
+      "vid": 4647311282231336
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_035",
+      "vid": 6375395136464778
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_036",
+      "vid": 2322393165744896
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_037",
+      "vid": 8523576190275902
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_038",
+      "vid": 6019633926051281
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_039",
+      "vid": 4651461938391084
+    },
+    {
+      "key": "h:example_001|e:synthetic_entity_040",
+      "vid": 964740863089392
+    }
+  ]
+}
