@@ -29,10 +29,13 @@ describe.skipIf(!RUN)('api — live demo beats on 852ce960', () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ question: 'What was the amount I was pre-approved for when I got my mortgage from Wells Fargo?', history_id: HID }),
     });
-    const a = (await res.json()) as { kind: string; text: string; citations: { session_id: string }[] };
-    expect(a.kind).toBe('answer');
-    expect(a.text).toBe('$400,000');
+    const a = (await res.json()) as { answer?: string; abstained?: boolean; citations: { session_id: string; turn_index: number; span: string }[]; cypher: unknown[]; trace_id: string };
+    expect(a.answer).toBe('$400,000');
+    expect(a.abstained).toBeUndefined();
     expect(a.citations[0]!.session_id).toBe('answer_3a6f1e82_2');
+    expect(typeof a.citations[0]!.turn_index).toBe('number'); // integer, never a string-split of turn_id
+    expect(Array.isArray(a.cypher)).toBe(true); // the executed Cypher is surfaced
+    expect(typeof a.trace_id).toBe('string');
   });
 
   it('abstains on a question the history never answers, with nearest misses', async () => {
@@ -41,8 +44,8 @@ describe.skipIf(!RUN)('api — live demo beats on 852ce960', () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ question: 'What is my favorite color?', history_id: HID }),
     });
-    const a = (await res.json()) as { kind: string; nearest_miss: unknown[] };
-    expect(a.kind).toBe('abstention');
+    const a = (await res.json()) as { abstained?: boolean; nearest_miss: unknown[] };
+    expect(a.abstained).toBe(true);
     expect(Array.isArray(a.nearest_miss)).toBe(true);
   });
 });

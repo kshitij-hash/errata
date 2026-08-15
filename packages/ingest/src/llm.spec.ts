@@ -67,9 +67,9 @@ describe('verdictToEdge (spec 31 §3.5 mapping)', () => {
   it('SUPPORTS → SUPPORTS', () => {
     expect(verdictToEdge(v({ relation: 'SUPPORTS' }), cand, head).type).toBe('SUPPORTS');
   });
-  it('UNRELATED / different attribute → CONTRADICTS (appended, not dropped)', () => {
-    expect(verdictToEdge(v({ relation: 'UNRELATED' }), cand, head).type).toBe('CONTRADICTS');
-    expect(verdictToEdge(v({ same_attribute: false }), cand, head).type).toBe('CONTRADICTS');
+  it('UNRELATED / different attribute → no revision edge (claim appended, edge withheld)', () => {
+    expect(verdictToEdge(v({ relation: 'UNRELATED' }), cand, head)).toBeNull();
+    expect(verdictToEdge(v({ same_attribute: false }), cand, head)).toBeNull();
   });
 });
 

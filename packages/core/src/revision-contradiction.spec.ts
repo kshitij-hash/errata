@@ -16,7 +16,7 @@ describe('resolveBelief — simultaneous contradictions (spec 31 §7 tests 19-22
     expect(r.heads.length).toBeGreaterThanOrEqual(2);
     for (const h of r.heads) {
       expect(h.citation.session_id).toBeTruthy();
-      expect(h.citation.turn_id).toBeTruthy();
+      expect(typeof h.citation.turn_index).toBe('number');
     }
     expect(r.head).toBeNull();
   });

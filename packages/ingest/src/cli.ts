@@ -4,7 +4,7 @@
 //                              [--extractor rule|replay] [--replay-dir <dir>] [--lexicon-dir var/lexicon]
 import { readFileSync } from 'node:fs';
 import { GraphClient } from '@errata/graph';
-import { OpenRouterClient } from '@errata/llm';
+import { OpenRouterClient, rollup, defaultLedgerDir } from '@errata/llm';
 import { parseHistory, turnCount } from './reader.js';
 import type { RawRecord } from './reader.js';
 import { RuleExtractor, ReplayExtractor } from './extract.js';
@@ -44,7 +44,11 @@ async function main(): Promise<void> {
   let extractor: Extractor;
   let judge: ConflictJudge | undefined;
   if (extractorName === 'llm' || useJudge) {
-    const or = new OpenRouterClient(); // reads OPENROUTER_API_KEY + config/models.json
+    // seed the budget guard from the ledger so per-history CLI runs share one running total
+    // (otherwise a 500-history batch could spend 500×cap). P0-3.
+    const cap = process.env.ERRATA_BUDGET_CAP ? Number(process.env.ERRATA_BUDGET_CAP) : 50;
+    const spent = rollup(defaultLedgerDir(), cap).spent_usd;
+    const or = new OpenRouterClient({ initialSpent: spent }); // reads OPENROUTER_API_KEY + config/models.json
     if (extractorName === 'llm') extractor = new LlmExtractor(or, 'llm-extractor', historyId);
     else extractor = new RuleExtractor();
     if (useJudge) judge = makeJudge(or, historyId, historyId);

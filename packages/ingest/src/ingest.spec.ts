@@ -63,7 +63,7 @@ describe('deterministic extraction + conflict (the belief-revision demo)', () =>
     const rows: ClaimRow[] = amountClaims.map((p) => ({
       claim_id: p.claimId, value: p.value, value_norm: p.valueNorm, attribute: p.attribute, arity: p.arity,
       polarity: p.polarity, event_time: p.eventTime, ingest_time: 1_700_000_000, confidence: p.confidence,
-      provenance: 'EXTRACTED', judge_status: 'NONE', session_id: p.sessionId, turn_id: p.turnId, evidence_span: p.evidenceSpan,
+      provenance: 'EXTRACTED', judge_status: 'NONE', session_id: p.sessionId, turn_id: p.turnId, turn_index: p.turnIdx, evidence_span: p.evidenceSpan,
     }));
     const edges: RevisionEdgeRow[] = revision
       .filter((r) => amountClaims.some((a) => a.claimId === r.newerId))

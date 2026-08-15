@@ -20,7 +20,8 @@ export function makeClaim(p: Partial<ClaimRow> & { value: string }): ClaimRow {
     provenance: p.provenance ?? 'EXTRACTED',
     judge_status: p.judge_status ?? 'OK',
     session_id: p.session_id ?? 's1',
-    turn_id: p.turn_id ?? 's1:t0',
+    turn_id: p.turn_id ?? 's1:0',
+    turn_index: p.turn_index ?? 0,
     evidence_span: p.evidence_span ?? '',
     claim_key: p.claim_key,
   };

@@ -25,7 +25,8 @@ export function buildStructural(history: History, runId: string, ingestTime: num
   const sessionRows: Record<string, unknown>[] = [];
   const turnRows: Record<string, unknown>[] = [];
   const speakerRows: Record<string, unknown>[] = [];
-  const statedIn: Record<string, unknown>[] = [];
+  const toSession: Record<string, unknown>[] = [];
+  const toSpeaker: Record<string, unknown>[] = [];
   const salience = new Map<string, boolean>();
   let salientN = 0;
 
@@ -65,19 +66,18 @@ export function buildStructural(history: History, runId: string, ingestTime: num
         confidence: NA_CONF, provenance: 'EXTRACTED', run_id: runId,
       });
 
-      // STATED_IN: Turn → Session and Turn → Speaker
+      // STATED_IN: Turn → Session and Turn → Speaker (tagged by destination, not index parity)
       const spKey = keys.speaker(h, turn.role);
-      for (const [dstKey, dstId] of [
-        [sKey, sId],
-        [spKey, vid(spKey)],
-      ] as const) {
+      const statedRow = (dstKey: string, dstId: number): Record<string, unknown> => {
         const eKey = keys.edge('STATED_IN', tKey, dstKey);
-        statedIn.push({
+        return {
           id: vid(eKey), src: tId, dst: dstId, key: eKey, history_id: h,
           event_time: session.epoch, event_time_iso: session.dateIso, ingest_time: ingestTime,
           confidence: NA_CONF, provenance: 'EXTRACTED', run_id: runId,
-        });
-      }
+        };
+      };
+      toSession.push(statedRow(sKey, sId));
+      toSpeaker.push(statedRow(spKey, vid(spKey)));
     }
   }
 
@@ -86,9 +86,7 @@ export function buildStructural(history: History, runId: string, ingestTime: num
     { label: 'Session', rows: sessionRows },
     { label: 'Turn', rows: turnRows },
   ];
-  // STATED_IN endpoints are polymorphic; split by dstLabel so each batch has one (type,src,dst) triple.
-  const toSession = statedIn.filter((_, i) => i % 2 === 0);
-  const toSpeaker = statedIn.filter((_, i) => i % 2 === 1);
+  // STATED_IN endpoints are polymorphic; each batch is one (type, srcLabel, dstLabel) triple.
   const edges: EdgeBatch[] = [
     { type: 'STATED_IN', srcLabel: 'Turn', dstLabel: 'Session', rows: toSession },
     { type: 'STATED_IN', srcLabel: 'Turn', dstLabel: 'Speaker', rows: toSpeaker },

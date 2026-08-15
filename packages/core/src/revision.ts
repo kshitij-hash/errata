@@ -31,6 +31,21 @@ function edgesOf(edges: RevisionEdgeRow[], rel: Relation): RevisionEdgeRow[] {
   return edges.filter((e) => e.relation === rel);
 }
 
+/** Deterministic total order over revision edges (HydraDB returns rows in no guaranteed order, and
+ *  there is no ORDER BY across the reads). Applied once at fold entry so head selection, cycle
+ *  breaking, and the diff chain are byte-identical across runs. */
+function sortEdges(edges: RevisionEdgeRow[]): RevisionEdgeRow[] {
+  return edges
+    .slice()
+    .sort(
+      (a, b) =>
+        b.confidence - a.confidence ||
+        b.ingest_time - a.ingest_time ||
+        a.older_id - b.older_id ||
+        a.newer_id - b.newer_id,
+    );
+}
+
 /** distinct turns citing a claim = 1 (origin) + distinct SUPPORTS newer-ids targeting it. */
 function corroborationMap(edges: RevisionEdgeRow[]): Map<number, number> {
   const byTarget = new Map<number, Set<number>>();
@@ -55,7 +70,7 @@ function toBeliefValue(c: ClaimRow, corroboration: number): BeliefValue {
     confidence: c.confidence,
     provenance: c.provenance,
     judge_status: c.judge_status,
-    citation: { session_id: c.session_id, turn_id: c.turn_id, claim_id: c.claim_id },
+    citation: { session_id: c.session_id, turn_index: c.turn_index, claim_id: c.claim_id },
     evidence_span: c.evidence_span,
     corroboration,
   };
@@ -250,8 +265,9 @@ function resolveMulti(claims: ClaimRow[], edges: RevisionEdgeRow[]): BeliefResul
 /** Resolve the current belief for one (subject, attribute) from its claims + revision edges. */
 export function resolveBelief(claims: ClaimRow[], edges: RevisionEdgeRow[]): BeliefResult {
   if (claims.length === 0) return emptyResult();
+  const sorted = sortEdges(edges);
   const arity = claims[0]!.arity; // all claims for one attribute share arity
-  return arity === 'FUNCTIONAL' ? resolveFunctional(claims, edges) : resolveMulti(claims, edges);
+  return arity === 'FUNCTIONAL' ? resolveFunctional(claims, sorted) : resolveMulti(claims, sorted);
 }
 
 /** Belief at time `t`: filter server-side rows, then run the SAME fold (spec 31 §4.4, C5).
@@ -282,10 +298,11 @@ export function diffChain(
   if (!toBelief) return { from_belief: fromBelief, to_belief: toBelief, revisions: [], truncated: false };
 
   const byId = new Map(claims.map((c) => [c.claim_id, c]));
-  const sup = edgesOf(edges, 'SUPERSEDES');
+  const sup = sortEdges(edgesOf(edges, 'SUPERSEDES'));
   // walk from the `to` head down its SUPERSEDES chain, stopping at the `from` head.
+  // deterministic linked-list: the highest-confidence edge per newer head wins (first after sort).
   const supByNewer = new Map<number, RevisionEdgeRow>();
-  for (const e of sup) supByNewer.set(e.newer_id, e); // linked-list: one older per newer head
+  for (const e of sup) if (!supByNewer.has(e.newer_id)) supByNewer.set(e.newer_id, e);
   const corr = corroborationMap(edges);
   const bv = (c: ClaimRow): BeliefValue => toBeliefValue(c, corr.get(c.claim_id) ?? 1);
 
@@ -317,8 +334,8 @@ export function diffChain(
       judge_status: e.judge_status,
       rationale: e.rationale,
       citations: {
-        newer: { session_id: newer.session_id, turn_id: newer.turn_id, claim_id: newer.claim_id },
-        older: { session_id: older.session_id, turn_id: older.turn_id, claim_id: older.claim_id },
+        newer: { session_id: newer.session_id, turn_index: newer.turn_index, claim_id: newer.claim_id },
+        older: { session_id: older.session_id, turn_index: older.turn_index, claim_id: older.claim_id },
       },
     });
     cursor = e.older_id;

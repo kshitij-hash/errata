@@ -146,10 +146,12 @@ export function makeJudge(completer: Completer, historyId: string, runId = 'run'
         {
           role: 'user',
           content: JSON.stringify({
+            history_id: historyId,
             subject: incumbent.subjectNorm,
             attribute: incumbent.attribute,
-            incumbent: { value: incumbent.value, event_time_iso: incumbent.eventTimeIso, evidence_span: incumbent.evidenceSpan },
-            candidate: { value: candidate.value, event_time_iso: candidate.eventTimeIso, evidence_span: candidate.evidenceSpan },
+            arity: incumbent.arity,
+            incumbent: { claim_id: incumbent.claimId, value: incumbent.value, event_time_iso: incumbent.eventTimeIso, time_basis: incumbent.timeBasis, confidence: incumbent.confidence, evidence_span: incumbent.evidenceSpan },
+            candidate: { claim_id: candidate.claimId, value: candidate.value, event_time_iso: candidate.eventTimeIso, time_basis: candidate.timeBasis, confidence: candidate.confidence, evidence_span: candidate.evidenceSpan },
           }),
         },
       ],
@@ -158,8 +160,9 @@ export function makeJudge(completer: Completer, historyId: string, runId = 'run'
   };
 }
 
-/** Map a judge verdict to a revision edge (spec 31 §3.5 mapping + uncertainty tables). Never drops. */
-export function verdictToEdge(v: JudgeVerdict, candidate: PreparedClaim, head: PreparedClaim): RevisionEdgeSpec {
+/** Map a judge verdict to a revision edge, or null when there is no relation (spec 31 §3.5). The
+ *  claim is still appended by build.ts; only the edge is withheld. */
+export function verdictToEdge(v: JudgeVerdict, candidate: PreparedClaim, head: PreparedClaim): RevisionEdgeSpec | null {
   const mk = (type: RevisionEdgeSpec['type'], judge_status: string, confidence: number): RevisionEdgeSpec => ({
     type,
     newerKey: candidate.claimKey,
@@ -170,13 +173,16 @@ export function verdictToEdge(v: JudgeVerdict, candidate: PreparedClaim, head: P
     judge_model: 'judge',
     rationale: v.rationale.slice(0, 200),
     confidence,
+    provenance: 'INFERRED',
   });
-  if (v.same_attribute === false || v.relation === 'UNRELATED') return mk('CONTRADICTS', 'OK', Math.max(v.confidence, 0.1)); // appended, flagged, but not a supersession
+  if (v.same_attribute === false || v.relation === 'UNRELATED') return null; // no revision edge (P1-8)
   if (v.confidence < 0.55) return mk('CONTRADICTS', 'LOW_CONF', Math.max(v.confidence, 0.1));
   if (v.relation === 'SUPPORTS') return mk('SUPPORTS', 'OK', v.confidence);
   if (v.relation === 'CONTRADICTS') return mk('CONTRADICTS', 'OK', v.confidence);
-  // SUPERSEDES
-  if (v.temporal_order === 'INCUMBENT_NEWER') return mk('CONTRADICTS', 'LOW_CONF', v.confidence); // downgrade
+  // SUPERSEDES — downgrade to CONTRADICTS when the model OR the claims' own event_times say the
+  // incumbent is actually newer (do not trust the model's temporal_order alone; spec 31 §3.5 / P2-11).
+  const dataIncumbentNewer = head.eventTime > -1 && candidate.eventTime > -1 && candidate.eventTime < head.eventTime;
+  if (v.temporal_order === 'INCUMBENT_NEWER' || dataIncumbentNewer) return mk('CONTRADICTS', 'LOW_CONF', v.confidence);
   return mk('SUPERSEDES', 'OK', v.confidence);
 }
 
@@ -197,7 +203,7 @@ export async function resolveConflictsWithJudge(prepared: PreparedClaim[], judge
       for (const c of sorted) {
         if (c.polarity !== 'NEGATE') continue;
         const target = members.find((m) => m.valueNorm === c.valueNorm && m.eventTime <= c.eventTime);
-        if (target) edges.push(edge('SUPERSEDES', c, target, 'NONE', 'negation supersedes member', 0.7));
+        if (target) edges.push(edge('SUPERSEDES', c, target, 'NONE', 'negation supersedes member', 0.7, 'INFERRED'));
       }
       continue;
     }
@@ -205,18 +211,32 @@ export async function resolveConflictsWithJudge(prepared: PreparedClaim[], judge
     for (let i = 1; i < sorted.length; i++) {
       const cur = sorted[i]!;
       if (cur.valueNorm === head.valueNorm) {
-        edges.push(edge('SUPPORTS', cur, head, 'NONE', 'same value corroborates', cur.confidence));
+        edges.push(edge('SUPPORTS', cur, head, 'NONE', 'same value corroborates', cur.confidence, 'EXTRACTED'));
         continue;
       }
-      const v = await judge(head, cur);
-      const e = verdictToEdge(v, cur, head);
-      edges.push(e);
-      if (e.type === 'SUPERSEDES') head = cur; // the chain advances only on a real supersession
+      let e: RevisionEdgeSpec | null;
+      try {
+        e = verdictToEdge(await judge(head, cur), cur, head);
+      } catch (err) {
+        // 31 §3.5 uncertainty: never abort the ingest. Unparseable-after-repair → UNPARSED/0.15;
+        // unreachable (API backoff / budget trip) → UNJUDGED/0.10. Always append a CONTRADICTS.
+        const unparsed = /schema|parse|json/i.test(String((err as { message?: string })?.message ?? err));
+        e = {
+          type: 'CONTRADICTS', newerKey: cur.claimKey, newerId: cur.claimId, olderKey: head.claimKey, olderId: head.claimId,
+          judge_status: unparsed ? 'UNPARSED' : 'UNJUDGED', judge_model: 'judge',
+          rationale: unparsed ? 'judge output unparseable after repair' : 'judge unavailable (api/budget)',
+          confidence: unparsed ? 0.15 : 0.1, provenance: 'INFERRED',
+        };
+      }
+      if (e) {
+        edges.push(e);
+        if (e.type === 'SUPERSEDES') head = cur; // the chain advances only on a real supersession
+      }
     }
   }
   return edges;
 }
 
-function edge(type: RevisionEdgeSpec['type'], newer: PreparedClaim, older: PreparedClaim, judge_status: string, rationale: string, confidence: number): RevisionEdgeSpec {
-  return { type, newerKey: newer.claimKey, newerId: newer.claimId, olderKey: older.claimKey, olderId: older.claimId, judge_status, judge_model: '', rationale, confidence };
+function edge(type: RevisionEdgeSpec['type'], newer: PreparedClaim, older: PreparedClaim, judge_status: string, rationale: string, confidence: number, provenance: 'EXTRACTED' | 'INFERRED'): RevisionEdgeSpec {
+  return { type, newerKey: newer.claimKey, newerId: newer.claimId, olderKey: older.claimKey, olderId: older.claimId, judge_status, judge_model: '', rationale, confidence, provenance };
 }

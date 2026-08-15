@@ -1,10 +1,11 @@
 // apps/api/src/app.ts — the read-only HTTP surface (contract v1.1, spec 30 §2 / 31 §1.4).
 import { createHash } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { Hono } from 'hono';
 import { ANSWER_MODEL, ANSWER_PROMPT, SCHEMA_VERSION } from '@errata/core';
 import { countLabel } from '@errata/graph';
 import type { NodeLabel } from '@errata/graph';
+import { defaultLedgerDir, rollup } from '@errata/llm';
 import { config, db, lexicon } from './deps.js';
 import { askQuery, beliefQuery, diffQuery } from './query.js';
 
@@ -52,7 +53,7 @@ app.post('/api/ask', async (c) => {
   const historyId = body.history_id ?? config.demoHistory;
   if (!body.question) return c.json({ error: 'question is required' }, 400);
   if (!historyId) return c.json({ error: 'history_id is required' }, 400);
-  const out = await askQuery(db(), historyId, body.question, lexicon(historyId), body.explain === true || c.req.query('explain') === '1');
+  const out = await askQuery(db(), historyId, body.question, lexicon(historyId));
   return c.json(out);
 });
 
@@ -87,31 +88,7 @@ app.get('/api/meta/health', async (c) => {
 });
 
 app.get('/api/meta/costs', (c) => {
-  // minimal inline rollup of the JSONL ledger; @errata/llm.rollup replaces this once credits are live.
-  const dir = 'var/ledger';
-  let spent = 0;
-  let calls = 0;
-  let tokensIn = 0;
-  let tokensOut = 0;
-  if (existsSync(dir)) {
-    for (const f of readdirSync(dir).filter((x) => x.endsWith('.jsonl'))) {
-      for (const line of readFileSync(`${dir}/${f}`, 'utf8').split('\n')) {
-        if (!line.trim()) continue;
-        try {
-          const j = JSON.parse(line) as { cost_usd?: number; status?: string; prompt_tokens?: number; completion_tokens?: number };
-          if (j.status === 'ok') {
-            spent += j.cost_usd ?? 0;
-            tokensIn += j.prompt_tokens ?? 0;
-            tokensOut += j.completion_tokens ?? 0;
-            calls++;
-          }
-        } catch {
-          /* skip malformed */
-        }
-      }
-    }
-  }
+  // one accounting: the SAME rollup the ingest budget guard uses (spec 31 §6.5, P1-9).
   const cap = process.env.ERRATA_BUDGET_CAP ? Number(process.env.ERRATA_BUDGET_CAP) : 50;
-  const budget_state = spent >= cap ? 'EXHAUSTED' : spent >= 0.9 * cap ? 'THROTTLED' : spent >= 0.7 * cap ? 'WARN' : 'normal';
-  return c.json({ cap_usd: cap, spent_usd: +spent.toFixed(6), budget_state, calls, tokens_in: tokensIn, tokens_out: tokensOut });
+  return c.json(rollup(defaultLedgerDir(), cap));
 });

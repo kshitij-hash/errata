@@ -24,10 +24,11 @@ export type TimeBasis = (typeof TIME_BASIS)[number];
 /** Sentinel for an unknown epoch-seconds value (there is no null in the store). */
 export const TIME_UNKNOWN = -1;
 
-/** (session_id, positional turn_id) into the transcript. Every answer carries one. */
+/** (session_id, positional turn_index) into the transcript. Every answer carries one.
+ *  turn_index is the 0-based positional index — never derived by string-splitting turn_id (seam #2). */
 export interface Citation {
   session_id: string;
-  turn_id: string;
+  turn_index: number;
   claim_id?: number;
 }
 
@@ -45,7 +46,8 @@ export interface ClaimRow {
   provenance: Provenance;
   judge_status: JudgeStatus;
   session_id: string;
-  turn_id: string;
+  turn_id: string; // "sessionId:turnIndex" denormalized citation string (graph-internal)
+  turn_index: number; // 0-based positional index — the citation half eval asserts against
   evidence_span: string;
   claim_key?: string; // for collision detection (n.key assertion)
 }

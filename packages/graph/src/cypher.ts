@@ -25,7 +25,7 @@ export const INTEGER_KEYS: ReadonlySet<string> = new Set([
   'a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7',
   // row fields
   'id', 'src', 'dst',
-  'event_time', 'ingest_time', 'turn_idx', 'token_count', 'ordinal', 'turn_count', 'mention_count',
+  'event_time', 'ingest_time', 'turn_idx', 'turn_index', 'token_count', 'ordinal', 'turn_count', 'mention_count',
 ]);
 
 // property lists per label (universal props + label-specific), spec 31 §2.2 / §4.1.
@@ -34,7 +34,7 @@ const NODE_PROPS: Record<NodeLabel, readonly string[]> = {
   Turn: ['key', 'history_id', 'session_id', 'turn_id', 'turn_idx', 'role', 'text', 'token_count', 'salient', 'event_time', 'event_time_iso', 'ingest_time', 'confidence', 'provenance', 'run_id'],
   Speaker: ['key', 'history_id', 'role', 'display', 'event_time', 'event_time_iso', 'ingest_time', 'confidence', 'provenance', 'run_id'],
   Entity: ['key', 'history_id', 'name', 'norm_name', 'etype', 'mention_count', 'event_time', 'event_time_iso', 'ingest_time', 'confidence', 'provenance', 'run_id'],
-  Claim: ['key', 'history_id', 'subject', 'subject_norm', 'attribute', 'arity', 'attribute_registered', 'value_text', 'value_norm', 'polarity', 'event_time', 'event_time_iso', 'ingest_time', 'time_basis', 'confidence', 'provenance', 'session_id', 'turn_id', 'evidence_span', 'extractor_model', 'judge_status', 'run_id'],
+  Claim: ['key', 'history_id', 'subject', 'subject_norm', 'attribute', 'arity', 'attribute_registered', 'value_text', 'value_norm', 'polarity', 'event_time', 'event_time_iso', 'ingest_time', 'time_basis', 'confidence', 'provenance', 'session_id', 'turn_id', 'turn_index', 'evidence_span', 'extractor_model', 'judge_status', 'run_id'],
 };
 
 const EDGE_PROPS: Record<EdgeType, readonly string[]> = {
@@ -89,8 +89,8 @@ export function claimsForEntityAttribute(entityVid: number, historyId: string, a
     `       c.attribute AS attribute, c.arity AS arity, c.polarity AS polarity,\n` +
     `       c.event_time AS event_time, c.ingest_time AS ingest_time, c.confidence AS confidence,\n` +
     `       c.provenance AS provenance, c.judge_status AS judge_status,\n` +
-    `       c.session_id AS session_id, c.turn_id AS turn_id, c.evidence_span AS evidence_span,\n` +
-    `       c.key AS claim_key\n` +
+    `       c.session_id AS session_id, c.turn_id AS turn_id, c.turn_index AS turn_index,\n` +
+    `       c.evidence_span AS evidence_span, c.key AS claim_key\n` +
     `ORDER BY event_time\n` +
     `LIMIT 500`;
   return { text, params: { entity_vid: entityVid, history_id: historyId, attribute } };
@@ -138,7 +138,8 @@ export function asOfClaims(
     `       c.attribute AS attribute, c.arity AS arity, c.polarity AS polarity,\n` +
     `       c.event_time AS event_time, c.ingest_time AS ingest_time, c.confidence AS confidence,\n` +
     `       c.provenance AS provenance, c.judge_status AS judge_status,\n` +
-    `       c.session_id AS session_id, c.turn_id AS turn_id, c.evidence_span AS evidence_span\n` +
+    `       c.session_id AS session_id, c.turn_id AS turn_id, c.turn_index AS turn_index,\n` +
+    `       c.evidence_span AS evidence_span\n` +
     `ORDER BY event_time\n` +
     `LIMIT 500`;
   return { text, params: { entity_vid: entityVid, history_id: historyId, attribute, at } };
@@ -177,9 +178,10 @@ export function claimsForEntities(anchorVids: number[], historyId: string): Stmt
   const arm = (i: number): string =>
     `MATCH (c:Claim)-[:ABOUT]->(e:Entity {id: $a${i}})\n` +
     `WHERE c.history_id = $history_id\n` +
-    `RETURN c.id AS claim_id, c.attribute AS attribute, c.value_text AS value,\n` +
-    `       c.event_time AS event_time, c.confidence AS confidence,\n` +
-    `       c.session_id AS session_id, c.turn_id AS turn_id, c.evidence_span AS evidence_span`;
+    `RETURN c.id AS claim_id, c.attribute AS attribute, c.subject_norm AS subject_norm,\n` +
+    `       c.value_text AS value, c.event_time AS event_time, c.confidence AS confidence,\n` +
+    `       c.session_id AS session_id, c.turn_id AS turn_id, c.turn_index AS turn_index,\n` +
+    `       c.evidence_span AS evidence_span`;
   const text = anchors.map((_, i) => arm(i)).join('\nUNION\n');
   const params: Record<string, unknown> = { history_id: historyId };
   anchors.forEach((vid, i) => (params[`a${i}`] = vid));
