@@ -1,0 +1,15 @@
+# Standalone uv project artifacts.
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Downloaded corpus + index cache live under data/ and are not committed;
+# data/manifest.json is the exception (the re-runnability artifact).
+data/*
+!data/manifest.json
+
+# Run outputs are gitignored EXCEPT the committed report directory.
+out/*
+!out/report/

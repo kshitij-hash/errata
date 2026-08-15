@@ -1,14 +1,43 @@
 [project]
 name = "errata-eval"
-version = "0.0.0"
-description = "Errata evaluation harness (LongMemEval, standalone)."
+version = "0.1.0"
+description = "Errata evaluation harness (LongMemEval, standalone uv project; talks to Errata only over HTTP)."
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "neo4j==6.2.0",
-    "sentence-transformers==5.7.0",
-    "pytest",
-    "ruff==0.16.3",
+    "httpx==0.28.1",
+    "pydantic==2.13.4",
+    "numpy==2.5.2",
+    "huggingface-hub==1.27.0",
+    "orjson==3.12.0",
 ]
+
+[project.optional-dependencies]
+# Heavy, torch-pulling extra. Kept OUT of the default sync so the offline test
+# bar never imports torch. Install with `uv sync --extra embed`.
+embed = ["sentence-transformers==5.7.0"]
+
+[project.scripts]
+errata-eval = "errata_eval.cli:main"
+
+# PEP 735 group. uv installs the `dev` group by default on `uv sync`, so
+# `uv run pytest` is green without pulling the `embed` extra.
+[dependency-groups]
+dev = ["pytest==9.1.1", "ruff==0.16.3"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["errata_eval"]
+
+[tool.uv]
+package = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
