@@ -11,10 +11,11 @@ describe('api — no-DB routes', () => {
     expect(await res.json()).toEqual({ status: 'ok' });
   });
 
-  it('/api/meta exposes the answer model and the prompt sha256', async () => {
+  it('/api/meta exposes the disclosed answer model, Errata mechanism, and the prompt sha256', async () => {
     const res = await app.request('/api/meta');
-    const body = (await res.json()) as { answer_model: string; answer_prompt_sha256: string; schema_version: string };
-    expect(body.answer_model).toBe(ANSWER_MODEL);
+    const body = (await res.json()) as { answer_model: string; answer_mechanism: string; answer_prompt_sha256: string; schema_version: string };
+    expect(body.answer_model).toBeTruthy(); // the disclosed baseline answer model (from config/models.json)
+    expect(body.answer_mechanism).toBe(ANSWER_MODEL); // Errata's own arm is a graph fold
     expect(body.answer_prompt_sha256).toBe(createHash('sha256').update(ANSWER_PROMPT).digest('hex'));
     expect(body.schema_version).toBe('1.1');
   });

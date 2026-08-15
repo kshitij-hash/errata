@@ -57,12 +57,16 @@ app.post('/api/ask', async (c) => {
   return c.json(out);
 });
 
-function modelRoles(): { extractor: string; judge: string } {
+function modelRoles(): { extractor: string; judge: string; answer: string } {
   try {
     const cfg = JSON.parse(readFileSync('config/models.json', 'utf8')) as { roles?: Record<string, { model?: string }> };
-    return { extractor: cfg.roles?.extractor?.model ?? '', judge: cfg.roles?.judge?.model ?? '' };
+    return {
+      extractor: cfg.roles?.extractor?.model ?? '',
+      judge: cfg.roles?.judge?.model ?? '',
+      answer: cfg.roles?.answer?.model ?? '',
+    };
   } catch {
-    return { extractor: '', judge: '' };
+    return { extractor: '', judge: '', answer: '' };
   }
 }
 
@@ -71,7 +75,10 @@ app.get('/api/meta', (c) => {
   if (existsSync(config.lexiconDir)) ingested = readdirSync(config.lexiconDir).filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, ''));
   const roles = modelRoles();
   return c.json({
-    answer_model: ANSWER_MODEL,
+    // the DISCLOSED answer model used by the eval baselines, held constant across arms and asserted
+    // by the eval parity gate; Errata's own arm answers via a graph fold (answer_mechanism).
+    answer_model: roles.answer || ANSWER_MODEL,
+    answer_mechanism: ANSWER_MODEL,
     answer_prompt_sha256: ANSWER_PROMPT_SHA256,
     extractor_model: roles.extractor,
     conflict_judge_model: roles.judge,
