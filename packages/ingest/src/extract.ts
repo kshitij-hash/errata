@@ -101,10 +101,9 @@ export class RuleExtractor implements Extractor {
 
 export class ReplayExtractor implements Extractor {
   readonly model: string;
-  constructor(
-    private readonly fixtureDir: string,
-    model = 'replay@1',
-  ) {
+  private readonly fixtureDir: string;
+  constructor(fixtureDir: string, model = 'replay@1') {
+    this.fixtureDir = fixtureDir;
     this.model = model;
   }
   async extract(history: History): Promise<ExtractedClaim[]> {
