@@ -71,17 +71,38 @@ export function makeDriver(cfg: BoltConfig): Driver {
 }
 
 export class GraphClient {
-  private readonly driver: Driver;
+  private driver: Driver;
+  private readonly cfg: BoltConfig;
   private readonly database: string;
   private bookmarks: string[] = [];
 
   constructor(cfg: BoltConfig) {
+    this.cfg = cfg;
     this.driver = makeDriver(cfg);
     this.database = cfg.database ?? 'default';
   }
 
-  async verify(): Promise<void> {
-    await this.driver.verifyConnectivity();
+  /** Connect, retrying the Bolt handshake. The driver's v2 (manifest) handshake intermittently
+   *  mis-negotiates with HydraDB (a RangeError in its varint read, spec 33 §2.3); recreating the
+   *  driver and retrying clears it. */
+  async verify(attempts = 5): Promise<void> {
+    let lastErr: unknown;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        await this.driver.verifyConnectivity();
+        return;
+      } catch (e) {
+        lastErr = e;
+        try {
+          await this.driver.close();
+        } catch {
+          /* ignore */
+        }
+        this.driver = makeDriver(this.cfg);
+        await new Promise((r) => setTimeout(r, 100 * (i + 1)));
+      }
+    }
+    throw lastErr;
   }
   async close(): Promise<void> {
     await this.driver.close();

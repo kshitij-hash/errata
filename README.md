@@ -6,4 +6,7 @@ An agent-memory layer built on [HydraDB](https://github.com/hydra-db/hydradb) fo
 (Track 3 - Memory & Context Retrieval). All work in this repository starts on or after
 2026-08-12, per hackathon rules.
 
-Status: day 0 - scaffold.
+Status: backend complete — deterministic write path (ingest → belief graph on HydraDB) and the full
+read surface (current belief, as-of, diff, cited answer, calibrated abstention) run end-to-end on
+LongMemEval data. LLM extraction + conflict judge are wired behind the same interfaces, gated on
+OpenRouter credits.

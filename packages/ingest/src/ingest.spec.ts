@@ -53,7 +53,7 @@ describe('deterministic extraction + conflict (the belief-revision demo)', () =>
 
   it('resolves the later pre-approval as superseding the earlier one', async () => {
     const extracted = await new RuleExtractor().extract(H);
-    const prepared = prepareClaims(H, extracted, 1_700_000_000);
+    const prepared = prepareClaims(H, extracted);
     const revision = resolveConflicts(prepared);
     const sup = revision.filter((r) => r.type === 'SUPERSEDES');
     expect(sup).toHaveLength(1);
