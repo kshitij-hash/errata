@@ -244,6 +244,9 @@ function resolveMulti(claims: ClaimRow[], edges: RevisionEdgeRow[]): BeliefResul
   const displaced = new Set(edgesOf(edges, 'SUPERSEDES').map((e) => e.older_id));
   const supporters = new Set(edgesOf(edges, 'SUPPORTS').map((e) => e.newer_id));
   // members coexist; a NEGATE claim is a negation, not a displayable value; a supporter corroborates.
+  // NB: a NEGATE claim is intentionally absent from `heads` and `superseded` — it is a graph artifact
+  // recording *why* a member was retired (the retired member appears in `superseded`); the negation
+  // itself is retrievable via the member's SUPERSEDES edge, not as a belief. (Review P2-21: documented.)
   const heads = claims
     .filter(
       (c) => c.polarity !== 'NEGATE' && !displaced.has(c.claim_id) && !supporters.has(c.claim_id),

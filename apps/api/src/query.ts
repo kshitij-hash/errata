@@ -25,7 +25,7 @@ import {
   tokenF1,
 } from '@errata/core';
 import type { BeliefResult, BeliefValue, ClaimRow, Citation, RevisionEdgeRow, TimeAxis } from '@errata/core';
-import { config } from './deps.js';
+import { beatFixture, config } from './deps.js';
 
 /** local copy of the ingest normalizer (asserted in sync by app.spec); avoids an api→ingest edge. */
 export function normText(s: string): string {
@@ -177,7 +177,15 @@ export async function askQuery(client: GraphClient, historyId: string, question:
   const tokens = contentTokens(question);
   const firstPerson = /\b(i|me|my|myself|mine|we|our)\b/i.test(question.toLowerCase());
   const trace_id = randomUUID();
-  const base = { cost: 0, usage: { prompt_tokens: 0, completion_tokens: 0 }, cypher, vector_baseline: null, trace_id };
+  // the losing pane of demo beat 1: what a vector store returns for this question (served from the
+  // committed bge-small fixture, R4). Only attached when the question matches the fixture's query.
+  const beat = beatFixture();
+  const top = beat?.candidates[0];
+  const vector_baseline =
+    beat && top && tokenF1(tokens, contentTokens(beat.query)) >= 0.5
+      ? { answer: top.text, cosine: top.cosine, citation: top.citation ?? null, embedder: beat.embedder }
+      : null;
+  const base = { cost: 0, usage: { prompt_tokens: 0, completion_tokens: 0 }, cypher, vector_baseline, trace_id };
 
   // resolve anchors (spec 31 §4.7 step 0): lexicon terms + first-person → SELF
   const anchorSet = new Set<number>();

@@ -58,3 +58,18 @@ export function lexicon(historyId: string): Lexicon | null {
   _lex.set(historyId, lex);
   return lex;
 }
+
+// --- the 0.94 beat fixture (bge-small vectors precomputed offline by eval/embed_beat.py, R4) ---
+export interface BeatFixture {
+  query: string;
+  candidates: { text: string; cosine: number; citation?: unknown }[];
+  embedder: string;
+}
+let _beat: BeatFixture | null | undefined;
+export function beatFixture(): BeatFixture | null {
+  if (_beat === undefined) {
+    const path = process.env.ERRATA_BEAT_FIXTURE ?? 'apps/web/fixtures/beat-0.94.json';
+    _beat = existsSync(path) ? (JSON.parse(readFileSync(path, 'utf8')) as BeatFixture) : null;
+  }
+  return _beat;
+}

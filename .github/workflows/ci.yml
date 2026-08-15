@@ -1,0 +1,49 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read # least privilege; nothing here writes, comments, or deploys
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest # Ubuntu 24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      # pnpm/setup@v2 replaces actions/setup-node — it installs pnpm AND Node. The pnpm version
+      # comes from the packageManager field, so it is pinned in exactly one place.
+      - name: Install pnpm and Node.js
+        uses: pnpm/setup@v2.0.2
+        with:
+          runtime: node@24
+          cache: true
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: No version ranges # exact-pin enforcement
+        run: |
+          if grep -rnE '"[^"]+": *"[\^~]' --include=package.json apps packages package.json; then
+            echo "::error::caret/tilde range found — every dependency must be pinned exactly"
+            exit 1
+          fi
+
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Test
+        run: pnpm test
+      - name: Audit
+        run: pnpm audit --prod --audit-level high --ignore-registry-errors
+      - name: License gate
+        run: pnpm licenses

@@ -1,6 +1,6 @@
 // apps/api/src/app.ts — the read-only HTTP surface (contract v1.1, spec 30 §2 / 31 §1.4).
 import { createHash } from 'node:crypto';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { Hono } from 'hono';
 import { ANSWER_MODEL, ANSWER_PROMPT, SCHEMA_VERSION } from '@errata/core';
 import { countLabel } from '@errata/graph';
@@ -57,12 +57,26 @@ app.post('/api/ask', async (c) => {
   return c.json(out);
 });
 
+function modelRoles(): { extractor: string; judge: string } {
+  try {
+    const cfg = JSON.parse(readFileSync('config/models.json', 'utf8')) as { roles?: Record<string, { model?: string }> };
+    return { extractor: cfg.roles?.extractor?.model ?? '', judge: cfg.roles?.judge?.model ?? '' };
+  } catch {
+    return { extractor: '', judge: '' };
+  }
+}
+
 app.get('/api/meta', (c) => {
   let ingested: string[] = [];
   if (existsSync(config.lexiconDir)) ingested = readdirSync(config.lexiconDir).filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, ''));
+  const roles = modelRoles();
   return c.json({
     answer_model: ANSWER_MODEL,
     answer_prompt_sha256: ANSWER_PROMPT_SHA256,
+    extractor_model: roles.extractor,
+    conflict_judge_model: roles.judge,
+    git_sha: process.env.GIT_SHA ?? 'dev',
+    corpus_revision: process.env.ERRATA_CORPUS_REVISION ?? '98d7416c24c778c2fee6e6f3006e7a073259d48f',
     ingested_history_ids: ingested,
     schema_version: SCHEMA_VERSION,
     tau: config.tau,

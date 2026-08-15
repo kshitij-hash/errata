@@ -26,20 +26,19 @@ export interface Completer {
 
 // ---- extraction ----
 
-const ExtractSchema = z.object({
-  claims: z.array(
-    z.object({
-      subject: z.string(),
-      attribute: z.string(),
-      value: z.string(),
-      polarity: z.enum(['AFFIRM', 'NEGATE']),
-      event_time_iso: z.string(), // '' if unknown
-      session_id: z.string(),
-      turn_idx: z.number().int(),
-      evidence_span: z.string(),
-    }),
-  ),
+const ClaimItemSchema = z.object({
+  subject: z.string(),
+  attribute: z.string(),
+  value: z.string(),
+  polarity: z.enum(['AFFIRM', 'NEGATE']),
+  event_time_iso: z.string(), // '' if unknown
+  session_id: z.string(),
+  turn_idx: z.number().int(),
+  evidence_span: z.string(),
 });
+export const ExtractSchema = z.object({ claims: z.array(ClaimItemSchema) });
+// loose request schema so ONE malformed claim salvages the batch — each item is validated per-claim.
+const LooseExtractSchema = z.object({ claims: z.array(z.unknown()) });
 
 const EXTRACT_SYSTEM = [
   'Extract durable personal facts stated by the user as claims.',
@@ -83,31 +82,38 @@ export class LlmExtractor implements Extractor {
       const listing = batch
         .map((b) => `[session_id=${b.sessionId} turn_idx=${b.turn.turnIdx} date=${b.dateIso} role=${b.turn.role}] ${b.turn.text}`)
         .join('\n');
-      const res = await this.completer.complete({
-        role: 'extractor',
-        history_id: history.historyId,
-        unit_id: `${batch[0]!.sessionId}:${batch[0]!.turn.turnIdx}..${batch.at(-1)!.turn.turnIdx}`,
-        run_id: this.runId,
-        schema: ExtractSchema,
-        schemaName: 'claims',
-        messages: [
-          { role: 'system', content: EXTRACT_SYSTEM },
-          { role: 'user', content: listing },
-        ],
-      });
-      const parsed = ExtractSchema.safeParse(res.json);
-      if (!parsed.success) continue; // one repair retry already happened in the client; drop the batch
-      for (const c of parsed.data.claims) {
-        if (!valid.has(`${c.session_id}:${c.turn_idx}`)) continue; // reject a hallucinated citation
+      let claimsRaw: unknown[];
+      try {
+        const res = await this.completer.complete({
+          role: 'extractor',
+          history_id: history.historyId,
+          unit_id: `${batch[0]!.sessionId}:${batch[0]!.turn.turnIdx}..${batch.at(-1)!.turn.turnIdx}`,
+          run_id: this.runId,
+          schema: LooseExtractSchema,
+          schemaName: 'claims',
+          messages: [
+            { role: 'system', content: EXTRACT_SYSTEM },
+            { role: 'user', content: listing },
+          ],
+        });
+        const parsed = LooseExtractSchema.safeParse(res.json);
+        claimsRaw = parsed.success ? parsed.data.claims : [];
+      } catch {
+        continue; // an API/parse failure drops THIS batch only, never the whole history
+      }
+      for (const raw of claimsRaw) {
+        const c = ClaimItemSchema.safeParse(raw); // a malformed claim drops only itself (P2-13)
+        if (!c.success) continue;
+        if (!valid.has(`${c.data.session_id}:${c.data.turn_idx}`)) continue; // reject a hallucinated citation
         out.push({
-          subject: c.subject,
-          attribute: c.attribute,
-          value: c.value,
-          polarity: c.polarity,
-          eventTimeIso: c.event_time_iso,
-          sessionId: c.session_id,
-          turnIdx: c.turn_idx,
-          evidenceSpan: c.evidence_span.slice(0, 160),
+          subject: c.data.subject,
+          attribute: c.data.attribute,
+          value: c.data.value,
+          polarity: c.data.polarity,
+          eventTimeIso: c.data.event_time_iso,
+          sessionId: c.data.session_id,
+          turnIdx: c.data.turn_idx,
+          evidenceSpan: c.data.evidence_span.slice(0, 160),
           confidence: 0.8,
         });
       }
@@ -191,7 +197,7 @@ export async function resolveConflictsWithJudge(prepared: PreparedClaim[], judge
   const edges: RevisionEdgeSpec[] = [];
   const groups = new Map<string, PreparedClaim[]>();
   for (const c of prepared) {
-    const k = `${c.subjectNorm} ${c.attribute}`;
+    const k = `${c.subjectNorm}\u0000${c.attribute}`; // NUL separator (matches build.ts) — no space collisions
     (groups.get(k) ?? groups.set(k, []).get(k)!).push(c);
   }
   const byEvent = (a: PreparedClaim, b: PreparedClaim): number => a.eventTime - b.eventTime || a.claimId - b.claimId;
