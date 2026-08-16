@@ -106,20 +106,73 @@ function hasProperNounProxy(text: string): boolean {
   return false;
 }
 
-/** Deterministic salience gate (spec 31 §3.2). Target retention 35-45% (measured in G2). */
-export function isSalient(turn: Turn, isFirstUserTurnOfSession: boolean): boolean {
+/**
+ * A substantive assistant reply is one long enough to be an ANSWER rather than an acknowledgement.
+ * 40 tokens is the elbow in the corpus: below it the turn is "Sure, happy to help!".
+ */
+export const ASSISTANT_MIN_TOKENS = 40;
+
+/**
+ * How many non-cue assistant replies one session may contribute. 1 = the session's MAIN answer.
+ *
+ * This is a cost dial with a measured setting. Unlimited, salience retention goes 62.5% → 84.3% and
+ * a re-extract of the comparison-150 prices at $8.14; at 1 it goes to 70.6% and $4.5, while the
+ * share of the corpus's gold assistant-evidence turns that survive the gate goes 5/15 → 9/15.
+ * The marginal 2 turns of gold coverage cost $3.60 and were not bought.
+ */
+export const ASSISTANT_MAX_PER_SESSION = 1;
+
+/**
+ * Deterministic salience gate (spec 31 §3.2). Target retention 35-45% (measured in G2).
+ *
+ * G5 — the assistant rule used to be "keep only if it restates a user fact (a CUE)". The failure
+ * taxonomy priced that: all 14 `single-session-assistant` questions in the comparison-150 scored
+ * 0.0% against 92.9% for both baselines, because the thing being asked about ("the 7th job in the
+ * list you gave me", "the move after 27. Kg2") was said BY THE ASSISTANT and never reached the
+ * extractor at all. A substantive assistant reply to a salient user turn is now salient too: it is
+ * the answer half of an exchange the user later asks back about.
+ */
+export function isSalient(
+  turn: Turn,
+  isFirstUserTurnOfSession: boolean,
+  followsSalientUserTurn = false,
+): boolean {
   const contentTokens = tokenize(turn.text);
   if (contentTokens.length < 8) return false; // too short to carry a fact
 
   const cue = CUE.test(turn.text);
-  // assistant turns are mostly generated prose — keep only if they restate a user fact (a cue)
-  if (turn.role === 'assistant' && !cue) return false;
+  if (turn.role === 'assistant') {
+    if (cue) return true; // restates a user fact
+    return followsSalientUserTurn && contentTokens.length >= ASSISTANT_MIN_TOKENS;
+  }
 
-  if (isFirstUserTurnOfSession && turn.role === 'user') return true;
+  if (isFirstUserTurnOfSession) return true;
   if (cue) return true;
   if (NUMERIC.test(turn.text)) return true;
   if (hasProperNounProxy(turn.text)) return true;
   return false;
+}
+
+/**
+ * Salience for a whole session, in order — the ONE place the `followsSalientUserTurn` state lives,
+ * so the structural pass, the rule extractor and the LLM extractor cannot disagree about which
+ * turns are salient (they would silently write claims citing turns marked `salient=false`).
+ */
+export function sessionSalience(turns: readonly Turn[]): boolean[] {
+  const out: boolean[] = [];
+  let firstUser = true;
+  let prevUserSalient = false;
+  let assistantKept = 0;
+  for (const turn of turns) {
+    const isFirstUser = firstUser && turn.role === 'user';
+    if (turn.role === 'user') firstUser = false;
+    const budget = assistantKept < ASSISTANT_MAX_PER_SESSION;
+    const salient = isSalient(turn, isFirstUser, prevUserSalient && budget);
+    if (turn.role === 'user') prevUserSalient = salient;
+    else if (salient && !CUE.test(turn.text)) assistantKept++;
+    out.push(salient);
+  }
+  return out;
 }
 
 /** epoch seconds → 'YYYY-MM-DD'. */

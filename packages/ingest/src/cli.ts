@@ -5,6 +5,7 @@
 // flags: --file <path> --ids-file <json-array> --extractor rule|replay|llm --replay-dir <d> --lexicon-dir <d> --judge
 //        --mem-guard-gb <n> (default 4.5; 0 disables) drain-and-restart the local HydraDB container
 //        at a HISTORY BOUNDARY when its RSS crosses n GiB, instead of letting the kernel SIGKILL it
+//        --aliases  one extractor-model call per history bakes entity/attribute aliases into the lexicon
 //        --history-suffix <s> ingest into a FRESH history-id namespace (`<question_id><s>`). Every
 //        vertex key is history-scoped, so this is a disjoint subgraph: a clean re-ingest that
 //        leaves existing (funded) data for the same question_id completely intact.
@@ -18,6 +19,8 @@ import { NullExtractor, ReplayExtractor, RuleExtractor } from './extract.js';
 import type { Extractor } from './extract.js';
 import { LlmExtractor, makeJudge } from './llm.js';
 import type { ConflictJudge } from './llm.js';
+import { LlmAliasGenerator } from './aliases.js';
+import type { AliasGenerator } from './aliases.js';
 import { ingestHistory } from './pipeline.js';
 
 function arg(name: string, fallback = ''): string {
@@ -108,16 +111,19 @@ async function main(): Promise<void> {
     records = [rec];
   }
 
-  // build the extractor (+ judge)
+  // build the extractor (+ judge, + alias generator)
+  const useAliases = has('aliases');
   let extractor: Extractor;
   let judge: ConflictJudge | undefined;
+  let aliases: AliasGenerator | undefined;
   if (structuralOnly) {
     extractor = new NullExtractor();
-  } else if (extractorName === 'llm' || useJudge) {
+  } else if (extractorName === 'llm' || useJudge || useAliases) {
     const cap = process.env.ERRATA_BUDGET_CAP ? Number(process.env.ERRATA_BUDGET_CAP) : 50;
     const or = new OpenRouterClient({ initialSpent: rollup(defaultLedgerDir(), cap).spent_usd });
     extractor = extractorName === 'llm' ? new LlmExtractor(or, 'llm-extractor') : new RuleExtractor();
     if (useJudge) judge = makeJudge(or, 'ingest');
+    if (useAliases) aliases = new LlmAliasGenerator(or);
   } else {
     extractor = extractorName === 'replay' ? new ReplayExtractor(arg('replay-dir', 'fixtures/replay')) : new RuleExtractor();
   }
@@ -151,12 +157,12 @@ async function main(): Promise<void> {
       // and continue (ingest is MERGE-idempotent, so the failed id can simply be re-run later).
       let s: Awaited<ReturnType<typeof ingestHistory>>;
       try {
-        s = await ingestHistory(client, history, { extractor, judge, lexiconDir });
+        s = await ingestHistory(client, history, { extractor, judge, aliases, lexiconDir });
       } catch (e1) {
         console.error(`  ${history.historyId}: FAILED (${(e1 as Error).message.slice(0, 120)}) — reconnecting for one retry`);
         try {
           await client.verify();
-          s = await ingestHistory(client, history, { extractor, judge, lexiconDir });
+          s = await ingestHistory(client, history, { extractor, judge, aliases, lexiconDir });
         } catch (e2) {
           console.error(`  ${history.historyId}: FAILED TWICE (${(e2 as Error).message.slice(0, 120)}) — skipping`);
           failed.push(history.historyId);

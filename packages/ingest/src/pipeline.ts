@@ -12,6 +12,8 @@ import { buildClaims, prepareClaims, resolveConflicts } from './build.js';
 import type { PreparedClaim, RevisionEdgeSpec } from './build.js';
 import { resolveConflictsWithJudge } from './llm.js';
 import type { ConflictJudge } from './llm.js';
+import { EMPTY_ALIASES } from './aliases.js';
+import type { AliasGenerator } from './aliases.js';
 import { buildLexicon, writeLexicon } from './lexicon.js';
 
 export interface AssembleResult {
@@ -51,6 +53,9 @@ export function assemble(history: History, extracted: Awaited<ReturnType<Extract
 export interface IngestOptions {
   extractor: Extractor;
   judge?: ConflictJudge; // when present, the LLM judge replaces the temporal rule (credit-gated)
+  /** when present, one extra extractor-model call per history bakes entity/attribute aliases into
+   *  the lexicon (G5). Absent → the lexicon is exactly the literal-name index it always was. */
+  aliases?: AliasGenerator;
   ingestTime?: number;
   runId?: string;
   lexiconDir?: string;
@@ -76,7 +81,14 @@ export async function ingestHistory(client: GraphClient, history: History, opts:
   // nothing, and avoids writing 500 empty files during a full-corpus structural pass).
   let lexiconPath = '';
   if (a.entities.length > 0) {
-    lexiconPath = writeLexicon(opts.lexiconDir ?? 'var/lexicon', buildLexicon(history.historyId, a.entities));
+    const attributes = [...new Set(prepared.map((c) => c.attribute))];
+    const aliasSets = opts.aliases
+      ? await opts.aliases.generate(history.historyId, a.entities.map((e) => e.norm), attributes)
+      : EMPTY_ALIASES;
+    lexiconPath = writeLexicon(
+      opts.lexiconDir ?? 'var/lexicon',
+      buildLexicon(history.historyId, a.entities, attributes, aliasSets),
+    );
   }
   return { ...a, historyId: history.historyId, runId, nodeBatches, edgeBatches, bookmark: client.bookmark, lexiconPath };
 }

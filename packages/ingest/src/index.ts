@@ -4,6 +4,7 @@ export * from './text.js';
 export * from './structural.js';
 export * from './extract.js';
 export * from './build.js';
+export * from './aliases.js';
 export * from './lexicon.js';
 export * from './llm.js';
 export * from './pipeline.js';

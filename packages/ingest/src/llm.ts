@@ -7,7 +7,7 @@
 
 import { z } from 'zod';
 import type { History, Turn } from './reader.js';
-import { isSalient } from './text.js';
+import { sessionSalience } from './text.js';
 import type { ExtractedClaim, Extractor } from './extract.js';
 import type { PreparedClaim, RevisionEdgeSpec } from './build.js';
 
@@ -21,6 +21,8 @@ export interface Completer {
     messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
     schema?: z.ZodType;
     schemaName?: string;
+    maxTokens?: number;
+    reasoningEnabled?: boolean;
   }): Promise<{ text: string; json?: unknown }>;
 }
 
@@ -40,27 +42,57 @@ export const ExtractSchema = z.object({ claims: z.array(ClaimItemSchema) });
 // loose request schema so ONE malformed claim salvages the batch — each item is validated per-claim.
 const LooseExtractSchema = z.object({ claims: z.array(z.unknown()) });
 
+/**
+ * The volume bound on one extraction batch, and it is a BUDGET control, not a quality one.
+ *
+ * Extraction cost is ~92% output tokens. A first cut of the broadened prompt below ended with
+ * "prefer many small specific claims", measured 6,077 output tokens per batch (≈7 claims per turn)
+ * and projected $20.72 to re-extract the comparison-150 — 6x the old pass and far past the sprint's
+ * $5 ceiling. Scope and volume are separate dials: the prompt below is BROADER than its predecessor
+ * about what counts as a claim and no looser about how many to emit.
+ */
+const MAX_CLAIMS_PER_BATCH = 10;
+
+/** Hard ceiling behind the prompt's own cap, so a runaway generation cannot bill unbounded. Sized
+ *  well above `MAX_CLAIMS_PER_BATCH` claims of JSON: truncation loses the batch, cost is the point. */
+const EXTRACT_MAX_TOKENS = 2400;
+
+// G5 — the previous prompt asked only for "durable personal facts stated by the user", and the
+// failure taxonomy priced exactly that omission: all 14 `single-session-assistant` questions in the
+// comparison-150 scored 0.0% (both baselines: 92.9%), because what the ASSISTANT told the user was
+// never a claim; and all 8 `single-session-preference` questions scored 0, because a stated
+// preference is not a profile fact. The corpus asks about six things; this prompt names all six.
 const EXTRACT_SYSTEM = [
-  'Extract durable personal facts stated by the user as claims.',
-  'Each claim: subject (usually "the user"), a snake_case attribute (e.g. employer, city_of_residence,',
-  'mortgage_preapproval_amount), a value, polarity AFFIRM or NEGATE, event_time_iso (YYYY-MM-DD or ""),',
-  'and the session_id + turn_idx it came from (copy them from the turn header), and a verbatim',
-  'evidence_span (<=160 chars). Only extract explicitly stated facts. Return {claims:[...]}.',
+  'Extract everything from this chat transcript that could later be asked back about, as claims.',
+  'Cover all of:',
+  '(1) durable personal facts about the user (employer, city_of_residence, car_model);',
+  '(2) quantities, amounts, money, counts, durations and measurements, each with its unit;',
+  '(3) dates, deadlines, plans and intentions;',
+  '(4) preferences, likes, dislikes, and how the user wants to be helped;',
+  '(5) events the user reports (bought X, went to Y, finished Z);',
+  '(6) SUBSTANTIVE CONTENT THE ASSISTANT PROVIDED — recommendations, list items with their position',
+  'in the list, names, figures, steps, moves, chapter or section titles. For these the subject is the',
+  'TOPIC being discussed (e.g. "work from home jobs", "the chess game"), not the user.',
+  'Each claim: subject (use "the user" for anything about the user), a snake_case attribute',
+  '(e.g. employer, total_earned, job_list_item_7, preferred_response_style), a value, polarity AFFIRM',
+  'or NEGATE, event_time_iso (YYYY-MM-DD or ""), the session_id + turn_idx it came from (copy them',
+  'from the turn header), and a verbatim evidence_span (<=160 chars).',
+  'Only extract what the transcript states — never infer, never total up numbers yourself.',
+  `Return AT MOST ${MAX_CLAIMS_PER_BATCH} claims for the whole batch — the ones a person is most`,
+  'likely to ask back about. Do not restate the same fact twice. Return {claims:[...]}.',
 ].join(' ');
 
 const BATCH = 12;
 // independent extraction batches in flight per history; ledger writes are lock-free appends and
 // the graph write happens after ALL batches return, so concurrency here is safe.
-const EXTRACT_CONCURRENCY = 6;
+const EXTRACT_CONCURRENCY = 10;
 
 function salientTurns(history: History): { sessionId: string; dateIso: string; turn: Turn }[] {
   const out: { sessionId: string; dateIso: string; turn: Turn }[] = [];
   for (const s of history.sessions) {
-    let firstUser = true;
-    for (const t of s.turns) {
-      const isFirstUser = firstUser && t.role === 'user';
-      if (t.role === 'user') firstUser = false;
-      if (isSalient(t, isFirstUser)) out.push({ sessionId: s.sessionId, dateIso: s.dateIso, turn: t });
+    const flags = sessionSalience(s.turns);
+    for (const [i, t] of s.turns.entries()) {
+      if (flags[i]) out.push({ sessionId: s.sessionId, dateIso: s.dateIso, turn: t });
     }
   }
   return out;
@@ -104,6 +136,10 @@ export class LlmExtractor implements Extractor {
             // 400 on every unit (G2 finding). The response is still salvaged per-claim below.
             schema: ExtractSchema,
             schemaName: 'claims',
+            maxTokens: EXTRACT_MAX_TOKENS,
+            // hybrid-thinking models otherwise spend the whole budget reasoning and return EMPTY
+            // content: qwen3.7-flash produced 0 claims across 34 batches before this line existed.
+            reasoningEnabled: false,
             messages: [
               { role: 'system', content: EXTRACT_SYSTEM },
               { role: 'user', content: listing },

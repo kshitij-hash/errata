@@ -10,7 +10,7 @@
 
 import { readFileSync } from 'node:fs';
 import type { History, Turn } from './reader.js';
-import { isSalient } from './text.js';
+import { sessionSalience } from './text.js';
 
 export interface ExtractedClaim {
   subject: string; // surface form
@@ -71,12 +71,10 @@ export class RuleExtractor implements Extractor {
   async extract(history: History): Promise<ExtractedClaim[]> {
     const claims: ExtractedClaim[] = [];
     for (const session of history.sessions) {
-      let firstUser = true;
-      for (const turn of session.turns) {
-        const isFirstUser = firstUser && turn.role === 'user';
-        if (turn.role === 'user') firstUser = false;
-        if (turn.role !== 'user') continue; // facts are stated by the user
-        if (!isSalient(turn, isFirstUser)) continue;
+      const flags = sessionSalience(session.turns);
+      for (const [i, turn] of session.turns.entries()) {
+        if (turn.role !== 'user') continue; // the rule extractor only reads user statements
+        if (!flags[i]) continue;
         for (const pat of PATTERNS) {
           pat.re.lastIndex = 0;
           let m: RegExpExecArray | null;

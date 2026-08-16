@@ -8,7 +8,7 @@ import { keys, vid } from '@errata/graph';
 import type { EdgeBatch, NodeBatch } from '@errata/graph';
 import type { History } from './reader.js';
 import { truncate } from './reader.js';
-import { isSalient, tokenize } from './text.js';
+import { sessionSalience, tokenize } from './text.js';
 
 const NA_CONF = -1.0;
 
@@ -49,11 +49,9 @@ export function buildStructural(history: History, runId: string, ingestTime: num
       confidence: NA_CONF, provenance: 'EXTRACTED', run_id: runId,
     });
 
-    let firstUser = true;
-    for (const turn of session.turns) {
-      const isFirstUser = firstUser && turn.role === 'user';
-      if (turn.role === 'user') firstUser = false;
-      const salient = isSalient(turn, isFirstUser);
+    const flags = sessionSalience(session.turns);
+    for (const [i, turn] of session.turns.entries()) {
+      const salient = flags[i]!;
       salience.set(turn.turnId, salient);
       if (salient) salientN++;
 
