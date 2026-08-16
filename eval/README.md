@@ -35,9 +35,13 @@ with a blank verdict column), and `out/judge-controls-scored.jsonl`. It exits 6 
 
     uv run python kappa.py --labels judge-controls-for-human.md   # Cohen's κ, once labelled, $0
 
-**Measured**: FAR 15.0% (9/60) against a ≤10% gate — **failing, published, and not tuned around**;
-superseded-value 0.0% (0/12) against its tighter ≤8% gate; FRR 0.0% (0/60). See
-`judge-validation.md` for the per-family table and the diagnosis.
+**Measured**: FAR **8.3%** (5/60) against a ≤10% gate — 15.0% before a disclosed control-set
+revision that fixed 7 defective controls, with the judge itself untouched; superseded-value
+**0.0%** (0/12) against its tighter ≤8% gate; FRR 0.0% (0/60). Attribution-flip stays the weak
+family at 25.0%. `judge-validation.md` publishes both control sets side by side, the change log,
+and the worst-case envelope for the unparseable verdicts. Re-measuring against a previous run:
+
+    uv run errata-eval judge-validate --prior out/judge-controls-scored-v1.jsonl
 
 ## Two analysis scripts (no new spend)
 

@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import math
 
+from errata_eval.dataset import Question
 from errata_eval.judge_validation import (
     NEGATIVE_FAMILIES,
     ControlItem,
+    _t_attribution_flip,
     cohen_kappa,
     control_items_from_rows,
     evaluate,
@@ -190,3 +192,71 @@ def test_control_items_from_rows_rejects_an_unknown_label() -> None:
         assert "maybe" in str(exc)
     else:  # pragma: no cover - the assertion is the test
         raise AssertionError("an unknown control label must not be silently scored")
+
+
+# --------------------------------------------------------------------------------------------
+# the attribution-flip transform, revised 2026-08-17 (see judge-validation.md's revision log)
+# --------------------------------------------------------------------------------------------
+def _question(question: str, answer: str) -> Question:
+    return Question(
+        question_id="q1",
+        question_type="single-session-user",
+        question=question,
+        question_date="2026/01/01 (Thu) 09:00",
+        answer=answer,
+        abstention=False,
+        ability="single-session",
+        sessions=(),
+        evidence_session_ids=(),
+        evidence_turn_refs=(),
+    )
+
+
+def test_attribution_flip_skips_a_gold_in_the_assistant_own_voice() -> None:
+    # "what did YOU recommend?" -> the gold's "I" IS the assistant, so flipping it to "the
+    # assistant" preserves the meaning and the control asserts nothing wrong.
+    q = _question(
+        "You mentioned a light beer — what type of beer did you specifically recommend?",
+        "I recommended using a Pilsner or Lager for the recipe.",
+    )
+    assert _t_attribution_flip(q) is None
+
+
+def test_attribution_flip_still_fires_when_first_person_is_the_user() -> None:
+    # same first-person gold, but the question asks about the USER's own past — a real flip.
+    q = _question("How many weddings have I attended this year?", "I attended three weddings.")
+    result = _t_attribution_flip(q)
+    assert result is not None
+    candidate, provenance = result
+    assert candidate.startswith("The assistant attended three weddings")
+    assert provenance["scope"] == "party"
+
+
+def test_attribution_flip_moves_the_coreferents_when_the_gold_names_the_party() -> None:
+    # the weak-control defect: flipping only the leading noun leaves "their" pointing at the user,
+    # so the candidate still describes the same preference and tests nothing.
+    q = _question(
+        "Any advice on my cookies?",
+        "The user would prefer responses that build upon their previous experimentation.",
+    )
+    result = _t_attribution_flip(q)
+    assert result is not None
+    candidate, provenance = result
+    assert candidate == (
+        "The assistant would prefer responses that build upon the assistant's "
+        "previous experimentation."
+    )
+    assert "their" not in candidate  # no pronoun left pointing at the original party
+    assert provenance["scope"] == "party+coreferents"
+
+
+def test_a_request_to_the_assistant_is_not_an_assistant_voice_gold() -> None:
+    # "Can you recommend…" is a REQUEST, not a recall of what the assistant said; its gold is
+    # about the user and must still be flippable. Present tense is what separates the two.
+    q = _question(
+        "Can you recommend some conferences that I might find interesting?",
+        "The user would prefer suggestions about artificial intelligence.",
+    )
+    result = _t_attribution_flip(q)
+    assert result is not None
+    assert result[0].startswith("The assistant would prefer")

@@ -377,6 +377,7 @@ def cmd_judge_validate(args: argparse.Namespace) -> int:
     from .judge_validation import (
         CONTROL_SEED,
         control_items_from_rows,
+        control_items_from_scored,
         evaluate,
         preserved_tail,
         render_human_sheet,
@@ -457,6 +458,22 @@ def cmd_judge_validate(args: argparse.Namespace) -> int:
         render_human_sheet(spot, judge_model=judge_model, total_items=len(items)),
         encoding="utf-8",
     )
+    # A revised control set publishes the previous set's numbers beside its own, computed from
+    # that run's own scored rows rather than retyped.
+    prior = None
+    if args.prior:
+        prior_rows = _read_jsonl(Path(args.prior))
+        if not prior_rows:
+            print(f"judge-validate: no prior scored rows at {args.prior}", file=sys.stderr)
+            return 1
+        prior = evaluate(
+            judge_model,
+            control_items_from_scored(prior_rows),
+            far_gate=jv.far_gate,
+            far_gate_superseded=jv.far_gate_superseded,
+            frr_gate=jv.frr_gate,
+        )
+
     validation_path = _eval_dir() / "judge-validation.md"
     body = render_validation_md(
         report,
@@ -466,6 +483,8 @@ def cmd_judge_validate(args: argparse.Namespace) -> int:
         control_seed=CONTROL_SEED,
         spend_usd=spend,
         spot_check_n=jv.spot_check_n,
+        prior=prior,
+        prior_label=args.prior_label,
     )
     # A re-render replaces the measured numbers and keeps the hand-written analysis under them.
     tail = preserved_tail(validation_path.read_text(encoding="utf-8")) if validation_path.exists() else ""
@@ -673,6 +692,8 @@ def build_parser() -> argparse.ArgumentParser:
     jv.add_argument("--negatives", type=Path, default=None)
     jv.add_argument("--positives", type=Path, default=None)
     jv.add_argument("--cache-dir", default=None, help="LLM cache dir ('' disables)")
+    jv.add_argument("--prior", type=Path, default=None, help="a previous scored .jsonl to publish beside this run")
+    jv.add_argument("--prior-label", default="original controls", help="column heading for --prior")
     jv.set_defaults(func=cmd_judge_validate)
 
     rp = sub.add_parser("report", help="emit out/report/table.md + caption")

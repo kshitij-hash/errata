@@ -199,6 +199,27 @@ def build_positive_controls(
     return items
 
 
+def control_items_from_scored(rows: list[dict[str, Any]]) -> list[ControlItem]:
+    """Rehydrate a PREVIOUS scored run (out/judge-controls-scored*.jsonl) for re-evaluation.
+
+    Only the fields the metrics need are carried — kind, family, verdict. This is what lets a
+    revised control set publish the number the previous one produced, from that run's own data,
+    instead of from a figure retyped into a template.
+    """
+    return [
+        ControlItem(
+            question_id=r["question_id"],
+            question="",
+            gold_answer="",
+            candidate="",
+            kind=r["kind"],
+            family=r.get("family") or "",
+            verdict=r.get("verdict", ""),
+        )
+        for r in rows
+    ]
+
+
 def control_items_from_rows(rows: list[dict[str, Any]]) -> list[ControlItem]:
     """Read committed control rows (either half) into scoreable items. Order is preserved."""
     items: list[ControlItem] = []
@@ -464,8 +485,14 @@ def render_validation_md(
     spend_usd: float,
     spot_check_n: int,
     naive_judge_reference: float = 0.6281,
+    prior: ValidationReport | None = None,
+    prior_label: str = "original controls",
 ) -> str:
-    """The published judge-validation write-up (eval/judge-validation.md)."""
+    """The published judge-validation write-up (eval/judge-validation.md).
+
+    ``prior`` publishes a previous control set's numbers beside the current ones. A control set
+    that gets revised has to show both, or the revision is indistinguishable from a quiet re-roll.
+    """
     fam_rows = [
         f"| {fam} | {report.n_by_family.get(fam, 0)} | {report.accepted_by_family.get(fam, 0)} | "
         f"{_pct(report.far_by_family[fam])} | "
@@ -513,6 +540,43 @@ def render_validation_md(
             f"{_gate(report.passes_frr)} |"
         ),
         "",
+        *(
+            [
+                "",
+                "## Both control sets, side by side",
+                "",
+                (
+                    f"The control set was revised after the first measured run; `{prior_label}` is "
+                    "what that run scored. Nothing about the judge changed between these two "
+                    "columns — same model, same prompt sha, same temperature, same token budget. "
+                    "Only defective controls changed, and the change log below says which and why."
+                ),
+                "",
+                f"| Metric | {prior_label} | corrected controls | gate |",
+                "|---|---:|---:|---:|",
+                (
+                    f"| FAR, overall | {_pct(prior.far)} "
+                    f"({prior.n_false_accept}/{prior.n_perturbed}) "
+                    f"| **{_pct(report.far)}** ({report.n_false_accept}/{report.n_perturbed}) "
+                    f"| ≤ {_pct(report.far_gate)} |"
+                ),
+                *[
+                    f"| FAR, {fam} | {_pct(prior.far_by_family.get(fam, float('nan')))} "
+                    f"| {_pct(report.far_by_family.get(fam, float('nan')))} | "
+                    f"{'≤ ' + _pct(report.far_gate_superseded) if fam == 'superseded-value' else '—'} |"
+                    for fam in NEGATIVE_FAMILIES
+                ],
+                (
+                    f"| FRR | {_pct(prior.frr)} ({prior.n_false_reject}/{prior.n_positive}) "
+                    f"| **{_pct(report.frr)}** ({report.n_false_reject}/{report.n_positive}) "
+                    f"| ≤ {_pct(report.frr_gate)} |"
+                ),
+                f"| unparseable | {prior.n_unparseable} | {report.n_unparseable} | — |",
+            ]
+            if prior is not None
+            else []
+        ),
+        "",
         (
             f"Reference point: an independent audit measured **{_pct(naive_judge_reference)}** "
             "false-accept for a naive judge prompt on a comparable control set. That number is why "
@@ -528,7 +592,12 @@ def render_validation_md(
         "",
         (
             f"Unparseable verdicts: {report.n_unparseable} of {total}. An unparseable reply counts "
-            "as a rejection — never as an accept — so it can only hurt FRR, never flatter FAR."
+            "as a rejection — never as an accept — so it can only hurt FRR, never flatter FAR. "
+            "That is the conservative direction, not a free pass: whenever this count is non-zero "
+            "the headline FAR is one end of an envelope whose other end treats every unparseable "
+            "verdict as an accept, and both ends belong in the same paragraph. A reply that stops "
+            "at the judge's `judge_max_tokens` budget is truncation, not a malformed judge — check "
+            "`completion_tokens` in the ledger before concluding anything else."
         ),
         "",
         "## Human agreement (Cohen's κ)",
@@ -598,10 +667,15 @@ _STOPWORDS: frozenset[str] = frozenset(
     }
 )
 
-# Whole-word attribution swaps. In these gold answers first- AND second-person both refer to the
-# USER, so both flip to the assistant (attributing the fact to the wrong party); the bare nouns
-# "user"/"assistant" swap for each other so "The user …" -> "The assistant …" stays grammatical.
-# Applied in ONE pass so tokens map independently and cannot cascade.
+# Whole-word attribution swaps: first- and second-person flip to the assistant (attributing the
+# fact to the wrong party), and the bare nouns "user"/"assistant" swap for each other so
+# "The user …" -> "The assistant …" stays grammatical. Applied in ONE pass so tokens map
+# independently and cannot cascade.
+#
+# REVISED 2026-08-17 after the first measured run (see judge-validation.md). Two defects in this
+# transform were making it mismeasure the judge rather than test it, and both are fixed below by a
+# predicate over the gold/question — never by a list of question ids, which would be selecting
+# controls by the verdict they happened to get.
 _ATTRIBUTION_MAP: dict[str, str] = {
     "myself": "the assistant",
     "mine": "the assistant's",
@@ -615,10 +689,42 @@ _ATTRIBUTION_MAP: dict[str, str] = {
     "user": "assistant",
     "assistant": "user",
 }
-_ATTRIBUTION_RE = re.compile(
-    r"\b(" + "|".join(sorted(_ATTRIBUTION_MAP, key=len, reverse=True)) + r")\b",
+
+# DEFECT 1 — the incomplete flip. When the gold NAMES the party ("The user would prefer responses
+# that build upon THEIR previous experimentation…"), flipping only the leading noun leaves every
+# co-referring pronoun pointing at the original party, and the candidate still describes the same
+# preference. A judge accepting that is not clearly wrong, so the item tests nothing. These golds
+# get the COMPLETE role swap: the named party and the pronouns that co-refer with it.
+_COREF_MAP: dict[str, str] = {
+    "theirs": "the assistant's",
+    "their": "the assistant's",
+    "them": "the assistant",
+    "they": "the assistant",
+}
+_NAMES_PARTY_RE = re.compile(r"\b(?:user|assistant)\b", re.IGNORECASE)
+
+# DEFECT 2 — the no-op flip. When the question asks what the ASSISTANT said ("you mentioned … what
+# did you recommend?"), the gold is in the assistant's voice ("I recommended a Pilsner"), so
+# mapping first person to "the assistant" preserves the meaning exactly: the candidate asserts
+# nothing wrong and the judge is RIGHT to accept it. Such questions are skipped, and the family
+# draws the next eligible one instead of shipping a control that cannot be failed honestly.
+_FIRST_PERSON_RE = re.compile(r"\b(?:I|my|me|mine|myself)\b")
+_ASSISTANT_VOICE_RE = re.compile(
+    r"\byou(?:'ve|\s+have)?\s+(?:\w+\s+){0,2}?"
+    r"(?:mentioned|recommended|suggested|said|told|gave|advised|listed|named|described|shared|"
+    r"provided|offered|proposed)\b",
     re.IGNORECASE,
 )
+
+
+def _attribution_regex(mapping: dict[str, str]) -> re.Pattern[str]:
+    return re.compile(
+        r"\b(" + "|".join(sorted(mapping, key=len, reverse=True)) + r")\b", re.IGNORECASE
+    )
+
+
+_ATTRIBUTION_RE = _attribution_regex(_ATTRIBUTION_MAP)
+_ATTRIBUTION_COREF_RE = _attribution_regex({**_ATTRIBUTION_MAP, **_COREF_MAP})
 
 
 @dataclass(slots=True)
@@ -726,23 +832,31 @@ def _t_value_shift(q: Question) -> tuple[str, dict[str, Any]] | None:
 
 
 def _t_attribution_flip(q: Question) -> tuple[str, dict[str, Any]] | None:
+    # DEFECT 2: an assistant-voice gold cannot be attribution-flipped — skip, do not mismeasure.
+    if _FIRST_PERSON_RE.search(q.answer) and _ASSISTANT_VOICE_RE.search(q.question):
+        return None
+    # DEFECT 1: a gold that names the party gets the complete swap, pronouns included.
+    complete = bool(_NAMES_PARTY_RE.search(q.answer))
+    mapping = {**_ATTRIBUTION_MAP, **_COREF_MAP} if complete else _ATTRIBUTION_MAP
+    pattern = _ATTRIBUTION_COREF_RE if complete else _ATTRIBUTION_RE
     flips: list[tuple[str, str]] = []
 
     def _repl(m: re.Match[str]) -> str:
         word = m.group(0)
-        rep = _ATTRIBUTION_MAP[word.lower()]
+        rep = mapping[word.lower()]
         if word[:1].isupper():
             rep = rep[:1].upper() + rep[1:]
         flips.append((word, rep))
         return rep
 
-    candidate = _ATTRIBUTION_RE.sub(_repl, q.answer)
+    candidate = pattern.sub(_repl, q.answer)
     if not flips or candidate == q.answer:
         return None
     return candidate, {
         "transform": "attribution-flip",
         "source_question_id": q.question_id,
         "flips": flips,
+        "scope": "party+coreferents" if complete else "party",
     }
 
 
