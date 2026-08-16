@@ -163,6 +163,14 @@ export interface AskResult {
   disputed?: boolean;
   confidence: number;
   citations: { session_id: string; turn_index: number; span: string; claim_id?: number }[];
+  /** v1.1 additive (optional): the resolved belief's coordinates — the UI needs them to open the
+   * same chain on /belief and /diff without guessing the subject the fold actually used. */
+  subject?: string;
+  attribute?: string;
+  /** v1.1 additive (optional): the struck predecessors of the answered belief, so the answer card
+   * can show what it supersedes without a second round trip. Empty when nothing was superseded. */
+  superseded?: unknown[];
+  corroboration?: number;
   cost: number;
   usage: { prompt_tokens: number; completion_tokens: number };
   cypher: Cypher[];
@@ -264,6 +272,10 @@ export async function askQuery(client: GraphClient, historyId: string, question:
       disputed: belief.disputed,
       confidence: conf,
       citations,
+      subject: subjectNorm || undefined,
+      attribute: bestAttr,
+      superseded: belief.superseded.map(shapeValue),
+      corroboration: head.corroboration,
       evidence: score,
       latency_ms: latency,
       ...base,
