@@ -58,6 +58,10 @@ services:
       GRAPH_DATA_CACHE_BYTES: "2147483648"           # 2 GiB (default 8 GiB): on an 8 GB Docker VM the
                                                      # node grew until the kernel OOM-killed it (137)
                                                      # mid-way through the sample-150 write load
+      GRAPH_WRITER_LEASE_MS: "5000"                  # default 30s (min 3s). After ANY restart the old
+                                                     # instance's writer lease shadows the cell — the node
+                                                     # is "healthy" but writes fail "cell not owned by this
+                                                     # node" until TTL expiry. 5s shrinks that window.
       GRAPH_AUTH_TOKEN_FILE: /data/auth-token
       GRAPH_ALLOW_PLAINTEXT: "true"                  # TLS is required by default; without this
                                                      # nothing listens in the clear

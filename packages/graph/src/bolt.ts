@@ -172,10 +172,17 @@ export class GraphClient {
         // ServiceUnavailable = the node itself went away (seen: OOM kill mid-load). The compose
         // restart policy brings it back in ~15 s; reconnect and wait it out before retrying.
         const nodeDown = code === 'ServiceUnavailable' || code === 'SessionExpired';
-        if ((!timedOut && !nodeDown) || attempt >= attempts) throw e;
+        // "cell … is not owned by this node" = the writer-lease shadow after a restart: the fresh
+        // node is healthy but cannot own the cell until the previous instance's lease
+        // (GRAPH_WRITER_LEASE_MS) expires. NOT corruption — wait for expiry and retry, never
+        // stampede past it.
+        const leaseShadow = msg.includes('is not owned by this node');
+        if ((!timedOut && !nodeDown && !leaseShadow) || attempt >= attempts) throw e;
         if (nodeDown) {
           await new Promise((r) => setTimeout(r, 15_000 * attempt)); // 15s/30s/45s: container restart window
           await this.verify(); // recreates the driver; throws only if the node stays down
+        } else if (leaseShadow) {
+          await new Promise((r) => setTimeout(r, 8000 * attempt)); // 8s/16s/24s covers a 30s default lease
         } else {
           await new Promise((r) => setTimeout(r, 2000 * 2 ** (attempt - 1))); // 2s/4s/8s: let compaction drain
         }
