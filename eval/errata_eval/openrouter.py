@@ -258,7 +258,10 @@ class OpenRouterClient:
     def _sleep_backoff(attempt: int, retry_after: str | None = None) -> None:
         if retry_after:
             try:
-                time.sleep(float(retry_after))
+                # CAP the honored Retry-After: a server once sent 3600 and put the whole run into an
+                # hour-long sleep with zero progress signal. Waiting >90 s per attempt is worse than
+                # burning an attempt — the outer loop still bounds total attempts.
+                time.sleep(min(float(retry_after), 90.0))
                 return
             except ValueError:
                 pass

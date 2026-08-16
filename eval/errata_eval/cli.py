@@ -146,7 +146,7 @@ def _completed_keys(path: Path) -> set[tuple[str, int, str]]:
 
 def cmd_run(args: argparse.Namespace) -> int:
     config = _load_config(args)
-    run_id = _run_id(config)
+    run_id = args.run_id or _run_id(config)
     seeds = [int(s) for s in args.seeds.split(",")] if args.seeds else config.run.seeds
     n = (
         config.sample.full_n
@@ -480,6 +480,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--seeds", default=None, help="comma-separated, e.g. 11,22,33")
     r.add_argument("--set", default="comparison", choices=["comparison", "full", "smoke"])
     r.add_argument("--resume", action="store_true")
+    r.add_argument("--run-id", default=None, help="write into out/<run-id>/ (resume an existing dir)")
     r.add_argument("--verify", action="store_true", help="sha256-gate the corpus first")
     r.set_defaults(func=cmd_run)
 
