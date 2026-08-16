@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { keys } from '@errata/graph';
 import { resolveBelief } from '@errata/core';
 import type { ClaimRow, RevisionEdgeRow } from '@errata/core';
 import { parseHistory } from './reader.js';
@@ -6,7 +7,7 @@ import type { RawRecord } from './reader.js';
 import { RuleExtractor } from './extract.js';
 import { prepareClaims, resolveConflicts } from './build.js';
 import { assemble } from './pipeline.js';
-import { isSalient } from './text.js';
+import { NORM_VERSION, isSalient, normValue } from './text.js';
 import { buildLexicon } from './lexicon.js';
 
 const REC: RawRecord = {
@@ -109,5 +110,72 @@ describe('assemble — full batch shape', () => {
     expect(lex.self.length).toBeGreaterThan(0);
     expect(lex.terms['i']).toEqual(lex.self);
     expect(lex.terms['wells']).toBeDefined(); // the mention entity is retrievable by name token
+  });
+});
+
+// B5 — the demo history was double-ingested and one attribute ended up holding `$400,000` and
+// `400000 USD` as two claim vertices. Re-ingesting the SAME history must never grow the graph:
+// every vertex id is a pure function of (history, normalization version, position, normalized
+// text), so a second load is a MERGE onto the same ids and the counts do not move. These tests
+// pin exactly that, and pin that the normalization version is what a normalizer change moves.
+describe('re-ingest idempotence (B5)', () => {
+  const idsOf = (a: ReturnType<typeof assemble>): { nodes: Map<string, number[]>; edges: Map<string, number[]> } => ({
+    nodes: new Map(a.nodes.map((n) => [n.label, n.rows.map((r) => Number(r.id)).sort((x, y) => x - y)])),
+    edges: new Map(a.edges.map((e) => [e.type, e.rows.map((r) => Number(r.id)).sort((x, y) => x - y)])),
+  });
+
+  it('ingesting the same history twice yields identical vertex counts and identical ids', async () => {
+    const extracted = await new RuleExtractor().extract(H);
+    const first = assemble(H, extracted, { model: 'rule@1', runId: 'run-one', ingestTime: 1_700_000_000 });
+    // a genuinely separate run: different run id, different ingest clock, re-parsed history
+    const second = assemble(parseHistory(REC), await new RuleExtractor().extract(parseHistory(REC)), {
+      model: 'rule@1',
+      runId: 'run-two',
+      ingestTime: 1_800_000_000,
+    });
+
+    expect(second.counts).toEqual(first.counts);
+    const a = idsOf(first);
+    const b = idsOf(second);
+    expect([...b.nodes.keys()]).toEqual([...a.nodes.keys()]);
+    for (const [label, ids] of a.nodes) expect(b.nodes.get(label), label).toEqual(ids);
+    for (const [type, ids] of a.edges) expect(b.edges.get(type), type).toEqual(ids);
+
+    // the union of both runs' vertex ids is the size of ONE run: the second load adds nothing
+    const union = new Set([...a.nodes.values(), ...b.nodes.values()].flat());
+    const single = new Set([...a.nodes.values()].flat());
+    expect(union.size).toBe(single.size);
+  });
+
+  it('every claim id is distinct within a run (no accidental MERGE of two claims onto one vertex)', async () => {
+    const extracted = await new RuleExtractor().extract(H);
+    const a = assemble(H, extracted, { model: 'rule@1', runId: 'r', ingestTime: 1 });
+    const claimIds = a.nodes.find((n) => n.label === 'Claim')!.rows.map((r) => Number(r.id));
+    expect(new Set(claimIds).size).toBe(claimIds.length);
+  });
+
+  it('normValue collapses the same amount written two ways onto ONE claim key (the B5 defect)', () => {
+    // the rule extractor wrote `$400,000`; the LLM extractor wrote `400000 USD` — same sentence,
+    // same turn, same fact. v1 keyed them apart and the chain forked.
+    expect(normValue('$400,000')).toBe('400000 usd');
+    expect(normValue('400000 USD')).toBe('400000 usd');
+    expect(normValue('$400,000')).toBe(normValue('400000 USD'));
+    const k = (v: string): string => keys.claim('h1', 'the user', 'mortgage_preapproval_amount', normValue(v), 36, 0, NORM_VERSION);
+    expect(k('$400,000')).toBe(k('400000 USD'));
+    expect(k('$400,000')).not.toBe(k('$350,000'));
+  });
+
+  it('normValue stays narrow — it never invents a currency or merges unlike values', () => {
+    expect(normValue('400000 EUR')).toBe('400000 eur'); // currencies stay distinct
+    expect(normValue('400000')).toBe('400000'); // no marker, no guess
+    expect(normValue('about 30')).toBe('about 30'); // a phrase is left alone
+    expect(normValue('400000 miles')).toBe('400000 miles');
+    expect(normValue('Wells Fargo')).toBe('wells fargo');
+    expect(normValue('')).toBe('');
+  });
+
+  it('a normalization-version bump re-keys claims instead of colliding with the old generation', () => {
+    const args = ['h1', 'the user', 'mortgage_preapproval_amount', '400 000', 31, 0] as const;
+    expect(keys.claim(...args, NORM_VERSION)).not.toBe(keys.claim(...args, NORM_VERSION + 1));
   });
 });

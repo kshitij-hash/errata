@@ -19,7 +19,9 @@ interface AttributeSpec {
 const SPECS: readonly AttributeSpec[] = [
   // --- FUNCTIONAL: single-valued facts about the subject ---
   { canonical: 'employer', arity: 'FUNCTIONAL', synonyms: ['company', 'workplace', 'works_at', 'employed_by'] },
-  { canonical: 'job_title', arity: 'FUNCTIONAL', synonyms: ['title', 'role', 'position', 'occupation', 'profession'] },
+  // `current_job_title` is what the LLM extractor actually names this attribute on the demo
+  // history; without the synonym the same fact lands unregistered (and therefore MULTI).
+  { canonical: 'job_title', arity: 'FUNCTIONAL', synonyms: ['title', 'role', 'position', 'occupation', 'profession', 'current_job_title', 'current_title', 'current_role'] },
   { canonical: 'city_of_residence', arity: 'FUNCTIONAL', synonyms: ['city', 'lives_in', 'residence', 'home_city', 'current_city'] },
   { canonical: 'country_of_residence', arity: 'FUNCTIONAL', synonyms: ['country', 'home_country'] },
   { canonical: 'home_address', arity: 'FUNCTIONAL', synonyms: ['address', 'street_address'] },

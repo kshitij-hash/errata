@@ -64,7 +64,10 @@ describe('key builders (spec 31 §7 tests 5, 6)', () => {
     expect(keys.turn('h1', 5, 7)).toBe('h:h1|s:5|t:7');
     expect(keys.speaker('h1', 'user')).toBe('h:h1|sp:user');
     expect(keys.entity('h1', 'acme corp')).toBe('h:h1|e:acme corp');
-    expect(keys.claim('h1', 'the user', 'employer', 'globex', 9, 4)).toMatch(/^h:h1\|c:[0-9a-f]{16}$/);
+    expect(keys.claim('h1', 'the user', 'employer', 'globex', 9, 4, 1)).toMatch(/^h:h1\|c:[0-9a-f]{16}$/);
+    expect(keys.correction('h1', 'the user', 'employer', 'globex', 42, 1_700_000_000_000, 1)).toMatch(
+      /^h:h1\|uc:[0-9a-f]{16}$/,
+    );
     expect(keys.edge('SUPERSEDES', 'h:h1|c:aa', 'h:h1|c:bb')).toBe('edge:SUPERSEDES:h:h1|c:aa:h:h1|c:bb');
   });
 
@@ -76,7 +79,21 @@ describe('key builders (spec 31 §7 tests 5, 6)', () => {
   it('rejects delimiter injection in free segments (injectivity guard)', () => {
     expect(() => keys.entity('h1', 'x|e:y')).toThrow(/must not contain/);
     // Claim inner text fields are guarded too, so a "a|b"/"c" vs "a"/"b|c" ambiguity cannot arise.
-    expect(() => keys.claim('h1', 'a|b', 'c', 'v', 0, 0)).toThrow(/must not contain/);
+    expect(() => keys.claim('h1', 'a|b', 'c', 'v', 0, 0, 1)).toThrow(/must not contain/);
+  });
+
+  it('the normalization version is part of the claim key (B5)', () => {
+    // a normalizer bump must move the whole generation of claim ids, never silently collide
+    expect(keys.claim('h1', 'the user', 'employer', 'globex', 9, 4, 1)).not.toBe(
+      keys.claim('h1', 'the user', 'employer', 'globex', 9, 4, 2),
+    );
+    expect(keys.correction('h1', 'the user', 'employer', 'globex', 42, 1_700_000_000_000, 1)).not.toBe(
+      keys.correction('h1', 'the user', 'employer', 'globex', 42, 1_700_000_000_000, 2),
+    );
+    // a repeat correction at a later instant is a DIFFERENT vertex — corrections append
+    expect(keys.correction('h1', 'the user', 'employer', 'globex', 42, 1_700_000_000_000, 1)).not.toBe(
+      keys.correction('h1', 'the user', 'employer', 'globex', 42, 1_700_000_000_001, 1),
+    );
   });
 
   it('mint carries both id and key', () => {

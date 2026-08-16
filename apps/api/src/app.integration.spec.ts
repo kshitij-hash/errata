@@ -1,12 +1,12 @@
-// Live API test against the ingested demo history (run `node packages/ingest/dist/cli.js 852ce960`
-// against a running stack first). Gated on ERRATA_IT=1.
+// Live API test against the ingested demo history (see the README quickstart for the two ingest
+// passes that build `852ce960-clean`, against a running stack). Gated on ERRATA_IT=1.
 import { describe, it, expect, beforeAll } from 'vitest';
 import type { Hono } from 'hono';
 
 const RUN = process.env.ERRATA_IT === '1';
-const HID = '852ce960';
+const HID = process.env.ERRATA_DEMO_HISTORY || '852ce960-clean';
 
-describe.skipIf(!RUN)('api — live demo beats on 852ce960', () => {
+describe.skipIf(!RUN)('api — live demo beats on the demo history', () => {
   let app: Hono;
   beforeAll(async () => {
     process.env.ERRATA_DEMO_HISTORY = HID;
@@ -31,7 +31,7 @@ describe.skipIf(!RUN)('api — live demo beats on 852ce960', () => {
     });
     const a = (await res.json()) as { answer?: string; abstained?: boolean; citations: { session_id: string; turn_index: number; span: string }[]; cypher: unknown[]; trace_id: string };
     expect(a.answer).toBe('$400,000');
-    expect(a.abstained).toBeUndefined();
+    expect(a.abstained).toBe(false); // contract v1.1: `abstained` is ALWAYS present
     expect(a.citations[0]!.session_id).toBe('answer_3a6f1e82_2');
     expect(typeof a.citations[0]!.turn_index).toBe('number'); // integer, never a string-split of turn_id
     expect(Array.isArray(a.cypher)).toBe(true); // the executed Cypher is surfaced

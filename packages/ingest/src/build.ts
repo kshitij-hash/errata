@@ -12,7 +12,7 @@ import { resolveAttribute } from '@errata/core';
 import type { Arity, Relation, TimeBasis } from '@errata/core';
 import type { History } from './reader.js';
 import type { ExtractedClaim } from './extract.js';
-import { epochToIso, isoToEpoch, normText } from './text.js';
+import { NORM_VERSION, epochToIso, isoToEpoch, normText, normValue } from './text.js';
 
 const SELF = new Set(['the user', 'i', 'me', 'user', 'myself', 'my']);
 
@@ -71,7 +71,7 @@ export function prepareClaims(history: History, extracted: ExtractedClaim[]): Pr
     const subjectNorm = normText(c.subject);
     if (!subjectNorm) continue;
     const { name: attribute, arity, registered } = resolveAttribute(c.attribute);
-    const valueNorm = normText(c.value);
+    const valueNorm = normValue(c.value);
     if (!valueNorm) continue;
     const ordinal = c.sessionOrdinal ?? firstOrdinal.get(c.sessionId) ?? 0;
     const session = byOrdinal.get(ordinal);
@@ -87,7 +87,7 @@ export function prepareClaims(history: History, extracted: ExtractedClaim[]): Pr
       eventTimeIso = session?.dateIso ?? '';
       timeBasis = eventTime > -1 ? 'SESSION_DATE' : 'UNKNOWN';
     }
-    const claimKey = keys.claim(history.historyId, subjectNorm, attribute, valueNorm, ordinal, c.turnIdx);
+    const claimKey = keys.claim(history.historyId, subjectNorm, attribute, valueNorm, ordinal, c.turnIdx, NORM_VERSION);
     out.push({
       claimId: vid(claimKey),
       claimKey,
@@ -304,12 +304,12 @@ export interface CorrectionBuild {
 /** Assemble the two rows a user correction appends: the Claim, and its SUPERSEDES edge. */
 export function buildCorrection(input: CorrectionInput): CorrectionBuild {
   const h = input.historyId;
-  const valueNorm = normText(input.value);
+  const valueNorm = normValue(input.value);
   if (!valueNorm) throw new Error('buildCorrection: value normalizes to empty');
   const eventTime = Math.floor(input.atMillis / 1000);
   const eventTimeIso = epochToIso(eventTime);
   const { name: attribute, arity, registered } = resolveAttribute(input.attribute);
-  const claimKey = keys.correction(h, input.subjectNorm, attribute, valueNorm, input.supersedesClaimId, input.atMillis);
+  const claimKey = keys.correction(h, input.subjectNorm, attribute, valueNorm, input.supersedesClaimId, input.atMillis, NORM_VERSION);
   const claimId = vid(claimKey);
   const runId = `correction-${input.atMillis}`;
 

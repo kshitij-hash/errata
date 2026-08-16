@@ -2,6 +2,21 @@
 
 import type { Turn } from './reader.js';
 
+/**
+ * The version of `normText` that claim natural keys are minted under (B5). It is an INPUT to
+ * `keys.claim`, so two claims normalized by different generations of this function can never land
+ * on the same vertex, and one claim can never silently split across two.
+ *
+ * BUMP THIS whenever `normText` or `normValue` changes. A bump re-keys every claim, so it also
+ * means a re-ingest.
+ *
+ * v2 — `normValue` canonicalizes monetary amounts. v1 keyed the demo history's pre-approval on the
+ * raw surface form, so the rule extractor's `$400,000` and the LLM extractor's `400000 USD` — the
+ * same sentence, the same turn, the same fact — minted two claim vertices, each superseding
+ * `$350,000`, and the answer card had to hide one of them (B5).
+ */
+export const NORM_VERSION = 2;
+
 /** lowercase, strip punctuation to spaces, collapse whitespace, trim. Removes the id delimiter `|`. */
 export function normText(s: string): string {
   return s
@@ -9,6 +24,51 @@ export function normText(s: string): string {
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+// Currency markers a monetary value can carry. The symbol is read from the RAW string, because
+// normText strips punctuation and would otherwise lose the only signal `$400,000` has.
+const CURRENCY_SYMBOL: readonly [RegExp, string][] = [
+  [/\$/, 'usd'],
+  [/€/, 'eur'],
+  [/£/, 'gbp'],
+  [/¥/, 'jpy'],
+];
+const WORD_TO_CODE: Readonly<Record<string, string>> = {
+  usd: 'usd', dollar: 'usd', dollars: 'usd',
+  eur: 'eur', euro: 'eur', euros: 'eur',
+  gbp: 'gbp', pound: 'gbp', pounds: 'gbp', 'pound sterling': 'gbp', 'pounds sterling': 'gbp',
+  jpy: 'jpy', yen: 'jpy',
+  cad: 'cad', aud: 'aud', chf: 'chf',
+  inr: 'inr', rupee: 'inr', rupees: 'inr',
+};
+
+/**
+ * Value normalization for the claim natural key (NORM_VERSION 2).
+ *
+ * `normText`, then one extra rule: a value that is ONLY a number plus (optionally) a currency
+ * marker is canonicalized to `<digits> <iso-code>`. That collapses `$400,000` and `400000 USD` —
+ * the same amount written by two extractors — onto one claim vertex, which is what B5 was about.
+ *
+ * It is deliberately narrow. A value with any other word in it ("about 30", "400000 miles") is
+ * left exactly as `normText` produced it, and two amounts in different currencies stay distinct.
+ * A bare `400000` with no marker at all also stays distinct from `$400,000`: guessing a currency
+ * that the corpus never wrote would be inventing evidence.
+ */
+export function normValue(s: string): string {
+  const base = normText(s);
+  if (!base) return base;
+  const tokens = base.split(' ');
+  const digits: string[] = [];
+  const words: string[] = [];
+  for (const t of tokens) (/^\d+$/.test(t) ? digits : words).push(t);
+  if (digits.length === 0) return base;
+  const wordCode = words.length > 0 ? WORD_TO_CODE[words.join(' ')] : '';
+  if (words.length > 0 && !wordCode) return base; // not a bare amount — leave it alone
+  const symbol = CURRENCY_SYMBOL.find(([re]) => re.test(s))?.[1] ?? '';
+  const code = symbol || wordCode || '';
+  const amount = digits.join('');
+  return code ? `${amount} ${code}` : amount;
 }
 
 /** Parse a LongMemEval date like "2023/08/11 (Fri) 00:01" → { iso, epoch(seconds) }. */

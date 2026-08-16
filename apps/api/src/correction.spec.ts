@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { keys, vid } from '@errata/graph';
+import { NORM_VERSION } from '@errata/ingest';
 import type { EdgeBatch, NodeBatch, Stmt } from '@errata/graph';
 import { CorrectionError, correctionWrite } from './correction.js';
 import type { WriteClient } from './correction.js';
@@ -16,8 +17,8 @@ const AT_MS = 1_786_900_000_000;
 const entityKey = keys.entity(HISTORY, SUBJECT);
 const entityId = vid(entityKey);
 
-const OLDER_KEY = keys.claim(HISTORY, SUBJECT, ATTRIBUTE, '350 000', 3, 2);
-const HEAD_KEY = keys.claim(HISTORY, SUBJECT, ATTRIBUTE, '400 000', 31, 0);
+const OLDER_KEY = keys.claim(HISTORY, SUBJECT, ATTRIBUTE, '350000 usd', 3, 2, NORM_VERSION);
+const HEAD_KEY = keys.claim(HISTORY, SUBJECT, ATTRIBUTE, '400000 usd', 31, 0, NORM_VERSION);
 const OLDER_ID = vid(OLDER_KEY);
 const HEAD_ID = vid(HEAD_KEY);
 
@@ -31,8 +32,8 @@ function claimRow(id: number, key: string, value: string, valueNorm: string, eve
 }
 
 const CLAIMS = [
-  claimRow(OLDER_ID, OLDER_KEY, '$350,000', '350 000', 1_691_712_000, 2),
-  claimRow(HEAD_ID, HEAD_KEY, '$400,000', '400 000', 1_701_304_560, 0),
+  claimRow(OLDER_ID, OLDER_KEY, '$350,000', '350000 usd', 1_691_712_000, 2),
+  claimRow(HEAD_ID, HEAD_KEY, '$400,000', '400000 usd', 1_701_304_560, 0),
 ];
 const SUPERSEDES_EDGES = [
   { newer_id: HEAD_ID, older_id: OLDER_ID, ingest_time: 1_786_800_000, confidence: 0.7, provenance: 'INFERRED', judge_status: 'NONE', rationale: 'later statement supersedes earlier' },
@@ -90,7 +91,7 @@ describe('POST /api/correction — the rows it appends', () => {
     const out = await correctionWrite(s, req());
     const row = s.written[0]!.nodes[0]!.rows[0]!;
 
-    const expectedKey = keys.correction(HISTORY, SUBJECT, ATTRIBUTE, '425 000', HEAD_ID, AT_MS);
+    const expectedKey = keys.correction(HISTORY, SUBJECT, ATTRIBUTE, '425000 usd', HEAD_ID, AT_MS, NORM_VERSION);
     expect(row).toEqual({
       id: vid(expectedKey),
       key: expectedKey,
@@ -101,7 +102,7 @@ describe('POST /api/correction — the rows it appends', () => {
       arity: 'FUNCTIONAL',
       attribute_registered: true,
       value_text: '$425,000',
-      value_norm: '425 000',
+      value_norm: '425000 usd', // normValue canonicalizes the amount (NORM_VERSION 2)
       polarity: 'AFFIRM',
       event_time: Math.floor(AT_MS / 1000),
       event_time_iso: '2026-08-16',

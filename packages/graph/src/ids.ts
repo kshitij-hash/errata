@@ -65,6 +65,10 @@ export const keys = {
   entity: (historyId: string, normName: string): string =>
     `h:${seg('history_id', historyId)}|e:${seg('norm_name', normName)}`,
 
+  // `normVersion` is the version of the normalizer that produced `subjectNorm`/`valueNorm`
+  // (packages/ingest NORM_VERSION). It is part of the key so that a change to normalization can
+  // never silently merge two differently-normalized claims onto one vertex, nor split one claim
+  // across two: bump the version and the whole generation of claim ids moves together, visibly.
   claim: (
     historyId: string,
     subjectNorm: string,
@@ -72,11 +76,12 @@ export const keys = {
     valueNorm: string,
     ordinal: number,
     turnIdx: number,
+    normVersion: number,
   ): string => {
     const inner = `${seg('subject_norm', subjectNorm)}|${seg('attribute', attribute)}|${seg(
       'value_norm',
       valueNorm,
-    )}|${ordinal}|${turnIdx}`;
+    )}|${ordinal}|${turnIdx}|nv:${normVersion}`;
     return `h:${seg('history_id', historyId)}|c:${b16(inner)}`;
   },
 
@@ -92,11 +97,12 @@ export const keys = {
     valueNorm: string,
     supersedesId: number,
     atMillis: number,
+    normVersion: number,
   ): string => {
     const inner = `${seg('subject_norm', subjectNorm)}|${seg('attribute', attribute)}|${seg(
       'value_norm',
       valueNorm,
-    )}|${supersedesId}|${atMillis}`;
+    )}|${supersedesId}|${atMillis}|nv:${normVersion}`;
     return `h:${seg('history_id', historyId)}|uc:${b16(inner)}`;
   },
 

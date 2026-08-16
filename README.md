@@ -73,11 +73,15 @@ mkdir -p data-raw && curl -L -o data-raw/longmemeval_s_cleaned.json \
 
 pnpm stack:up                             # HydraDB + MinIO on 127.0.0.1 (healthy in ~10s)
 
-node packages/ingest/dist/cli.js 852ce960                  # ingest the demo history (deterministic claims)
+# ingest the demo history into its own history-id namespace. Two passes: the LLM extractor for
+# breadth, then the rule extractor for the two mortgage facts it nails. Both land on the SAME
+# claim vertices where they agree — value normalization is version-pinned into the claim key.
+node packages/ingest/dist/cli.js 852ce960 --extractor llm --judge --history-suffix -clean
+node packages/ingest/dist/cli.js 852ce960 --extractor rule --history-suffix -clean
 # optional — the whole 500-history corpus, structural pass only (zero LLM, ~5 min):
 #   node packages/ingest/dist/cli.js --all --structural-only
 
-ERRATA_DEMO_HISTORY=852ce960 node apps/api/dist/index.js &  # API on 127.0.0.1:8787
+ERRATA_DEMO_HISTORY=852ce960-clean node apps/api/dist/index.js &  # API on 127.0.0.1:8787
 
 # the demo: a pre-approval amount that was revised $350,000 → $400,000
 curl -s 'http://127.0.0.1:8787/api/belief?subject=the%20user&attribute=mortgage_preapproval_amount'

@@ -5,6 +5,9 @@
 // flags: --file <path> --ids-file <json-array> --extractor rule|replay|llm --replay-dir <d> --lexicon-dir <d> --judge
 //        --mem-guard-gb <n> (default 4.5; 0 disables) drain-and-restart the local HydraDB container
 //        at a HISTORY BOUNDARY when its RSS crosses n GiB, instead of letting the kernel SIGKILL it
+//        --history-suffix <s> ingest into a FRESH history-id namespace (`<question_id><s>`). Every
+//        vertex key is history-scoped, so this is a disjoint subgraph: a clean re-ingest that
+//        leaves existing (funded) data for the same question_id completely intact.
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { GraphClient } from '@errata/graph';
@@ -73,6 +76,7 @@ async function main(): Promise<void> {
   const all = has('all');
   const extractorName = arg('extractor', 'rule');
   const lexiconDir = arg('lexicon-dir', 'var/lexicon');
+  const historySuffix = arg('history-suffix');
   const useJudge = has('judge');
   const url = process.env.HYDRA_BOLT_URL ?? 'bolt://127.0.0.1:7687';
   const token = process.env.HYDRA_TOKEN ?? readFileSync('.data/hydra/auth-token', 'utf8').trim();
@@ -132,7 +136,10 @@ async function main(): Promise<void> {
     const failed: string[] = [];
     const memGuardGb = Number(arg('mem-guard-gb', '4.5'));
     for (const rec of records) {
-      const history = parseHistory(rec);
+      const parsed = parseHistory(rec);
+      // a fresh namespace is just a fresh history_id: every key is `h:<history_id>|…`, so the
+      // re-ingest shares no vertex with the original and destroys nothing.
+      const history = historySuffix ? { ...parsed, historyId: `${parsed.historyId}${historySuffix}` } : parsed;
       if (memGuardGb > 0) {
         const gib = nodeMemGiB();
         if (gib > memGuardGb) {

@@ -156,3 +156,56 @@ claims key on the positional ordinal (`packages/graph/src/ids.ts`); session_id i
 count(*)` scans the whole label (246K Turn nodes) per call — seconds each on the full graph. It is
 admin-only (`/api/meta/health`), never on the id-anchored demo path, but do not move it onto a hot
 path without batching/caching it.
+
+## G4 — the demo history's forked claim chain (2026-08-16) — FIXED BY RE-INGEST, NOTHING DELETED
+
+**Symptom (B5).** `mortgage_preapproval_amount` on the demo history held BOTH `$400,000` and
+`400000 USD` as separate claim vertices, each superseding `$350,000`. The answer card had to hide
+one of them (`lib/format.ts: sameValue`) so the hero answer did not read "$400,000, superseding
+400000 USD, superseding $350,000".
+
+**Root cause — value normalization, not double ingest.** `852ce960` was ingested by three passes
+(two LLM runs and one rule run). The rule extractor wrote `$400,000`; the LLM extractor wrote
+`400000 USD` — the same sentence, the same session, the same turn index, the same fact. `normText`
+strips the `$` and the comma but leaves the digit grouping and the trailing currency word, so the
+two surface forms produced different `value_norm`, hence different claim natural keys, hence two
+vertices. Multiple extractors over one history is legitimate and useful (the rule pass is what
+nails the two mortgage facts; the LLM pass supplies the other 149 claims) — what was broken is that
+two spellings of one amount could not meet on one vertex.
+
+**Fixes, each at its causal layer:**
+
+| Layer | Fix |
+|---|---|
+| Value identity (root) | `normValue` (packages/ingest/src/text.ts) canonicalizes a bare monetary amount to `<digits> <iso-code>`, reading the currency symbol off the RAW string before `normText` eats it. `$400,000` and `400000 USD` → `400000 usd` → ONE vertex. Deliberately narrow: any other word in the value leaves it untouched, currencies stay distinct, and a marker-free `400000` is never assigned a currency it never had |
+| Silent re-keying | the normalizer's version (`NORM_VERSION`, now 2) is an INPUT to `keys.claim` / `keys.correction`, so a normalization change moves a whole generation of claim ids visibly instead of silently merging or splitting claims |
+| Lexicon clobber | `writeLexicon` MERGES into the lexicon already on disk. It used to overwrite, so in a two-extractor ingest whichever pass ran last narrowed the ask path's anchors to its own entities |
+| Attribute drift | `current_job_title` added to the `job_title` synonyms — the LLM extractor's own name for it on this history, previously landing unregistered |
+| Regression | `ingest.spec.ts` "re-ingest idempotence (B5)": assembling the same history twice yields identical counts AND identical vertex ids, so a second load adds nothing; plus `normValue` behaviour and the version-bump re-key |
+
+**Method — a fresh namespace, not a wipe.** The ruling's wipe branch did not apply: today's funded
+runs are in this graph (G3: 150 histories LLM-extracted + judged, $3.44, plus the full-500
+structural store from Block A). Every vertex key is history-scoped (`h:<history_id>|…`), so the
+clean re-ingest went into its own history-id namespace, `852ce960-clean` (`errata-ingest
+--history-suffix`), a disjoint subgraph. **Nothing was wiped and nothing was deleted**; the original
+`852ce960` and all 150 funded histories are untouched and still served. `ERRATA_DEMO_HISTORY` now
+points at `852ce960-clean` (`.env.example`, `apps/web/config/demo-sessions.json`).
+
+Both passes replayed entirely from the on-disk LLM cache: ledger total **$3.4404 before and after**
+— the re-ingest cost **$0.00**.
+
+**Counts — `852ce960` (before) vs `852ce960-clean` (after):**
+
+| | Session | Turn | Speaker | Entity | Claim | SUPERSEDES | CONTRADICTS | SUPPORTS |
+|---|---|---|---|---|---|---|---|---|
+| before (3 passes, NORM_VERSION 1) | 39 | 396 | 2 | 30 | 199 | 4 | 0 | 1 |
+| after (2 passes, NORM_VERSION 2) | 39 | 396 | 2 | 24 | 151 | 1 | 0 | 1 |
+
+The before row is the live graph as found, which includes **2 claims + 2 SUPERSEDES edges appended
+by the `POST /api/correction` smoke test** on the unused `battery_life_trend` attribute (extraction
+alone accounted for 197 claims / 2 SUPERSEDES). The 48-claim drop is the un-reproducible first LLM
+run (`r-852ce960-1786872342`, the free-form 45-claim pass that predates the strict-schema fix in
+G2) plus the collapsed duplicate; the one attribute the demo needed from it, `job_title`, is
+recovered by the registry synonym above. `mortgage_preapproval_amount` is now a two-claim,
+single-threaded chain — `$400,000` superseding `$350,000` — and the API serves it with one
+predecessor instead of two.
