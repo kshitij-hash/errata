@@ -78,6 +78,46 @@ one extractor, so chains stay single-threaded there.
 **Throughput.** 133 s/history sequential → extraction batches now run 6-wide per history
 (order-preserving slots), and the CLI gained `--ids-file` for the eval's sample-150 run.
 
+## G3 — sample-150 funded ingest + the OOM/lease root cause (2026-08-16) — PASS, RCA COMPLETE
+
+All 150 eval-sample histories ingested with LLM extraction + conflict judge (150/150 verified
+serving claims; $3.44 total spend, every response disk-cached so every replay was $0). Getting
+there surfaced a chain of substrate failures; the root cause was found and fixed, not worked around.
+
+**Root cause — writer-lease churn re-opens SlateDB and ratchets RSS to OOM.** The node holds a
+writer lease per cell (`GRAPH_WRITER_LEASE_MS`, default 30 s). When no write lands within the TTL
+it demotes its writer; the NEXT write runs `writer.promote`, which **re-opens the entire SlateDB
+database** (manifest read, WAL fence, fresh allocations). Measured: 22 re-opens in ~10 min (lease
+generation 25→46), RSS flat at 4.9 GiB at idle afterwards — ~200 MB retained per re-open, never
+returned. Our ingest interleaves 30–90 s LLM gaps between write bursts, so the default lease
+churned once per history → hundreds of re-opens across a run → RSS climb → the 8 GB Docker VM's
+kernel SIGKILLs the node (`OOMKilled=true`, exit 137).
+
+**Cascade 2 — the image ships `StopTimeout=1`.** Every docker stop/restart SIGKILLed the node after
+ONE second, so even "graceful" restarts never flushed or released the lease (zero shutdown lines in
+any log all day). The killed instance's lease then shadows the cell: the fresh node reports healthy
+(readyz does not test write ownership) but rejects writes with `cell cell-0 is not owned by this
+node` until TTL expiry.
+
+**Cascade 3 — client stampede.** The CLI failed each history in ~2 s and moved on, burning 45
+histories through a 30 s shadow instead of waiting once. "Persistent corruption" was actually a
+30-second wait-condition raced at 2 s per attempt.
+
+**Fixes (each at its causal layer):**
+| Layer | Fix |
+|---|---|
+| Lease churn (root) | `GRAPH_WRITER_LEASE_MS=120000` — outlives the LLM gaps; writer stays promoted, no re-opens |
+| 1 s SIGKILL | compose `stop_grace_period: 60s` — first clean `"graph node stopped"` ever logged; post-restart write OK in 132 ms, shadow gone |
+| Shadow stampede | `writeWithRetry` treats `is not owned by this node` as a wait-condition (20/40/60 s backoff) |
+| Memory ceiling | ingest CLI `--mem-guard-gb` polls node RSS per history; graceful drain-and-restart at a HISTORY BOUNDARY before the kernel acts |
+| Query timeout | 30 s `Transaction.Terminated` on MERGE batches under compaction debt → idempotent retry 2/4/8 s |
+| Data-model bug (ours) | claim whose value entity == subject entity emitted two ABOUT edges with one id → HydraDB idempotency-key conflict; SUBJECT wins now |
+| Strict-output 400s (ours) | loose `items:{}` schema rejected by OpenAI strict mode per unit; strict `ExtractSchema` on the request tripled extraction recall (52→149 claims on the demo) |
+
+**Deploy note:** the pod must carry the same posture — long writer lease, real stop grace, a memory
+watchdog — and the churn finding is worth an upstream report: lease demotion on write-idle plus
+re-open-on-promote is a memory ratchet on any bursty writer.
+
 ## Block B — the "unhealthy" HydraDB container (2026-08-16) — FIXED
 
 `errata-hydradb-1` reported `unhealthy` (FailingStreak 667) while serving correctly (live suite
