@@ -88,6 +88,20 @@ describe('assemble — full batch shape', () => {
     for (const nb of a.nodes) for (const row of nb.rows) for (const v of Object.values(row)) expect(v).not.toBeUndefined();
   });
 
+  it('emits ONE ABOUT edge when the value resolves to the subject entity (SUBJECT wins, no id clash)', () => {
+    // subject "Ethan" + proper-noun value "Ethan" → same entity on both ends of ABOUT; two rows
+    // with the same edge id and differing `role` made HydraDB reject the batch (G2 sample-150).
+    const a = assemble(
+      H,
+      [{ subject: 'Ethan', attribute: 'nickname', value: 'Ethan', polarity: 'AFFIRM', eventTimeIso: '', sessionId: 's1', turnIdx: 0, evidenceSpan: 'ethan', confidence: 0.8 }],
+      { model: 'rule@1', runId: 'r1', ingestTime: 1_700_000_000 },
+    );
+    const aboutRows = a.edges.filter((b) => b.type === 'ABOUT').flatMap((b) => b.rows) as { id: number; role: string }[];
+    const ids = aboutRows.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length); // no duplicate edge ids
+    expect(aboutRows.filter((r) => r.role === 'SUBJECT')).toHaveLength(1);
+  });
+
   it('builds a lexicon that anchors first-person questions to the SELF entity', async () => {
     const extracted = await new RuleExtractor().extract(H);
     const a = assemble(H, extracted, { model: 'rule@1', runId: 'r1', ingestTime: 1_700_000_000 });

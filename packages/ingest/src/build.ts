@@ -205,10 +205,15 @@ export function buildClaims(
     const subj = ensureEntity(c.subject, etypeOf(c.subjectNorm));
     about.push(aboutRow(c.claimId, c.claimKey, subj.id, subj.key, 'SUBJECT', h, c.eventTime, c.eventTimeIso, ingestTime, c.confidence, runId));
 
-    // proper-noun value → mention entity + ABOUT(MENTION), so it is retrievable by that name
+    // proper-noun value → mention entity + ABOUT(MENTION), so it is retrievable by that name.
+    // When the value resolves to the SUBJECT's own entity (e.g. subject "Ethan", value "Ethan"),
+    // SUBJECT wins: both rows would share the same edge id (same endpoints) with a differing
+    // `role`, and HydraDB rejects the batch as an idempotency-key conflict (G2 sample-150 finding).
     if (isProperNoun(c.value)) {
       const ve = ensureEntity(c.value, 'ORG');
-      about.push(aboutRow(c.claimId, c.claimKey, ve.id, ve.key, 'MENTION', h, c.eventTime, c.eventTimeIso, ingestTime, c.confidence, runId));
+      if (ve.id !== subj.id) {
+        about.push(aboutRow(c.claimId, c.claimKey, ve.id, ve.key, 'MENTION', h, c.eventTime, c.eventTimeIso, ingestTime, c.confidence, runId));
+      }
     }
 
     // STATED_IN: Claim → Turn (keyed by session ordinal, matching the structural Turn node)
