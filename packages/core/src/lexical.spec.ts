@@ -76,6 +76,15 @@ describe('lexTokens', () => {
     ]);
   });
 
+  it('keeps a hyphenated compound AND its closed form', () => {
+    const t = lexTokens('How much was I pre-approved for?');
+    expect(t).toContain('pre'); // the split halves
+    expect(t).toContain('approv');
+    expect(t).toContain('preapprov'); // and the closed compound, stemmed
+    // the closed form is what lets a hyphenating question meet a closed-spelled stored value
+    expect(lexTokens('preapproved for 400000')).toContain('preapprov');
+  });
+
   it('makes a question and a differently-inflected claim share tokens', () => {
     const q = new Set(lexTokens('How much money did I earn at the markets?'));
     const claim = lexTokens('market earnings: earned $495 selling at three markets');

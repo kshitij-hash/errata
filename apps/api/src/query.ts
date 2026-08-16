@@ -15,10 +15,13 @@ import {
 } from '@errata/graph';
 import type { GraphClient, Stmt } from '@errata/graph';
 import {
+  attributeSynonyms,
   bigrams,
   contentTokens,
+  coverage,
   decide,
   diffChain,
+  idfWeights,
   isRegistered,
   lexTokens,
   rankByRelevance,
@@ -410,13 +413,15 @@ export async function askQuery(client: GraphClient, historyId: string, question:
   // asymmetric (a claim is rewarded for covering the ask, not punished for being long); and a claim
   // whose attribute the write-side aliases say this question is asking about is boosted.
   const ATTR_FOCUS_BOOST = 0.25;
+  /** attribute weight when picking the BELIEF's coordinates (the material uses W_BODY/W_ATTR). */
+  const W_ATTR_LED = 0.7;
   const cands = claimRows.map((r, i) => {
     const attribute = String(r.attribute);
     const aliasWords = (lex?.attrAliases?.[attribute] ?? []).join(' ');
     return {
       attribute,
       value: String(r.value),
-      attrTokens: lexTokens(`${attribute.replace(/_/g, ' ')} ${aliasWords}`),
+      attrTokens: lexTokens(`${attribute.replace(/_/g, ' ')} ${attributeSynonyms(attribute).join(' ')} ${aliasWords}`),
       bodyTokens: lexTokens(`${attribute.replace(/_/g, ' ')} ${String(r.value)} ${String(r.evidence_span ?? '')}`),
       focus: focusAttrs.has(attribute),
       _i: i,
@@ -434,8 +439,28 @@ export async function askQuery(client: GraphClient, historyId: string, question:
       span: c._row.evidence_span,
     }));
 
-  const best = ranked[0]?._row;
-  const bestSc = ranked[0]?.s ?? 0;
+  // The MATERIAL is body-dominant (above); the BELIEF COORDINATES are not. Picking the belief from
+  // `ranked[0]` regressed the flagship: "How much was I pre-approved for by Wells Fargo?" scores the
+  // lender claim highest on body coverage — the question names the lender — and the answer card then
+  // opened `mortgage_lender` with no struck predecessor instead of `mortgage_preapproval_amount`
+  // with its $350,000. The question's head noun names the ATTRIBUTE, so the attribute term leads
+  // here, mirroring the retired `attrFit`. Nothing about the material or the answer text depends on
+  // this choice — only `subject`/`attribute`/`superseded`/`claim_confidence` and E's `s` do.
+  const idfForBelief = idfWeights(cands.map((c) => c.bodyTokens));
+  let bestCand: (typeof cands)[number] | undefined;
+  let bestSc = 0;
+  for (const c of cands) {
+    const s =
+      W_ATTR_LED * coverage(qLex, new Set(c.attrTokens), idfForBelief) +
+      (1 - W_ATTR_LED) * coverage(qLex, new Set(c.bodyTokens), idfForBelief) +
+      (c.focus ? ATTR_FOCUS_BOOST : 0);
+    if (s > bestSc) {
+      bestSc = s;
+      bestCand = c;
+    }
+  }
+  const best = (bestCand ?? ranked[0])?._row;
+  if (!bestCand && ranked[0]) bestSc = ranked[0].s;
   dbg.claim_rows = claimRows.length;
   dbg.attributes = [...new Set(claimRows.map((r) => String(r.attribute)))];
   dbg.focus_attributes = [...focusAttrs];

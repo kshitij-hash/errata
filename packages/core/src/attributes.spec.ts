@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAttribute, isRegistered, normalizeAttributeToken } from './attributes.js';
+import { attributeSynonyms, resolveAttribute, isRegistered, normalizeAttributeToken } from './attributes.js';
 
 describe('attribute registry (spec 31 §7 tests 8-10)', () => {
   it('8: normalizes case / whitespace / punctuation / synonyms to the canonical name', () => {
@@ -24,5 +24,13 @@ describe('attribute registry (spec 31 §7 tests 8-10)', () => {
     expect(resolveAttribute('mortgage_preapproval_amount').arity).toBe('FUNCTIONAL');
     expect(resolveAttribute('hobby').arity).toBe('MULTI');
     expect(resolveAttribute('allergy').arity).toBe('MULTI');
+  });
+
+  it('exposes the registry synonyms as words, for the ask path\'s attribute vocabulary', () => {
+    // the flagship question says "pre-approved"; the attribute spells it closed. The registry is
+    // where that equivalence is already written down, so the ask path reads it rather than guessing.
+    expect(attributeSynonyms('mortgage_preapproval_amount')).toContain('pre approved amount');
+    expect(attributeSynonyms('employer')).toContain('works at');
+    expect(attributeSynonyms('favorite_color_of_car')).toEqual([]); // unregistered: no vocabulary
   });
 });

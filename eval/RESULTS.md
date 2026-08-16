@@ -1,7 +1,7 @@
 # Results — LongMemEval comparison-150 (2026-08-17)
 
 Runs: `rerunD-g5` (Errata, v3 — span-aware retrieval + broadened extraction) · `rerunB-nothink`
-(full-context) · `rerunC-nothink` (naive top-k). Total eval spend $11.67 reported (judge
+(full-context) · `rerunC-nothink` (naive top-k). Total eval spend $12.10 reported (judge
 claude-sonnet-5); Errata's own ingest ledger stands at $8.18 against a $50 cap.
 
 **Headline: Errata leads overall (53.3 vs 47.5 full-context and 45.8 naive) at 1/52nd the context
@@ -23,6 +23,19 @@ abstention is scored separately and deterministically as P/R. Errata's `$/Q` is 
 — the v2 synthesis step pays for ~2,095 prompt tokens per question and the column rounds to four
 decimals. Errata's arm is bit-identical across the three seeds (0 of 150 questions changed answer
 or verdict), which is what its ±0.0 means; the baselines' spread is provider nondeterminism.
+
+**One post-run change, disclosed.** After `rerunD-g5` was judged, a regression was found in the
+v1.1 *additive* fields `subject` / `attribute` / `superseded`: picking the belief's coordinates from
+the top-ranked material claim made the flagship demo question ("How much was I pre-approved for by
+Wells Fargo?") open `mortgage_lender` instead of `mortgage_preapproval_amount`, losing its struck
+`$350,000`. Fixed by scoring the belief's attribute attribute-led rather than body-led, and by
+letting the attribute registry's own synonyms into the ask path's vocabulary. It cannot change an
+answer — the material and the synthesis prompt do not depend on it — and that was verified rather
+than asserted: **`rerunE-g5` re-ran all 450 rows against the fixed build and differs from
+`rerunD-g5` in 0 of 450 answers**, and was independently re-judged to the identical scores. The
+table above stays on `rerunD-g5` because `rerunE-g5` answered entirely from the warm answer cache,
+which makes its latency (p95 0.34s) unrepresentative. The τ sweep below is from `rerunE-g5`, since
+the evidence score is the one recorded field the fix does move.
 
 Counting every one of the 450 rows — a gold-abstention question is right iff the arm abstained,
 every other row iff the judge said CORRECT — the same three runs read **Errata 61.3, naive 56.2,
@@ -83,17 +96,17 @@ sampler takes all 30 into the comparison set by design (`sample.abstention_whole
 abstention-positive example the corpus owns is inside the reported test set. A τ chosen against them
 is chosen in-sample, and calling it "fitted on held-out data" would be false.
 
-Published instead is a sensitivity sweep (`uv run python tau_sweep.py --run rerunD-g5`, also
+Published instead is a sensitivity sweep (`uv run python tau_sweep.py --run rerunE-g5`, also
 `out/tau-sweep.md`), which treats τ as a veto on the synthesis answer:
 
 | τ | overall % | answered | answered-precision % | abstention P | abstention R |
 |---:|---:|---:|---:|---:|---:|
 | 0.20 | 61.3 | 273 | 70.3 | 0.47 | 0.93 |
 | 0.30 | 61.3 | 273 | 70.3 | 0.47 | 0.93 |
-| 0.35 ←shipped | 61.3 | 273 | 70.3 | 0.47 | 0.93 |
-| 0.40 | 61.3 | 267 | 71.9 | 0.46 | 0.93 |
-| 0.45 | 59.3 | 255 | 71.8 | 0.43 | 0.93 |
-| 0.50 | 54.7 | 219 | 74.0 | 0.36 | 0.93 |
+| 0.35 ←shipped | 61.3 | 270 | 71.1 | 0.47 | 0.93 |
+| 0.40 | 60.0 | 264 | 70.5 | 0.45 | 0.93 |
+| 0.45 | 58.7 | 252 | 71.4 | 0.42 | 0.93 |
+| 0.50 | 55.3 | 213 | 76.1 | 0.37 | 0.97 |
 
 The shipped number sits on a plateau, not a knife edge: τ can move ±0.05 either way and the table
 does not change. That plateau is itself new. On the previous run the same veto at τ = 0.35 would
@@ -109,7 +122,7 @@ the same span-aware relevance the retrieval uses, and why the sweep ships beside
     uv run errata-eval judge --run rerunD-g5
     uv run errata-eval report --runs rerunD-g5 rerunB-nothink rerunC-nothink
     uv run python failure_review.py --run rerunD-g5 --compare naive=rerunC-nothink
-    uv run python tau_sweep.py --run rerunD-g5
+    uv run python tau_sweep.py --run rerunE-g5
 
 The failure taxonomy behind every number above is `out/failure-taxonomy.md`; the write-path changes
 that produced them are `docs/gauntlets.md` §G5.

@@ -96,11 +96,22 @@ function pad(v: string): string {
   return v.length === 1 ? `0${v}` : v;
 }
 
+/**
+ * A hyphenated compound also yields its closed form: `pre-approved` → `pre`, `approved`,
+ * `preapproved`. Without it a question that hyphenates cannot meet an attribute that spells the
+ * same word closed (`mortgage_preapproval_amount`), which is a spelling accident, not a meaning.
+ */
+function withClosedCompounds(text: string): string {
+  let out = text;
+  for (const m of text.matchAll(/([a-z]{2,})-([a-z]{2,})/g)) out += ` ${m[1]}${m[2]}`;
+  return out;
+}
+
 /** The ask path's token bag: canonicalize numbers, drop stopwords, stem. Order-preserving, deduped. */
 export function lexTokens(text: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const raw of contentTokens(canonicalizeNumbers(text))) {
+  for (const raw of contentTokens(withClosedCompounds(canonicalizeNumbers(text)))) {
     const t = stem(raw);
     if (!seen.has(t)) {
       seen.add(t);

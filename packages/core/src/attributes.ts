@@ -83,3 +83,15 @@ export function resolveAttribute(raw: string): ResolvedAttribute {
 export function isRegistered(raw: string): boolean {
   return LOOKUP.has(normalizeAttributeToken(raw));
 }
+
+/**
+ * The registry's own synonyms for an attribute, as words — the curated half of the ask path's
+ * attribute vocabulary (the other half is generated per history at ingest, see ingest/aliases.ts).
+ * `mortgage_preapproval_amount` yields `pre approved amount`, which is how a person asks for it.
+ * Unregistered attributes have none, which is the honest answer: nobody has written them down.
+ */
+export function attributeSynonyms(raw: string): string[] {
+  const spec = LOOKUP.get(normalizeAttributeToken(raw));
+  if (!spec) return [];
+  return spec.synonyms.map((s) => s.replace(/_/g, ' '));
+}

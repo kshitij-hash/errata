@@ -318,12 +318,25 @@ rather than a knife edge. On the *previous* run the same veto at τ = 0.35 would
 from 51.3 to 35.3 — E and τ were on different scales, and a veto is not something to switch on
 quietly. Reasoning and table: `eval/RESULTS.md`.
 
+### One regression found after the run, and how it was closed
+
+Picking the BELIEF's coordinates from the top-ranked material claim broke the flagship demo: "How
+much was I pre-approved for by Wells Fargo?" names the lender, so the lender claim wins on body
+coverage, and the answer card opened `mortgage_lender` with no struck predecessor instead of
+`mortgage_preapproval_amount` with its $350,000. The answer text was right throughout — only the
+v1.1 additive coordinates were wrong. Fixed by scoring the belief attribute-led (0.7 attribute /
+0.3 body) while the material stays body-led, and by letting the attribute registry's own synonyms
+(`pre approved amount`) into the ask path's vocabulary alongside the generated ones. Verified rather
+than asserted: `rerunE-g5` re-ran all 450 rows on the fixed build, **0 of 450 answers differ** from
+`rerunD-g5`, and an independent re-judge reproduced every published number. `rerunD-g5` stays the
+run of record because `rerunE-g5` answered from a warm cache and its latency is not representative.
+
 ### Spend
 
-Sprint incremental **$5.16**: $0.53 exploratory (including the $20.72-projected prompt and the two
+Sprint incremental **$5.59**: $0.53 exploratory (including the $20.72-projected prompt and the two
 rejected extractors), $4.19 re-extraction + alias pass over 150 histories, $0.01 for 450 answers
-(**$0.000021/question**), $0.43 judge. Ingest ledger $8.18 of a $50 cap; eval ledger $11.67 of a
-$13.00 cap. Six disposable probe namespaces (`-g5probe`, `-g5b`, `-g5q`, `-g5q2`, `-g5ds`, `-g5f`)
+(**$0.000021/question**), $0.87 judge across the two runs. Ingest ledger $8.18 of a $50 cap; eval
+ledger $12.10 of a $13.00 cap. Six disposable probe namespaces (`-g5probe`, `-g5b`, `-g5q`, `-g5q2`, `-g5ds`, `-g5f`)
 are left in the store: nothing points at them, and there is no deletion path.
 
 The re-extraction was an **append into the same history namespaces**, not a wipe — every old claim
