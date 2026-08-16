@@ -188,7 +188,9 @@ runs are in this graph (G3: 150 histories LLM-extracted + judged, $3.44, plus th
 structural store from Block A). Every vertex key is history-scoped (`h:<history_id>|…`), so the
 clean re-ingest went into its own history-id namespace, `852ce960-clean` (`errata-ingest
 --history-suffix`), a disjoint subgraph. **Nothing was wiped and nothing was deleted**; the original
-`852ce960` and all 150 funded histories are untouched and still served. `ERRATA_DEMO_HISTORY` now
+`852ce960` and all 150 funded histories are untouched and still served. One discarded intermediate
+namespace, `852ce960-r2`, was written before the `normValue` fix landed and is likewise left in
+place — disposable dev storage, and nothing points at it. `ERRATA_DEMO_HISTORY` now
 points at `852ce960-clean` (`.env.example`, `apps/web/config/demo-sessions.json`).
 
 Both passes replayed entirely from the on-disk LLM cache: ledger total **$3.4404 before and after**
@@ -201,9 +203,11 @@ Both passes replayed entirely from the on-disk LLM cache: ledger total **$3.4404
 | before (3 passes, NORM_VERSION 1) | 39 | 396 | 2 | 30 | 199 | 4 | 0 | 1 |
 | after (2 passes, NORM_VERSION 2) | 39 | 396 | 2 | 24 | 151 | 1 | 0 | 1 |
 
-The before row is the live graph as found, which includes **2 claims + 2 SUPERSEDES edges appended
-by the `POST /api/correction` smoke test** on the unused `battery_life_trend` attribute (extraction
-alone accounted for 197 claims / 2 SUPERSEDES). The 48-claim drop is the un-reproducible first LLM
+Both rows are the live graph as found, and both include claims appended by the `POST /api/correction`
+smoke tests on the unused `battery_life_trend` attribute — 2 claims + 2 SUPERSEDES edges in the
+before row (ingest alone: 197 claims / 2 SUPERSEDES), 1 claim + 1 SUPERSEDES edge in the after row
+(ingest alone: 151 claims / 1 SUPERSEDES). They are left where they are rather than cleaned up:
+there is no deletion path, and that is the point. The 48-claim drop is the un-reproducible first LLM
 run (`r-852ce960-1786872342`, the free-form 45-claim pass that predates the strict-schema fix in
 G2) plus the collapsed duplicate; the one attribute the demo needed from it, `job_title`, is
 recovered by the registry synonym above. `mortgage_preapproval_amount` is now a two-claim,
