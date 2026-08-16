@@ -32,7 +32,7 @@ export function normText(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 /** attributes are stored canonically; normalize a query attribute the way the extractor did. */
-function normAttr(raw: string): string {
+export function normAttr(raw: string): string {
   return raw.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
 

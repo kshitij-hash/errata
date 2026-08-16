@@ -41,6 +41,9 @@ importers:
       '@errata/graph':
         specifier: workspace:*
         version: link:../../packages/graph
+      '@errata/ingest':
+        specifier: workspace:*
+        version: link:../../packages/ingest
       '@errata/llm':
         specifier: workspace:*
         version: link:../../packages/llm

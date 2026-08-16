@@ -12,7 +12,7 @@ import { resolveAttribute } from '@errata/core';
 import type { Arity, Relation, TimeBasis } from '@errata/core';
 import type { History } from './reader.js';
 import type { ExtractedClaim } from './extract.js';
-import { isoToEpoch, normText } from './text.js';
+import { epochToIso, isoToEpoch, normText } from './text.js';
 
 const SELF = new Set(['the user', 'i', 'me', 'user', 'myself', 'my']);
 
@@ -255,6 +255,103 @@ export function buildClaims(
   const edges = allEdges.filter((b) => b.rows.length > 0);
 
   return { nodes, edges, entities: [...entityMap.values()].map((e) => ({ norm: e.norm, id: e.id, key: e.key, etype: e.etype })) };
+}
+
+// ---------- user corrections (the ONE mutating HTTP path, apps/api POST /api/correction) ----------
+//
+// A correction is not a new kind of write: it is the SAME append the extractor performs, with the
+// user as the extractor. It emits exactly two rows — one Claim vertex and one SUPERSEDES edge to
+// the claim it displaces — and they go through `GraphClient.loadTwoPhase` like every other batch.
+// Nothing is updated in place, nothing is deleted; the displaced claim keeps its vertex, its
+// citation and its confidence, and only gains an inbound revision edge.
+
+/** provenance is EXTRACTED (a person asserted it), and the "extractor" is named as such. */
+export const CORRECTION_MODEL = 'user-correction';
+export const CORRECTION_CONFIDENCE = 0.99;
+/** corrections have no transcript turn; the citation is the correction itself (turn_index = -1). */
+export const CORRECTION_SESSION_ID = 'user-correction';
+
+export interface CorrectionInput {
+  historyId: string;
+  /** surface form of the subject, as the answer resolved it */
+  subject: string;
+  /** normalized subject — must equal the target Entity's norm_name */
+  subjectNorm: string;
+  /** the subject Entity vertex id (already present; corrections never mint entities) */
+  entityId: number;
+  entityKey: string;
+  /** canonical attribute name (already registry-resolved by the caller's normalizer) */
+  attribute: string;
+  /** the corrected value, verbatim as the user typed it */
+  value: string;
+  /** the current head claim this correction displaces */
+  supersedesClaimId: number;
+  supersedesClaimKey: string;
+  /** wall-clock of the correction, ms since epoch (identity + event_time) */
+  atMillis: number;
+}
+
+export interface CorrectionBuild {
+  nodes: NodeBatch[];
+  edges: EdgeBatch[];
+  claimId: number;
+  claimKey: string;
+  edgeId: number;
+  eventTime: number;
+  runId: string;
+}
+
+/** Assemble the two rows a user correction appends: the Claim, and its SUPERSEDES edge. */
+export function buildCorrection(input: CorrectionInput): CorrectionBuild {
+  const h = input.historyId;
+  const valueNorm = normText(input.value);
+  if (!valueNorm) throw new Error('buildCorrection: value normalizes to empty');
+  const eventTime = Math.floor(input.atMillis / 1000);
+  const eventTimeIso = epochToIso(eventTime);
+  const { name: attribute, arity, registered } = resolveAttribute(input.attribute);
+  const claimKey = keys.correction(h, input.subjectNorm, attribute, valueNorm, input.supersedesClaimId, input.atMillis);
+  const claimId = vid(claimKey);
+  const runId = `correction-${input.atMillis}`;
+
+  const claimRow: Record<string, unknown> = {
+    id: claimId, key: claimKey, history_id: h, subject: input.subject, subject_norm: input.subjectNorm,
+    attribute, arity, attribute_registered: registered, value_text: input.value, value_norm: valueNorm,
+    polarity: 'AFFIRM', event_time: eventTime, event_time_iso: eventTimeIso, ingest_time: eventTime,
+    time_basis: 'EXPLICIT', confidence: CORRECTION_CONFIDENCE, provenance: 'EXTRACTED',
+    session_id: CORRECTION_SESSION_ID, turn_id: `${CORRECTION_SESSION_ID}:-1`, turn_index: -1,
+    evidence_span: `corrected by the user to ${input.value}`, extractor_model: CORRECTION_MODEL,
+    judge_status: 'NONE', run_id: runId,
+  };
+
+  // ABOUT(SUBJECT) is what makes the appended claim visible to the belief read, which is anchored
+  // on the Entity. The Entity itself is NOT written — corrections attach to an entity that exists.
+  const aboutKey = keys.edge('ABOUT', claimKey, input.entityKey);
+  const aboutRowOut: Record<string, unknown> = {
+    id: vid(aboutKey), src: claimId, dst: input.entityId, key: aboutKey, history_id: h, role: 'SUBJECT',
+    event_time: eventTime, event_time_iso: eventTimeIso, ingest_time: eventTime,
+    confidence: CORRECTION_CONFIDENCE, provenance: 'EXTRACTED', run_id: runId,
+  };
+
+  const supKey = keys.edge('SUPERSEDES', claimKey, input.supersedesClaimKey);
+  const supRow: Record<string, unknown> = {
+    id: vid(supKey), src: claimId, dst: input.supersedesClaimId, key: supKey, history_id: h,
+    judge_status: 'NONE', judge_model: '', rationale: 'user correction supersedes the current head claim',
+    event_time: eventTime, event_time_iso: eventTimeIso, ingest_time: eventTime,
+    confidence: CORRECTION_CONFIDENCE, provenance: 'EXTRACTED', run_id: runId,
+  };
+
+  return {
+    nodes: [{ label: 'Claim', rows: [claimRow] }],
+    edges: [
+      { type: 'ABOUT', srcLabel: 'Claim', dstLabel: 'Entity', rows: [aboutRowOut] },
+      { type: 'SUPERSEDES', srcLabel: 'Claim', dstLabel: 'Claim', rows: [supRow] },
+    ],
+    claimId,
+    claimKey,
+    edgeId: vid(supKey),
+    eventTime,
+    runId,
+  };
 }
 
 function aboutRow(claimId: number, claimKey: string, entId: number, entKey: string, role: string, h: string, event: number, eventIso: string, ingest: number, conf: number, runId: string): Record<string, unknown> {

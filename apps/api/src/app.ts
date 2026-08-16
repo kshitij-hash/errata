@@ -1,4 +1,7 @@
-// apps/api/src/app.ts — the read-only HTTP surface (contract v1.1, spec 30 §2 / 31 §1.4).
+// apps/api/src/app.ts — the HTTP surface (contract v1.1, spec 30 §2 / 31 §1.4).
+//
+// Read-only with EXACTLY ONE exception: `POST /api/correction`, the append-only correction write
+// path (see its banner comment below). Nothing else here writes.
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { Hono } from 'hono';
@@ -7,6 +10,7 @@ import { countLabel } from '@errata/graph';
 import type { NodeLabel } from '@errata/graph';
 import { defaultLedgerDir, rollup } from '@errata/llm';
 import { config, db, lexicon } from './deps.js';
+import { CorrectionBody, CorrectionError, correctionWrite } from './correction.js';
 import { askQuery, beliefQuery, diffQuery } from './query.js';
 
 export const app = new Hono();
@@ -55,6 +59,33 @@ app.post('/api/ask', async (c) => {
   if (!historyId) return c.json({ error: 'history_id is required' }, 400);
   const out = await askQuery(db(), historyId, body.question, lexicon(historyId));
   return c.json(out);
+});
+
+// ---------------------------------------------------------------------------------------------
+// POST /api/correction — THE ONLY MUTATING ROUTE IN THIS API. Every other route above and below
+// is read-only, and that is a design constraint, not an accident.
+//
+// APPEND-ONLY INVARIANT: this route appends one Claim vertex and one SUPERSEDES edge to the claim
+// it displaces. It never updates, re-keys or deletes an existing vertex or edge — the displaced
+// claim keeps its id, value, citation and confidence and only gains an inbound revision edge.
+// Filing the same correction twice appends a second claim rather than overwriting the first. Any
+// future route that mutates or deletes is a bug (CLAUDE.md hard rule 1).
+// ---------------------------------------------------------------------------------------------
+app.post('/api/correction', async (c) => {
+  const raw = await c.req.json().catch(() => null);
+  const parsed = CorrectionBody.safeParse(raw);
+  if (!parsed.success) {
+    return c.json({ error: 'invalid correction body', issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) }, 400);
+  }
+  const historyId = parsed.data.history_id ?? config.demoHistory;
+  if (!historyId) return c.json({ error: 'history_id is required (no demo default configured)' }, 400);
+  try {
+    const out = await correctionWrite(db(), { ...parsed.data, historyId });
+    return c.json(out, 201);
+  } catch (e) {
+    if (e instanceof CorrectionError) return c.json({ error: e.message }, e.status);
+    throw e;
+  }
 });
 
 function modelRoles(): { extractor: string; judge: string; answer: string } {

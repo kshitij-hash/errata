@@ -10,6 +10,7 @@
   "references": [
     { "path": "../../packages/core" },
     { "path": "../../packages/graph" },
+    { "path": "../../packages/ingest" },
     { "path": "../../packages/llm" }
   ]
 }

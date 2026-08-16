@@ -80,6 +80,26 @@ export const keys = {
     return `h:${seg('history_id', historyId)}|c:${b16(inner)}`;
   },
 
+  // A user correction is a Claim like any other, but it is not stated in a transcript turn, so it
+  // cannot key on (ordinal, turn_idx). It keys on its wall-clock instant and the head it displaces
+  // instead, which is what makes corrections APPEND: file the same correction twice and the second
+  // one carries a later `at_ms`, so it mints a NEW vertex rather than MERGE-ing onto the first.
+  // The `uc:` discriminator keeps a correction's key visibly distinct from an extracted `c:` claim.
+  correction: (
+    historyId: string,
+    subjectNorm: string,
+    attribute: string,
+    valueNorm: string,
+    supersedesId: number,
+    atMillis: number,
+  ): string => {
+    const inner = `${seg('subject_norm', subjectNorm)}|${seg('attribute', attribute)}|${seg(
+      'value_norm',
+      valueNorm,
+    )}|${supersedesId}|${atMillis}`;
+    return `h:${seg('history_id', historyId)}|uc:${b16(inner)}`;
+  },
+
   // Edge ids are integers too (Day-0 gauntlet law: edge writes are single-statement
   // MERGE (s)-[r:T {id: row.rid}]->(d), so every edge needs an allocated id).
   edge: (type: string, srcKey: string, dstKey: string): string => `edge:${type}:${srcKey}:${dstKey}`,
