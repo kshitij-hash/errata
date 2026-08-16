@@ -68,3 +68,27 @@ From a cold `stack:up`, `docker ps` shows **healthy in ~10s** (start_period 15s,
 
 **Deploy note (for later):** the pod's supervisord image must not assume curl/wget exist either —
 its readiness/liveness probes need the same bash form or a static probe binary added to the image.
+
+## Block A — full-500 structural ingest (2026-08-16) — DONE
+
+Structural-only pass (Session/Turn/Speaker + STATED_IN — zero LLM, zero tokens) over all 500
+LongMemEval histories into HydraDB+MinIO.
+
+- **500/500 histories · 246,750 turns** (== the corpus total) · ~25K sessions · 1000 speakers · 0
+  claims (structural only). 1500 node + 1000 edge batches (≤1024 rows, single serialized writer).
+- **Rate:** 386.6 s total, **773 ms/history, 1.3 hist/s**. The rate degrades from ~2.4 → ~1.3
+  hist/s as the store grows (SlateDB write amplification on a growing bucket — expected).
+- **Verified 5/5** — `countLabel(Session/Turn)` equals the reader's counts, including BOTH
+  duplicate-session_id histories (58bf7951 57/616, caf03d32 51/493): the ordinal-key fix holds.
+- **Store 8.4 GiB**; `mc mirror` backup → `backups/hydra` (8.42 GiB in 17 s).
+
+**Key finding — duplicate session_ids (13 of 500).** Some histories reuse a session_id within the
+history (different dates/turns). Keying Session/Turn/Claim vertices on session_id minted the SAME id
+twice with conflicting `event_time`; HydraDB rejected the batch (`conflicting metadata values for
+vertex … property event_time`). The first `--all` run died on `58bf7951`. **Fix:** sessions/turns/
+claims key on the positional ordinal (`packages/graph/src/ids.ts`); session_id is a display property.
+
+**Key finding — countLabel is a label scan.** `MATCH (n:Label) WHERE n.history_id = $h RETURN
+count(*)` scans the whole label (246K Turn nodes) per call — seconds each on the full graph. It is
+admin-only (`/api/meta/health`), never on the id-anchored demo path, but do not move it onto a hot
+path without batching/caching it.
