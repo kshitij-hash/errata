@@ -205,8 +205,22 @@ export function AskSpread() {
                   ))}
                 </div>
 
+                {/*
+                  Two numbers, two labels (R6). `claim` is the head claim's own confidence;
+                  `evidence` is the calibrated answer-evidence score E that decided answer-vs-
+                  abstain against τ. They live on different scales — E is bounded by how much of
+                  the question resolved to entities and how often the fact was restated, so a
+                  perfectly cited single-statement fact tops out well below 1 — and collapsing
+                  them under one word made a confident answer read as a weak one.
+                */}
                 <div className="ansmeta">
-                  <span className="conf">confidence {resp.confidence.toFixed(2)}</span>
+                  <span
+                    className="conf"
+                    title={`claim = the head claim's own confidence; evidence = the calibrated answer-evidence score E, which answered because it cleared τ ${(resp.evidence?.tau ?? 0).toFixed(2)}`}
+                  >
+                    {resp.claim_confidence != null ? `claim ${resp.claim_confidence.toFixed(2)} · ` : ''}
+                    evidence {resp.confidence.toFixed(2)}
+                  </span>
                   <span>{resp.corroboration ?? resp.citations.length} supporting</span>
                   <span className="sup">{predecessors.length} superseded</span>
                   <span>{resp.latency_ms.toFixed(0)} ms</span>

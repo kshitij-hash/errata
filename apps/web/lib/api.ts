@@ -44,6 +44,9 @@ export interface AskResponse {
   subject?: string | null;
   attribute?: string | null;
   superseded?: BeliefValue[];
+  /** the head CLAIM's own confidence — a different quantity from `confidence`, which is the
+   *  calibrated answer-evidence score E. Both are labelled on the card (R6). */
+  claim_confidence?: number;
   corroboration?: number;
   cost: number;
   usage: { prompt_tokens: number; completion_tokens: number };

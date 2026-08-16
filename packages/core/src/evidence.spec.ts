@@ -109,3 +109,53 @@ describe('scoreEvidence (spec 31 §7 tests 34-40)', () => {
     expect(contentTokens('What is my Employer?')).toEqual(['employer']);
   });
 });
+
+// R6 — the flagship answer's "confidence 0.44", pinned so a future weight edit has to be
+// deliberate. The demo question is "What was the amount I was pre-approved for when I got my
+// mortgage from Wells Fargo?" against a head claim (mortgage_preapproval_amount, $400,000) stated
+// once, later revised, judge_status NONE, head confidence 0.72.
+describe('R6: the flagship evidence score is calibration, not a bug', () => {
+  const FLAGSHIP_TAU = 0.35;
+  const flagshipQ = (): QuestionFeatures => ({
+    // the content tokens the answer path derives from the flagship question
+    contentTokens: ['amount', 'pre', 'approved', 'got', 'mortgage', 'wells', 'fargo'],
+    anchorsResolved: 2, // only "wells" and "fargo" name an entity in this history
+    hasTimeConstraint: true,
+    timeConstraintViolated: false,
+  });
+  const flagshipCand = (): ScoredClaim => ({
+    attribute: 'mortgage_preapproval_amount',
+    value: '$400,000',
+    registryMatched: true,
+    headConfidence: 0.72,
+    judgeConfidence: 1.0, // judge_status NONE — NOT floored; only UNJUDGED halves it
+    corroboration: 1, // stated once and later revised: exactly one citing turn
+  });
+
+  it('reproduces E ≈ 0.4437 from its five documented components', () => {
+    const s = scoreEvidence(flagshipQ(), [flagshipCand()], FLAGSHIP_TAU);
+    expect(s.a).toBeCloseTo(2 / 7, 6);
+    expect(s.s).toBeCloseTo(1 / 3, 6);
+    expect(s.c).toBeCloseTo(0.72, 6); // the judge factor and the claim's confidence are both here
+    expect(s.p).toBeCloseTo(1 / 3, 6); // corroboration is counted, not ignored
+    expect(s.d).toBe(1);
+    expect(s.E).toBeCloseTo(0.4437, 4);
+    expect(0.3 * s.a + 0.3 * s.s + 0.15 * s.c + 0.15 * s.p + 0.1 * s.d).toBeCloseTo(s.E, 10);
+  });
+
+  it('0.44 is a confident answer on this scale — comfortably above τ', () => {
+    const s = scoreEvidence(flagshipQ(), [flagshipCand()], FLAGSHIP_TAU);
+    expect(decide(s, FLAGSHIP_TAU)).toBe('ANSWER');
+    expect(s.E).toBeGreaterThan(FLAGSHIP_TAU * 1.25);
+  });
+
+  it('E cannot approach 1 for a well-cited single-statement fact — so it is not a "confidence"', () => {
+    // even with a perfect claim (confidence 1.0) the answer-evidence score stays far from 1: a, s
+    // and p measure question coverage and restatement count, not certainty about the value.
+    const perfect = scoreEvidence(flagshipQ(), [{ ...flagshipCand(), headConfidence: 1.0 }], FLAGSHIP_TAU);
+    expect(perfect.E).toBeLessThan(0.5);
+    expect(perfect.c).toBe(1);
+    // the head claim's OWN confidence is the number that does reach ~1. The two are different
+    // quantities, which is why the answer card now labels both: "claim .72 · evidence .44".
+  });
+});

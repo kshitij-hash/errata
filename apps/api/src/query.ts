@@ -170,6 +170,26 @@ export interface AskResult {
   /** v1.1 additive (optional): the struck predecessors of the answered belief, so the answer card
    * can show what it supersedes without a second round trip. Empty when nothing was superseded. */
   superseded?: unknown[];
+  /**
+   * v1.1 additive (optional): the HEAD CLAIM's own confidence — a different quantity from
+   * `confidence`, which is the calibrated answer-EVIDENCE score E (spec 31 §5.1).
+   *
+   * R6 diagnosis. The flagship answer scored `confidence 0.44` and read as weak. The calibration is
+   * correct and no weight is buggy; the two numbers are simply on different scales, and one label
+   * was doing both jobs. E = 0.3a + 0.3s + 0.15c + 0.15p + 0.1d with the weights fixed a priori;
+   * on the flagship a = 2/7 (only 2 of 7 content tokens name an entity), s = 1/3 (token-F1 of a
+   * 12-word question against `mortgage_preapproval_amount $400,000`), c = 0.72 (the head claim's
+   * own confidence, judge factor 1.0 — NOT floored: judge_status is NONE, and only UNJUDGED
+   * halves it), p = 1/3 (corroboration IS counted, but a fact stated once and later revised has
+   * exactly one citing turn), d = 1. Every component is doing what §5.2 says it should, and E =
+   * 0.4437 sits comfortably above τ = 0.35. A well-cited single-statement fact simply cannot
+   * approach 1.0 on this scale: a, s and p are bounded by question-token coverage and restatement
+   * count, none of which measure how sure we are of the claim.
+   *
+   * The fix is therefore to stop labelling E "confidence" on its own. Both numbers ship, labelled:
+   * the answer card reads "claim .72 · evidence .44". Nothing about the calibration changed.
+   */
+  claim_confidence?: number;
   corroboration?: number;
   cost: number;
   usage: { prompt_tokens: number; completion_tokens: number };
@@ -275,6 +295,7 @@ export async function askQuery(client: GraphClient, historyId: string, question:
       subject: subjectNorm || undefined,
       attribute: bestAttr,
       superseded: belief.superseded.map(shapeValue),
+      claim_confidence: head.confidence,
       corroboration: head.corroboration,
       evidence: score,
       latency_ms: latency,
