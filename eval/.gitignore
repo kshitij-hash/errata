@@ -18,5 +18,8 @@ out/*
 !out/failure-taxonomy.md
 
 # The scored control set is the evidence behind the published FAR/FRR, and kappa.py joins the
-# human labels against it — so it is committed, unlike the run outputs beside it.
+# human labels against it — so it is committed, unlike the run outputs beside it. `-v1` is the
+# ORIGINAL control set's run: judge-validation.md publishes its numbers beside the corrected ones,
+# computed from these rows via `judge-validate --prior`, never retyped.
 !out/judge-controls-scored.jsonl
+!out/judge-controls-scored-v1.jsonl
