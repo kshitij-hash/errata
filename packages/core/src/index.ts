@@ -3,4 +3,5 @@ export * from './types.js';
 export * from './attributes.js';
 export * from './revision.js';
 export * from './evidence.js';
+export * from './lexical.js';
 export * from './prompt.js';

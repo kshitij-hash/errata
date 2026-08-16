@@ -11,6 +11,8 @@ export interface Config {
   demoHistory: string;
   lexiconDir: string;
   tau: number;
+  /** how many ranked claims become the synthesis MATERIAL (G5; was a hard-coded 12). */
+  materialMax: number;
 }
 
 function readTokenFrom(pathEnv: string | undefined): string {
@@ -27,6 +29,7 @@ export function loadConfig(): Config {
     demoHistory: process.env.ERRATA_DEMO_HISTORY ?? '',
     lexiconDir: process.env.ERRATA_LEXICON_DIR ?? 'var/lexicon',
     tau: process.env.ERRATA_TAU ? Number(process.env.ERRATA_TAU) : 0.35,
+    materialMax: process.env.ERRATA_MATERIAL_MAX ? Number(process.env.ERRATA_MATERIAL_MAX) : 30,
   };
 }
 
@@ -67,6 +70,9 @@ export interface Lexicon {
   historyId: string;
   self: number[];
   terms: Record<string, number[]>;
+  /** written by the ingest's alias pass; absent on lexicons built before it existed. */
+  attrTerms?: Record<string, string[]>;
+  attrAliases?: Record<string, string[]>;
 }
 const _lex = new Map<string, Lexicon | null>();
 

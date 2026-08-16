@@ -50,6 +50,11 @@ export interface ScoredClaim {
   attribute: string;
   value: string; // value_text
   registryMatched: boolean;
+  /** the caller's own question↔claim relevance ∈ [0,1]. When present it IS `s` — the ask path
+   *  already computed it with the full scorer (core/lexical.ts: span-aware, stemmed, IDF-weighted)
+   *  and recomputing a token-F1 here would report a different, worse number than the one that
+   *  actually selected the claim. Absent → the legacy token-F1 fallback below. */
+  fit?: number;
   headConfidence: number; // 0..1
   judgeConfidence: number; // 1.0 when unjudged-and-uncontested
   corroboration: number; // distinct citing turns
@@ -67,8 +72,9 @@ export function scoreEvidence(q: QuestionFeatures, cands: ScoredClaim[], tau: nu
   let best: ScoredClaim | null = null;
   for (const cand of cands) {
     const fit =
+      cand.fit ??
       tokenF1(q.contentTokens, contentTokens(`${cand.attribute} ${cand.value}`)) *
-      (cand.registryMatched ? 1.0 : 0.7);
+        (cand.registryMatched ? 1.0 : 0.7);
     if (fit >= s) {
       s = fit;
       best = cand;

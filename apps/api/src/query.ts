@@ -15,14 +15,17 @@ import {
 } from '@errata/graph';
 import type { GraphClient, Stmt } from '@errata/graph';
 import {
+  bigrams,
   contentTokens,
   decide,
   diffChain,
   isRegistered,
-  rankClaimsByFit,
+  lexTokens,
+  rankByRelevance,
   resolveAsOf,
   resolveBelief,
   scoreEvidence,
+  stem,
   tokenF1,
 } from '@errata/core';
 import { ANSWER_PROMPT } from '@errata/core';
@@ -218,6 +221,8 @@ export interface AskTrace {
   anchors_resolved: number;
   claim_rows: number;
   attributes: string[];
+  /** attributes the write-side aliases say the question is asking about (attribute-first) */
+  focus_attributes: string[];
   best_attribute: string | null;
   best_score: number;
   material: { attribute: string; value: string; s: number; session_id: string; turn_index: number; span: string }[];
@@ -250,10 +255,43 @@ export interface AskOptions {
   debug?: boolean;
 }
 
-export async function askQuery(client: GraphClient, historyId: string, question: string, lex: { self: number[]; terms: Record<string, number[]> } | null, opts: AskOptions = {}): Promise<AskResult> {
+/** The lexicon shape the ask path reads (deps.ts owns loading and caching it). */
+export interface AskLexicon {
+  self: number[];
+  terms: Record<string, number[]>;
+  attrTerms?: Record<string, string[]>;
+  attrAliases?: Record<string, string[]>;
+}
+
+/**
+ * Last-resort anchors when nothing in the question names an entity and the history has no SELF:
+ * the entity ids the lexicon mentions under the most terms, which is a proxy for mention_count
+ * without a second read. Deterministic (ties by first appearance), id-pinned, never a scan.
+ */
+function fallbackAnchors(lex: AskLexicon, k: number): number[] {
+  const weight = new Map<number, number>();
+  const order = new Map<number, number>();
+  let i = 0;
+  for (const ids of Object.values(lex.terms)) {
+    for (const id of ids) {
+      weight.set(id, (weight.get(id) ?? 0) + 1);
+      if (!order.has(id)) order.set(id, i++);
+    }
+  }
+  return [...weight.entries()]
+    .sort((a, b) => b[1] - a[1] || (order.get(a[0]) ?? 0) - (order.get(b[0]) ?? 0))
+    .slice(0, k)
+    .map(([id]) => id);
+}
+
+export async function askQuery(client: GraphClient, historyId: string, question: string, lex: AskLexicon | null, opts: AskOptions = {}): Promise<AskResult> {
   const t0 = performance.now();
   const cypher: Cypher[] = []; // always surfaced (criterion 02 shows the Cypher on screen)
   const tokens = contentTokens(question);
+  // the stemmed / number-canonicalized view of the same question — everything that MATCHES uses
+  // these; `tokens` stays the raw content tokens because the calibrated E score is defined on them.
+  const qLex = lexTokens(question);
+  const qGrams = bigrams(qLex);
   const firstPerson = /\b(i|me|my|myself|mine|we|our)\b/i.test(question.toLowerCase());
   const trace_id = randomUUID();
   // the losing pane of demo beat 1: what a vector store returns for this question (served from the
@@ -268,15 +306,27 @@ export async function askQuery(client: GraphClient, historyId: string, question:
       : null;
   const base = { cost: 0, usage: { prompt_tokens: 0, completion_tokens: 0 }, cypher, vector_baseline, trace_id };
 
-  // resolve anchors (spec 31 §4.7 step 0): lexicon terms + first-person → SELF
+  // ---- anchor resolution (spec 31 §4.7 step 0) -----------------------------------------------
+  //
+  // SELF IS ALWAYS AN ANCHOR. It used to be added only when the question read as first-person, and
+  // the taxonomy showed what that cost: a question naming one rare entity narrowed retrieval to
+  // that entity's claims alone (one case reached the model with 1 claim out of 147 in the history),
+  // and a question naming nothing at all resolved to zero anchors and abstained without a read.
+  // Anchoring on the history's own subject can only ADD rows; the ranker decides what survives.
   const anchorSet = new Set<number>();
+  const selfFirst: number[] = [];
   const matchedTokens: string[] = [];
   const unmatchedTokens: string[] = [];
   let resolved = 0;
-  if (firstPerson && lex) for (const id of lex.self) anchorSet.add(id);
+  if (lex) for (const id of lex.self) if (!selfFirst.includes(id)) selfFirst.push(id);
+  const hit = (term: string): number[] | undefined => {
+    const ids = lex?.terms[term];
+    return ids && ids.length ? ids : undefined;
+  };
   for (const t of tokens) {
-    const ids = lex?.terms[t];
-    if (ids && ids.length) {
+    // raw token, then its stem — the lexicon indexes both surface and stemmed forms.
+    const ids = hit(t) ?? hit(stem(t));
+    if (ids) {
       for (const id of ids) anchorSet.add(id);
       resolved++;
       matchedTokens.push(t);
@@ -287,7 +337,28 @@ export async function askQuery(client: GraphClient, historyId: string, question:
       unmatchedTokens.push(t);
     }
   }
-  const anchors = [...anchorSet].slice(0, 8);
+  // multi-word entity names ("st mary s church") are indexed whole; probe the question's bigrams.
+  for (const g of qGrams) {
+    const ids = hit(g);
+    if (ids) for (const id of ids) anchorSet.add(id);
+  }
+  // attribute-first: which stored attributes could this question be ASKING about (write-side
+  // aliases, matched deterministically)? Used to rank, and to salvage an anchorless question.
+  const attrScore = new Map<string, number>();
+  for (const term of [...qLex, ...qGrams]) {
+    for (const attribute of lex?.attrTerms?.[term] ?? []) {
+      attrScore.set(attribute, (attrScore.get(attribute) ?? 0) + (term.includes(' ') ? 2 : 1));
+    }
+  }
+  const attrRanked = [...attrScore.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+  const topAttrScore = attrRanked[0]?.[1] ?? 0;
+  const focusAttrs = new Set(attrRanked.filter(([, v]) => v === topAttrScore && v > 0).map(([k]) => k));
+
+  // SELF first so it is never the entry the 8-anchor cap drops.
+  const anchors = [...new Set([...selfFirst, ...anchorSet])].slice(0, 8);
+  // no entity named AND no SELF in this history: fall back to its most-mentioned entities rather
+  // than refusing without a read (the attribute match, if any, still steers the ranking).
+  if (anchors.length === 0 && lex && focusAttrs.size > 0) anchors.push(...fallbackAnchors(lex, 8));
   const anchorsResolved = Math.min(resolved, tokens.length);
 
   // diagnostic replay only: the whole history's claims, so the taxonomy can separate a ranking
@@ -305,6 +376,7 @@ export async function askQuery(client: GraphClient, historyId: string, question:
     material: [] as AskTrace['material'],
     claim_rows: 0,
     attributes: [] as string[],
+    focus_attributes: [] as string[],
     synth: 'none' as AskTrace['synth'],
   };
   const traceOf = (decision: string, reason: AskTrace['abstain_reason']): { trace?: AskTrace } =>
@@ -314,6 +386,7 @@ export async function askQuery(client: GraphClient, historyId: string, question:
             tokens, matched_tokens: matchedTokens, unmatched_tokens: unmatchedTokens,
             first_person: firstPerson, anchors: anchors.length, anchors_resolved: anchorsResolved,
             claim_rows: dbg.claim_rows, attributes: dbg.attributes,
+            focus_attributes: dbg.focus_attributes,
             best_attribute: dbg.best_attribute, best_score: dbg.best_score, material: dbg.material,
             decision, synth: dbg.synth, abstain_reason: reason, history_claims: historyClaims,
           },
@@ -328,31 +401,47 @@ export async function askQuery(client: GraphClient, historyId: string, question:
   if (anchors.length === 0) return abstain([], 'no_anchor');
 
   const claimRows = await run(client, claimsForEntities(anchors, historyId), cypher);
-  const nmOf = (): unknown[] => {
-    const cands = claimRows.map((r) => ({ attribute: String(r.attribute), value: String(r.value), registryMatched: isRegistered(String(r.attribute)), _row: r }));
-    return rankClaimsByFit(tokens, cands, 3).map((c) => ({ attribute: c.attribute, value: c.value, s: c.s, citation: { session_id: String(c._row.session_id), turn_index: Number(c._row.turn_index) }, span: c._row.evidence_span }));
-  };
 
-  // Choose the answer attribute by attribute-NAME fit (the question's head noun names the attribute),
-  // with value/span only a light tiebreak — so "the amount ... from Wells Fargo" resolves the
-  // pre-approval amount, not the lender the question also mentions (entity disambiguation).
-  const attrFit = (r: Record<string, unknown>): number =>
-    tokenF1(tokens, contentTokens(String(r.attribute).replace(/_/g, ' '))) +
-    0.2 * tokenF1(tokens, contentTokens(`${String(r.value)} ${String(r.evidence_span ?? '')}`));
-  let best: Record<string, unknown> | undefined;
-  let bestSc = 0;
-  for (const r of claimRows) {
-    const sc = attrFit(r);
-    if (sc > bestSc) {
-      bestSc = sc;
-      best = r;
-    }
-  }
+  // ---- relevance: ONE scorer, used for the material, the nearest misses and the answer attribute.
+  //
+  // Replaces `tokenF1(question, attribute + " " + value)`. Three things changed and each was a
+  // measured miss (see eval/out/failure-taxonomy.md): the EVIDENCE SPAN is scored (it carries the
+  // transcript's own wording, which is what a question echoes); coverage is IDF-weighted and
+  // asymmetric (a claim is rewarded for covering the ask, not punished for being long); and a claim
+  // whose attribute the write-side aliases say this question is asking about is boosted.
+  const ATTR_FOCUS_BOOST = 0.25;
+  const cands = claimRows.map((r, i) => {
+    const attribute = String(r.attribute);
+    const aliasWords = (lex?.attrAliases?.[attribute] ?? []).join(' ');
+    return {
+      attribute,
+      value: String(r.value),
+      attrTokens: lexTokens(`${attribute.replace(/_/g, ' ')} ${aliasWords}`),
+      bodyTokens: lexTokens(`${attribute.replace(/_/g, ' ')} ${String(r.value)} ${String(r.evidence_span ?? '')}`),
+      focus: focusAttrs.has(attribute),
+      _i: i,
+      _row: r,
+    };
+  });
+  const ranked = rankByRelevance(qLex, cands, cands.length)
+    .map((c) => ({ ...c, s: +(c.s + (c.focus ? ATTR_FOCUS_BOOST : 0)).toFixed(6) }))
+    .sort((a, b) => (b.s !== a.s ? b.s - a.s : a._i - b._i));
+
+  const nmOf = (): unknown[] =>
+    ranked.slice(0, 3).map((c) => ({
+      attribute: c.attribute, value: c.value, s: c.s,
+      citation: { session_id: String(c._row.session_id), turn_index: Number(c._row.turn_index) },
+      span: c._row.evidence_span,
+    }));
+
+  const best = ranked[0]?._row;
+  const bestSc = ranked[0]?.s ?? 0;
   dbg.claim_rows = claimRows.length;
   dbg.attributes = [...new Set(claimRows.map((r) => String(r.attribute)))];
+  dbg.focus_attributes = [...focusAttrs];
   dbg.best_score = bestSc;
   dbg.best_attribute = best ? String(best.attribute) : null;
-  if (!best) return abstain(nmOf(), 'no_claim_fit');
+  if (!best) return abstain([], 'no_claim_fit');
 
   // resolve the belief for the chosen attribute at the best claim's own SUBJECT entity (P2-15 —
   // deriving from best.subject, not insertion order, so non-first-person questions don't misfire).
@@ -367,7 +456,9 @@ export async function askQuery(client: GraphClient, historyId: string, question:
   const belief = resolveBelief(claims, edges);
   const head = belief.head ?? belief.heads[0] ?? null;
 
-  const cand = head ? [{ attribute: bestAttr, value: head.value, registryMatched: isRegistered(bestAttr), headConfidence: head.confidence, judgeConfidence: head.judge_status === 'UNJUDGED' ? 0.5 : 1.0, corroboration: head.corroboration }] : [];
+  // `fit` hands the calibrated score the SAME relevance number the material ranking used, instead
+  // of recomputing a token-F1 that the taxonomy showed is near-zero on most real questions.
+  const cand = head ? [{ attribute: bestAttr, value: head.value, registryMatched: isRegistered(bestAttr), fit: Math.min(1, bestSc), headConfidence: head.confidence, judgeConfidence: head.judge_status === 'UNJUDGED' ? 0.5 : 1.0, corroboration: head.corroboration }] : [];
   const score = scoreEvidence({ contentTokens: tokens, anchorsResolved, hasTimeConstraint: hasTimeConstraint(question), timeConstraintViolated: false }, cand, config.tau);
   const decision = decide(score, config.tau, belief.disputed);
   const latency = +(performance.now() - t0).toFixed(1);
@@ -379,14 +470,16 @@ export async function askQuery(client: GraphClient, historyId: string, question:
   // ANSWER_PROMPT (same model + prompt as every baseline arm — the parity gate's whole point) and
   // the LLM decides answer vs INSUFFICIENT_INFORMATION. No claims retrieved → still a $0 abstain.
   if (opts.completer) {
-    const cands = claimRows.map((r) => ({ attribute: String(r.attribute), value: String(r.value), registryMatched: isRegistered(String(r.attribute)), _row: r }));
-    const ranked = rankClaimsByFit(tokens, cands, 12);
-    if (ranked.length > 0) {
+    // The material window was 12 claims out of a median 181 reachable, chosen by a score that was
+    // zero for most of them — i.e. arbitrary. It is now `config.materialMax` claims chosen by the
+    // relevance above. Even at 30 the prompt is ~1/60th of the full-context arm's.
+    const window = ranked.slice(0, config.materialMax);
+    if (window.length > 0) {
       const dateOf = (r: Record<string, unknown>): string => {
         const e = Number(r.event_time);
         return e > 0 ? new Date(e * 1000).toISOString().slice(0, 10) : 'undated';
       };
-      const ordered = ranked.slice().sort((a, b) => Number(a._row.event_time) - Number(b._row.event_time));
+      const ordered = window.slice().sort((a, b) => Number(a._row.event_time) - Number(b._row.event_time));
       dbg.material = ordered.map((c) => ({
         attribute: c.attribute, value: c.value, s: c.s,
         session_id: String(c._row.session_id), turn_index: Number(c._row.turn_index),
@@ -422,7 +515,7 @@ export async function askQuery(client: GraphClient, historyId: string, question:
           abstained: false,
           disputed: belief.disputed,
           confidence: score.E,
-          citations: ranked.slice(0, 3).map((c) => cite({ session_id: String(c._row.session_id), turn_index: Number(c._row.turn_index), claim_id: Number(c._row.claim_id) }, String(c._row.evidence_span ?? ''))),
+          citations: window.slice(0, 3).map((c) => cite({ session_id: String(c._row.session_id), turn_index: Number(c._row.turn_index), claim_id: Number(c._row.claim_id) }, String(c._row.evidence_span ?? ''))),
           subject: subjectNorm || undefined,
           attribute: bestAttr,
           superseded: belief.superseded.map(shapeValue),
