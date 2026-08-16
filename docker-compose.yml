@@ -34,6 +34,10 @@ services:
     image: ghcr.io/hydra-db/hydradb@sha256:db78309a233be54662db29744047e985a39b51c45a270d1a1f47c31a62cdb709
     restart: unless-stopped                          # compute is disposable (state lives in MinIO);
                                                      # self-heal after an OOM kill instead of staying down
+    stop_grace_period: 60s                           # the image ships StopTimeout=1 — ONE second — so every
+                                                     # "graceful" stop was actually a SIGKILL that left the
+                                                     # writer lease behind. graph-node catches SIGTERM; give
+                                                     # it time to flush and release the lease cleanly.
     depends_on:
       minio-init: { condition: service_completed_successfully }
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"     # image runs as UID 10001; bind mount is yours
@@ -58,10 +62,15 @@ services:
       GRAPH_DATA_CACHE_BYTES: "2147483648"           # 2 GiB (default 8 GiB): on an 8 GB Docker VM the
                                                      # node grew until the kernel OOM-killed it (137)
                                                      # mid-way through the sample-150 write load
-      GRAPH_WRITER_LEASE_MS: "5000"                  # default 30s (min 3s). After ANY restart the old
-                                                     # instance's writer lease shadows the cell — the node
-                                                     # is "healthy" but writes fail "cell not owned by this
-                                                     # node" until TTL expiry. 5s shrinks that window.
+      GRAPH_WRITER_LEASE_MS: "120000"                # ROOT CAUSE of the OOM loop: when no write lands
+                                                     # within the lease TTL the node demotes its writer and
+                                                     # the next write re-promotes — a FULL SlateDB re-open
+                                                     # (~200 MB retained each; measured 22 re-opens/10 min,
+                                                     # lease gen 25→46, RSS ratchet to OOM). Our ingest has
+                                                     # per-history LLM gaps of 30-90 s, so the 30 s default
+                                                     # churned once per history. 120 s outlives the gaps
+                                                     # (no churn) while keeping the post-crash "cell not
+                                                     # owned" shadow within the client's retry budget.
       GRAPH_AUTH_TOKEN_FILE: /data/auth-token
       GRAPH_ALLOW_PLAINTEXT: "true"                  # TLS is required by default; without this
                                                      # nothing listens in the clear
