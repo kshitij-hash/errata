@@ -9,7 +9,7 @@ import { ANSWER_MODEL, ANSWER_PROMPT, SCHEMA_VERSION } from '@errata/core';
 import { countLabel } from '@errata/graph';
 import type { NodeLabel } from '@errata/graph';
 import { defaultLedgerDir, rollup } from '@errata/llm';
-import { config, db, lexicon } from './deps.js';
+import { answerCompleter, config, db, lexicon } from './deps.js';
 import { CorrectionBody, CorrectionError, correctionWrite } from './correction.js';
 import { askQuery, beliefQuery, diffQuery } from './query.js';
 import { turnsQuery } from './turns.js';
@@ -79,11 +79,14 @@ app.get('/api/turns', async (c) => {
 });
 
 app.post('/api/ask', async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { question?: string; history_id?: string; explain?: boolean };
+  const body = (await c.req.json().catch(() => ({}))) as { question?: string; history_id?: string; question_date?: string; explain?: boolean };
   const historyId = body.history_id ?? config.demoHistory;
   if (!body.question) return c.json({ error: 'question is required' }, 400);
   if (!historyId) return c.json({ error: 'history_id is required' }, 400);
-  const out = await askQuery(db(), historyId, body.question, lexicon(historyId));
+  const out = await askQuery(db(), historyId, body.question, lexicon(historyId), {
+    completer: answerCompleter() ?? undefined,
+    questionDate: body.question_date,
+  });
   return c.json(out);
 });
 
@@ -135,7 +138,7 @@ app.get('/api/meta', (c) => {
     // the DISCLOSED answer model used by the eval baselines, held constant across arms and asserted
     // by the eval parity gate; Errata's own arm answers via a graph fold (answer_mechanism).
     answer_model: roles.answer || ANSWER_MODEL,
-    answer_mechanism: ANSWER_MODEL,
+    answer_mechanism: answerCompleter() ? 'errata-graph-synthesis@2' : ANSWER_MODEL,
     answer_prompt_sha256: ANSWER_PROMPT_SHA256,
     extractor_model: roles.extractor,
     conflict_judge_model: roles.judge,

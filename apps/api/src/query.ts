@@ -24,6 +24,7 @@ import {
   scoreEvidence,
   tokenF1,
 } from '@errata/core';
+import { ANSWER_PROMPT } from '@errata/core';
 import type { BeliefResult, BeliefValue, ClaimRow, Citation, RevisionEdgeRow, TimeAxis } from '@errata/core';
 import { beatFixture, config } from './deps.js';
 
@@ -201,7 +202,26 @@ export interface AskResult {
   latency_ms: number;
 }
 
-export async function askQuery(client: GraphClient, historyId: string, question: string, lex: { self: number[]; terms: Record<string, number[]> } | null): Promise<AskResult> {
+/** The one LLM seam in the answer path (v2 synthesis). Injected so vitest never touches an LLM
+ * (hard rule 6) and the deterministic fold remains the complete fallback when no key is set. */
+export interface AnswerCompleter {
+  complete(args: {
+    role: string;
+    history_id: string;
+    unit_id: string;
+    messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
+    maxTokens?: number;
+    temperature?: number;
+    reasoningEnabled?: boolean;
+  }): Promise<{ text: string; usage: { prompt_tokens: number; completion_tokens: number }; cost_usd: number }>;
+}
+
+export interface AskOptions {
+  completer?: AnswerCompleter;
+  questionDate?: string;
+}
+
+export async function askQuery(client: GraphClient, historyId: string, question: string, lex: { self: number[]; terms: Record<string, number[]> } | null, opts: AskOptions = {}): Promise<AskResult> {
   const t0 = performance.now();
   const cypher: Cypher[] = []; // always surfaced (criterion 02 shows the Cypher on screen)
   const tokens = contentTokens(question);
@@ -282,6 +302,65 @@ export async function askQuery(client: GraphClient, historyId: string, question:
   const score = scoreEvidence({ contentTokens: tokens, anchorsResolved, hasTimeConstraint: hasTimeConstraint(question), timeConstraintViolated: false }, cand, config.tau);
   const decision = decide(score, config.tau, belief.disputed);
   const latency = +(performance.now() - t0).toFixed(1);
+
+  // ---- v2 synthesis: qwen composes the reply from graph-retrieved material -------------------
+  // The eval measured the fold-only path at 8.3 overall vs ~46 for the baselines: the graph HAD
+  // the evidence, but raw stored values + a τ gate on E lost on phrasing and abstained on 69%.
+  // With a completer configured, the top-ranked claims become the MATERIAL for the shared
+  // ANSWER_PROMPT (same model + prompt as every baseline arm — the parity gate's whole point) and
+  // the LLM decides answer vs INSUFFICIENT_INFORMATION. No claims retrieved → still a $0 abstain.
+  if (opts.completer) {
+    const cands = claimRows.map((r) => ({ attribute: String(r.attribute), value: String(r.value), registryMatched: isRegistered(String(r.attribute)), _row: r }));
+    const ranked = rankClaimsByFit(tokens, cands, 12);
+    if (ranked.length > 0) {
+      const dateOf = (r: Record<string, unknown>): string => {
+        const e = Number(r.event_time);
+        return e > 0 ? new Date(e * 1000).toISOString().slice(0, 10) : 'undated';
+      };
+      const material = ranked
+        .slice()
+        .sort((a, b) => Number(a._row.event_time) - Number(b._row.event_time))
+        .map((c) => `[${dateOf(c._row)}] ${c.attribute.replace(/_/g, ' ')}: ${c.value} (session ${String(c._row.session_id)}, turn ${Number(c._row.turn_index)}) — "${String(c._row.evidence_span ?? '')}"`)
+        .join('\n');
+      const prompt = ANSWER_PROMPT
+        .replace('{question_date}', opts.questionDate ?? new Date().toISOString().slice(0, 10))
+        .replace('{context}', material)
+        .replace('{question}', question);
+      const res = await opts.completer.complete({
+        role: 'answer',
+        history_id: historyId,
+        unit_id: `ask:${trace_id.slice(0, 8)}`,
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 300,
+        temperature: 0,
+        reasoningEnabled: false,
+      });
+      const text = res.text.trim();
+      const paid = { ...base, cost: res.cost_usd, usage: res.usage };
+      const synthLatency = +(performance.now() - t0).toFixed(1);
+      if (text.startsWith('INSUFFICIENT_INFORMATION')) {
+        return { answer: null, abstained: true, confidence: score.E, citations: [], nearest_miss: nmOf(), evidence: score, latency_ms: synthLatency, ...paid };
+      }
+      if (text !== '') {
+        return {
+          answer: text,
+          abstained: false,
+          disputed: belief.disputed,
+          confidence: score.E,
+          citations: ranked.slice(0, 3).map((c) => cite({ session_id: String(c._row.session_id), turn_index: Number(c._row.turn_index), claim_id: Number(c._row.claim_id) }, String(c._row.evidence_span ?? ''))),
+          subject: subjectNorm || undefined,
+          attribute: bestAttr,
+          superseded: belief.superseded.map(shapeValue),
+          claim_confidence: head?.confidence,
+          corroboration: head?.corroboration,
+          evidence: score,
+          latency_ms: synthLatency,
+          ...paid,
+        };
+      }
+      // empty content from the model: fall through to the deterministic fold — never return ''.
+    }
+  }
 
   if ((decision === 'ANSWER' || decision === 'DISPUTED') && head) {
     const conf = belief.contested && !belief.disputed ? +(score.E * 0.7).toFixed(3) : score.E;

@@ -1,6 +1,8 @@
 // apps/api/src/deps.ts — process singletons: config, the Bolt client, the lexicon cache.
 import { existsSync, readFileSync } from 'node:fs';
 import { GraphClient } from '@errata/graph';
+import { OpenRouterClient } from '@errata/llm';
+import type { AnswerCompleter } from './query.js'; // type-only: no runtime cycle with query.ts
 
 export interface Config {
   boltUrl: string;
@@ -41,6 +43,23 @@ export function db(): GraphClient {
     }
   }
   return _client;
+}
+
+// --- answer completer (v2 synthesis; present only when a funded key is configured) ---
+// Lazily constructed so a keyless process (vitest, creditless dev) never touches @errata/llm's
+// client at all: askQuery then serves the deterministic fold, exactly as before.
+let _completer: AnswerCompleter | null | undefined;
+export function answerCompleter(): AnswerCompleter | null {
+  if (_completer !== undefined) return _completer;
+  if (!process.env.OPENROUTER_API_KEY) {
+    _completer = null;
+    return _completer;
+  }
+  const client = new OpenRouterClient({ initialSpent: 0 });
+  _completer = {
+    complete: (args) => client.complete({ ...args, run_id: 'api-ask' }),
+  };
+  return _completer;
 }
 
 // --- lexicon cache (spec 31 §4.7 step 0) ---

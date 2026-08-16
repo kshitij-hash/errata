@@ -46,6 +46,9 @@ export interface CompleteArgs {
   schemaName?: string;
   maxTokens?: number;
   temperature?: number;
+  /** false = force a plain completion. Hybrid thinking models (qwen3.7-flash) otherwise spend the
+   * whole max_tokens budget on reasoning and return EMPTY content (the eval's Arm-B incident). */
+  reasoningEnabled?: boolean;
 }
 
 export interface CompleteResult {
@@ -501,6 +504,7 @@ export class OpenRouterClient {
     const body: Record<string, unknown> = { model, messages, usage: { include: true } };
     if (args.maxTokens !== undefined) body.max_tokens = args.maxTokens;
     if (args.temperature !== undefined) body.temperature = args.temperature;
+    if (args.reasoningEnabled !== undefined) body.reasoning = { enabled: args.reasoningEnabled };
     if (schemaJson !== undefined) {
       body.response_format = {
         type: 'json_schema',
