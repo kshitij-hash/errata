@@ -16,3 +16,7 @@ out/*
 
 # The failure taxonomy is an analysis deliverable, not a run output.
 !out/failure-taxonomy.md
+
+# The scored control set is the evidence behind the published FAR/FRR, and kappa.py joins the
+# human labels against it — so it is committed, unlike the run outputs beside it.
+!out/judge-controls-scored.jsonl

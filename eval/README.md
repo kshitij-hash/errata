@@ -20,7 +20,24 @@ Corpus: `xiaowu0162/longmemeval-cleaned`, 500 questions, 30 abstentions
     uv run errata-eval run --arm errata --seeds 11,22,33 # run an arm over a set
     uv run errata-eval report --runs <run_id>            # emit out/report/table.md + caption
 
-`judge-validate` builds the perturbed control set and measures the judge false-accept rate.
+### Judge validation (three commands, two committed artifacts)
+
+    uv run errata-eval controls           # 60 perturbed NEGATIVES, deterministic, no LLM, free
+    uv run errata-eval controls-positive  # 60 paraphrase POSITIVES, one cached perturber pass
+    uv run errata-eval judge-validate     # score all 120 with the pinned judge; write the report
+
+Generation and measurement are separate on purpose: `judge-validate` never builds a control, so a
+judge is always measured against the same committed 120-item set (`judge-controls.jsonl` +
+`judge-controls-positive.jsonl`) and a re-run replays from the LLM cache at $0. It writes
+`judge-validation.md` (FAR overall and per family, FRR, gate pass/fail — hand-written analysis under
+the marker line survives a re-render), `judge-controls-for-human.md` (a stratified 20-item sheet
+with a blank verdict column), and `out/judge-controls-scored.jsonl`. It exits 6 on a failed gate.
+
+    uv run python kappa.py --labels judge-controls-for-human.md   # Cohen's κ, once labelled, $0
+
+**Measured**: FAR 15.0% (9/60) against a ≤10% gate — **failing, published, and not tuned around**;
+superseded-value 0.0% (0/12) against its tighter ≤8% gate; FRR 0.0% (0/60). See
+`judge-validation.md` for the per-family table and the diagnosis.
 
 ## Two analysis scripts (no new spend)
 

@@ -1,8 +1,9 @@
 # Results — LongMemEval comparison-150 (2026-08-17)
 
 Runs: `rerunD-g5` (Errata, v3 — span-aware retrieval + broadened extraction) · `rerunB-nothink`
-(full-context) · `rerunC-nothink` (naive top-k). Total eval spend $12.10 reported (judge
-claude-sonnet-5); Errata's own ingest ledger stands at $8.18 against a $50 cap.
+(full-context) · `rerunC-nothink` (naive top-k). Total eval spend $12.33 reported (judge
+claude-sonnet-5), of which $0.23 is the judge-validation pass below; Errata's own ingest ledger
+stands at $8.18 against a $50 cap.
 
 **Headline: Errata leads overall (53.3 vs 47.5 full-context and 45.8 naive) at 1/52nd the context
 tokens, 1/523rd the $/Q and 31x lower p50 latency than full-context, with a citation on every
@@ -16,7 +17,7 @@ answer** — and it does it while abstaining more accurately than full-context (
 | Full-context baseline | 47.5 ± 0.8 | 80.7 ± 1.5 | 35.5 ± 3.2 | 13.1 ± 1.7 | 61.1 ± 0.0 | 0.58 / 0.80 | 109,943 | $0.0110 | 8.00 / 8.68 |
 | Naive top-k RAG (k=10) | 45.8 ± 0.0 | 63.2 ± 0.0 | 29.0 ± 0.0 | 21.2 ± 0.0 | 83.3 ± 0.0 | 0.41 / 0.98 | 4,665 | $0.0005 | 0.86 / 1.34 |
 
-> Dataset: `xiaowu0162/longmemeval-cleaned`, revision `98d7416c…`, file `longmemeval_s_cleaned.json` (sha256 `d6f21ea9…`). All three arms answer the **same 150 questions**, a seeded stratified subsample (`sample_seed=20260819`) proportional by question type with **all 30 abstention questions included**; the full-context baseline runs on this subsample rather than all 500 for cost reasons. 3 runs, seeds 11/22/33, temperature 0 — sd reflects provider nondeterminism, not sampling spread. Answer model `qwen/qwen3.7-flash` and answer prompt (sha `a1ea7ee7…`) **identical across all three arms**, verified at run start against the deployed API. Judge `anthropic/claude-sonnet-5` (prompt sha `07286ad6…`), measured false-accept rate **not yet measured** on 60 perturbed control answers (reference: an independent audit measured 62.81% for a naive judge). Abstention is scored by exact match, not by the judge. Naive top-k: `BAAI/bge-small-en-v1.5`, 2000-char chunks within session boundaries, k=10; index build cost excluded from $/Q and reported separately. Reproduce: `uv run errata-eval report --runs rerunD-g5 rerunB-nothink rerunC-nothink`.
+> Dataset: `xiaowu0162/longmemeval-cleaned`, revision `98d7416c…`, file `longmemeval_s_cleaned.json` (sha256 `d6f21ea9…`). All three arms answer the **same 150 questions**, a seeded stratified subsample (`sample_seed=20260819`) proportional by question type with **all 30 abstention questions included**; the full-context baseline runs on this subsample rather than all 500 for cost reasons. 3 runs, seeds 11/22/33, temperature 0 — sd reflects provider nondeterminism, not sampling spread. Answer model `qwen/qwen3.7-flash` and answer prompt (sha `a1ea7ee7…`) **identical across all three arms**, verified at run start against the deployed API. Judge `anthropic/claude-sonnet-5` (prompt sha `07286ad6…`), measured false-accept rate **15.0% (9/60)** on 60 perturbed control answers, against 62.81% for a naive judge in an independent audit — **over this protocol's own ≤10% gate, and published rather than tuned away**. The overage is one family: attribution-flip 58.3% (7/12); the other four are entity-swap 8.3%, value-shift 8.3%, superseded-value **0.0% (0/12)** — the family the knowledge-update column depends on — and topical-filler 0.0%, i.e. 4.2% (2/48) excluding attribution-flip. False-reject rate on 60 paraphrased-gold positives: **0.0% (0/60)**. Full numbers, the per-family table and the diagnosis of the failed gate: `eval/judge-validation.md`. Abstention is scored by exact match, not by the judge. Naive top-k: `BAAI/bge-small-en-v1.5`, 2000-char chunks within session boundaries, k=10; index build cost excluded from $/Q and reported separately. Reproduce: `uv run errata-eval report --runs rerunD-g5 rerunB-nothink rerunC-nothink`.
 
 `Overall` and the four ability columns are accuracy over the **120 non-abstention** questions;
 abstention is scored separately and deterministically as P/R. Errata's `$/Q` is $0.000021, not zero

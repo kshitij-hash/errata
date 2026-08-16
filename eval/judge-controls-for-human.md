@@ -1,0 +1,34 @@
+# Judge controls — human labelling sheet
+
+A stratified 20 of the 120 judge-validation control items (proportional across the six strata: paraphrase positives and the five perturbation families). Which items these are is fixed by seed, not by what the judge said.
+
+**How to label.** For each row decide, from the question and the reference answer alone, whether the candidate answer states the same facts. Write `CORRECT` or `INCORRECT` in the **Verdict** column. Leave nothing blank; if you genuinely cannot tell, write `INCORRECT` (the judge prompt tie-breaks the same way, so the comparison stays fair).
+
+The judge's own verdicts are deliberately **not** in this file. When every row is filled:
+
+    uv run python kappa.py --labels judge-controls-for-human.md
+
+reports Cohen's κ between you and `anthropic/claude-sonnet-5` on these items.
+
+| # | control_id | Question | Reference answer (gold) | Candidate answer | Verdict |
+|---:|---|---|---|---|---|
+| 1 | `perturbed:16c90bf4` | I'm looking back at our previous conversation about the Seco de Cordero recipe from Ancash. You mentioned using a light or medium-bodied beer, but I was wondering if you could remind me what type of beer you specifically recommended? | I recommended using a Pilsner or Lager for the recipe. | The assistant recommended using a Pilsner or Lager for the recipe. |  |
+| 2 | `perturbed:54026fce` | I've been thinking about ways to stay connected with my colleagues. Any suggestions? | The user would prefer responses that acknowledge their desire for social interaction and collaboration while working remotely, utilizing their previous experiences with company initiatives and team collaborations. They might prefer suggestions of virtual team-building activities, regular check-ins, or joining interest-based groups within the company. The user may not prefer generic suggestions that do not take into account their specific work situation or previous attempts at staying connected with colleagues. | The assistant would prefer responses that acknowledge their desire for social interaction and collaboration while working remotely, utilizing their previous experiences with company initiatives and team collaborations. They might prefer suggestions of virtual team-building activities, regular check-ins, or joining interest-based groups within the company. The assistant may not prefer generic suggestions that do not take into account their specific work situation or previous attempts at staying connected with colleagues. |  |
+| 3 | `perturbed:1de5cff2` | I was going through our previous conversation about high-end fashion brands, and I was wondering if you could remind me of the brand that uses wild rubber sourced from the Amazon rainforest? | Veja | ABBA |  |
+| 4 | `perturbed:c5e8278d` | What was my last name before I changed it? | Johnson | Academy |  |
+| 5 | `positive:28bcfaac` | I'm going back to our previous conversation about music theory. You mentioned some online resources for learning music theory. Can you remind me of the website you recommended for free lessons and exercises? | MusicTheory.net | The website I recommended is MusicTheory.net. |  |
+| 6 | `positive:603deb26` | How many times have I tried making a Negroni at home since my friend Emma showed me how to make it? | 10 | You have tried making a Negroni at home 10 times since your friend Emma showed you how to make it. |  |
+| 7 | `positive:60472f9c` | How many projects have I been working on simultaneously, excluding my thesis? | 2 | Excluding your thesis, you have been working on two projects simultaneously. |  |
+| 8 | `positive:6b7dfb22` | I've been feeling a bit stuck with my paintings lately. Do you have any ideas on how I can find new inspiration? | The user would prefer responses that build upon their existing sources of inspiration, such as revisiting Instagram art accounts or exploring new techniques from online tutorials. They might also appreciate suggestions that revisit previous themes they found enjoyable, like painting flowers. The user would not prefer generic or vague suggestions for finding inspiration, and would likely appreciate responses that utilize their recent 30-day painting challenge experience. | The user favors responses that expand on their current creative influences, such as returning to Instagram art accounts or trying out new methods from online tutorials. Additionally, they would welcome suggestions to return to previously enjoyed subject matter, like painting flowers. Broad or vague ideas for sparking inspiration should be avoided, while incorporating their recent 30-day painting challenge experience would be well received. |  |
+| 9 | `positive:7a87bd0c` | How long have I been sticking to my daily tidying routine? | 4 weeks | You have been keeping up with your daily tidying routine for 4 weeks. |  |
+| 10 | `positive:9d25d4e0` | How many pieces of jewelry did I acquire in the last two months? | 3 | You acquired 3 pieces of jewelry. |  |
+| 11 | `positive:b86304ba` | How much is the painting of a sunset worth in terms of the amount I paid for it? | The painting is worth triple what I paid for it. | The painting is worth three times the amount I paid for it. |  |
+| 12 | `positive:d23cf73b` | How many different cuisines have I learned to cook or tried out in the past few months? | 4 | You have learned to cook or tried out 4 different cuisines in the past few months. |  |
+| 13 | `positive:d52b4f67` | Where did I attend my cousin's wedding? | The Grand Ballroom | At The Grand Ballroom. |  |
+| 14 | `positive:dfde3500` | What day of the week did I meet with my previous language exchange tutor Juan? | Wednesday | You met with Juan on Wednesday. |  |
+| 15 | `perturbed:10e09553` | How many largemouth bass did I catch with Alex on the earlier fishing trip to Lake Michigan before the 7/22 trip? | 7 | 6 |  |
+| 16 | `perturbed:69fee5aa` | How many pre-1920 American coins do I have in my collection? | 38 | 37 |  |
+| 17 | `perturbed:5c40ec5b` | How many times have I met up with Alex from Germany? | We've met up twice. | Your chat history touches on this topic, but it does not record a specific answer to "How many times have I met up with Alex from Germany?"; the earlier conversations stay general and never pin down a single value. |  |
+| 18 | `perturbed:bf659f65` | How many music albums or EPs have I purchased or downloaded? | 3 | Your chat history touches on this topic, but it does not record a specific answer to "How many music albums or EPs have I purchased or downloaded?"; the earlier conversations stay general and never pin down a single value. |  |
+| 19 | `perturbed:37f165cf` | What was the page count of the two novels I finished in January and March? | 856 | 857 |  |
+| 20 | `perturbed:720133ac` | What is the total cost of Lola's vet visit and flea medication? | $75 | $76 |  |

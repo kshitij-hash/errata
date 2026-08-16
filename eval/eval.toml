@@ -59,7 +59,7 @@ require_parity = true    # abort if /api/meta disagrees with [models].answer or 
 send_question_date = true
 
 [spend]
-hard_cap_usd   = 13.00   # harness aborts mid-run at this number (re-set 2026-08-16: key has $14.65 left after ingest+ArmB-tier reconciliation)
+hard_cap_usd   = 15.00   # harness aborts mid-run at this number (raised 2026-08-17 from 13.00 to fund the 120-item judge-validation pass; ledger stood at $12.10)
 warn_at_usd    = 10.00
 per_arm_cap_usd = { full_context = 8.00, judge = 9.00 }
 ledger_path    = "out/ledger.jsonl"

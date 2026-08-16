@@ -1,6 +1,7 @@
 """errata-eval command line.
 
-Subcommands: sample, parity, run, judge-validate, report.
+Subcommands: sample, parity, estimate, run, judge, report, and the judge-validation trio
+(controls, controls-positive, judge-validate).
 
 The parity gate (``parity``) is the load-bearing safety check: it asserts the deployed API's
 answer prompt sha and answer model match ours BEFORE any spend, exiting non-zero on mismatch.
@@ -25,6 +26,18 @@ from .report import ArmReport, render_caption, write_report
 
 EXIT_PARITY_MISMATCH = 4
 EXIT_DATASET = 2
+EXIT_GATE_FAILED = 6
+
+# Deterministic passes (control generation, control scoring) replay from here at $0. Under out/,
+# which is gitignored: a cache is a local accelerator, never an artifact of record.
+DEFAULT_LLM_CACHE_DIR = "out/llm-cache"
+
+
+def _cache_dir(args: argparse.Namespace) -> str | None:
+    """Resolve --cache-dir: absent => the default cache, empty string => no cache at all."""
+    if args.cache_dir is None:
+        return DEFAULT_LLM_CACHE_DIR
+    return args.cache_dir or None
 
 
 # --------------------------------------------------------------------------------------------
@@ -274,12 +287,25 @@ def cmd_estimate(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------------------------
-# controls — write the deterministic negative judge-control set (NO LLM)
+# controls — the two halves of the judge-control set
 # --------------------------------------------------------------------------------------------
-POSITIVE_STUB_HEADER = (
-    "# TODO(funded): 60 positive paraphrase controls require an LLM perturber "
-    "(see judge_validation.build_control_set); this stub carries no fabricated rows.\n"
-)
+def _eval_dir() -> Path:
+    return cfg.repo_root() / "eval"
+
+
+def default_negative_controls_path() -> Path:
+    return _eval_dir() / "judge-controls.jsonl"
+
+
+def default_positive_controls_path() -> Path:
+    return _eval_dir() / "judge-controls-positive.jsonl"
+
+
+def _write_rows(path: Path, rows: list[dict[str, Any]]) -> None:
+    with open(path, "wb") as fh:
+        for row in rows:
+            fh.write(orjson.dumps(row))
+            fh.write(b"\n")
 
 
 def cmd_controls(args: argparse.Namespace) -> int:
@@ -290,25 +316,16 @@ def cmd_controls(args: argparse.Namespace) -> int:
     seed = args.seed if args.seed is not None else CONTROL_SEED
     items = build_negative_controls(corpus, seed=seed)
 
-    out_path = Path(args.out) if args.out else Path("judge-controls.jsonl")
-    with open(out_path, "wb") as fh:
-        for item in items:
-            fh.write(orjson.dumps(item.to_row()))
-            fh.write(b"\n")
-    stub_path = out_path.with_name(out_path.stem + "-positive.stub.jsonl")
-    stub_path.write_text(POSITIVE_STUB_HEADER, encoding="utf-8")
-
+    out_path = Path(args.out) if args.out else default_negative_controls_path()
+    _write_rows(out_path, [item.to_row() for item in items])
     fams = sorted({item.family for item in items})
     print(f"wrote {len(items)} negative controls ({len(fams)} families, seed={seed}) to {out_path}")
-    print(f"wrote positive-control stub (no rows) to {stub_path}")
     return 0
 
 
-# --------------------------------------------------------------------------------------------
-# judge-validate
-# --------------------------------------------------------------------------------------------
-def cmd_judge_validate(args: argparse.Namespace) -> int:
-    from .judge_validation import build_control_set, evaluate, score_control_set
+def cmd_controls_positive(args: argparse.Namespace) -> int:
+    """Generate the paraphrased-gold POSITIVE controls. The one paid pass in §4.3, and cached."""
+    from .judge_validation import build_positive_controls
     from .openrouter import Ledger, OpenRouterClient
 
     config = _load_config(args)
@@ -320,13 +337,95 @@ def cmd_judge_validate(args: argparse.Namespace) -> int:
         hard_cap_usd=config.spend.hard_cap_usd,
         run_id=config.run.run_id,
     )
-    prices = cfg.load_prices(cfg.default_prices_path())
-    client = OpenRouterClient(prices, ledger, run_id=config.run.run_id)
-    judge_model = args.judge or config.models.judge_primary
-    items = build_control_set(
-        corpus, client, config.models.perturber, n=args.n or jv.n, seed=jv.validation_seed
+    client = OpenRouterClient(
+        cfg.load_prices(cfg.default_prices_path()),
+        ledger,
+        run_id=config.run.run_id,
+        cache_dir=_cache_dir(args),
     )
-    score_control_set(client, judge_model, items)
+    try:
+        items = build_positive_controls(
+            corpus,
+            client,
+            config.models.perturber,
+            n=args.n or jv.n,
+            seed=jv.validation_seed,
+        )
+    finally:
+        client.close()
+        ledger.flush()
+    out_path = Path(args.out) if args.out else default_positive_controls_path()
+    _write_rows(out_path, [item.to_row() for item in items])
+    print(
+        f"wrote {len(items)} positive controls (perturber={config.models.perturber}, "
+        f"seed={jv.validation_seed}) to {out_path}; ledger +${ledger.total_usd:.4f}"
+    )
+    ledger.close()
+    return 0
+
+
+# --------------------------------------------------------------------------------------------
+# judge-validate
+# --------------------------------------------------------------------------------------------
+def cmd_judge_validate(args: argparse.Namespace) -> int:
+    """Score the committed 120-item control set with the pinned judge and publish the rates.
+
+    Generation and measurement are separate commands on purpose: this one never builds a control,
+    so the judge is always measured against the same committed artifact, and a re-run is a replay.
+    Exits ``EXIT_GATE_FAILED`` on a failed gate — the numbers are still written first.
+    """
+    from .judge_validation import (
+        CONTROL_SEED,
+        control_items_from_rows,
+        evaluate,
+        preserved_tail,
+        render_human_sheet,
+        render_validation_md,
+        score_control_set,
+        stratified_spot_check,
+    )
+    from .openrouter import Ledger, OpenRouterClient
+    from .prompts import JUDGE_PROMPT_SHA256
+
+    config = _load_config(args)
+    jv = config.judge_validation
+    neg_path = args.negatives or default_negative_controls_path()
+    pos_path = args.positives or default_positive_controls_path()
+    rows = _read_jsonl(Path(neg_path)) + _read_jsonl(Path(pos_path))
+    if not rows:
+        print(f"judge-validate: no controls at {neg_path} / {pos_path}", file=sys.stderr)
+        return 1
+    items = control_items_from_rows(rows)
+
+    ledger = Ledger(
+        Path(config.spend.ledger_path),
+        warn_at_usd=config.spend.warn_at_usd,
+        hard_cap_usd=config.spend.hard_cap_usd,
+        run_id=config.run.run_id,
+    )
+    client = OpenRouterClient(
+        cfg.load_prices(cfg.default_prices_path()),
+        ledger,
+        run_id=config.run.run_id,
+        cache_dir=_cache_dir(args),
+    )
+    judge_model = args.judge or config.models.judge_primary
+    gen = config.generation
+    try:
+        score_control_set(
+            client,
+            judge_model,
+            items,
+            temperature=gen.judge_temperature,
+            max_tokens=gen.judge_max_tokens,
+            shuffle_seed=jv.validation_seed,
+        )
+    finally:
+        client.close()
+        ledger.flush()
+    spend = ledger.total_usd
+    ledger.close()
+
     report = evaluate(
         judge_model,
         items,
@@ -334,10 +433,55 @@ def cmd_judge_validate(args: argparse.Namespace) -> int:
         far_gate_superseded=jv.far_gate_superseded,
         frr_gate=jv.frr_gate,
     )
+
+    scored_path = Path("out") / "judge-controls-scored.jsonl"
+    scored_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_rows(
+        scored_path,
+        [
+            {
+                "control_id": it.control_id,
+                "question_id": it.question_id,
+                "kind": it.kind,
+                "family": it.family,
+                "expected": it.expected,
+                "verdict": it.verdict,
+                "judge_model": judge_model,
+                "judge_prompt_sha": JUDGE_PROMPT_SHA256,
+            }
+            for it in items
+        ],
+    )
+    spot = stratified_spot_check(items, jv.spot_check_n, seed=jv.validation_seed)
+    (_eval_dir() / "judge-controls-for-human.md").write_text(
+        render_human_sheet(spot, judge_model=judge_model, total_items=len(items)),
+        encoding="utf-8",
+    )
+    validation_path = _eval_dir() / "judge-validation.md"
+    body = render_validation_md(
+        report,
+        judge_prompt_sha=JUDGE_PROMPT_SHA256,
+        perturber_model=config.models.perturber,
+        validation_seed=jv.validation_seed,
+        control_seed=CONTROL_SEED,
+        spend_usd=spend,
+        spot_check_n=jv.spot_check_n,
+    )
+    # A re-render replaces the measured numbers and keeps the hand-written analysis under them.
+    tail = preserved_tail(validation_path.read_text(encoding="utf-8")) if validation_path.exists() else ""
+    validation_path.write_text(body + ("\n" + tail if tail else ""), encoding="utf-8")
+
     print(f"judge={judge_model} FAR={report.far:.1%} FRR={report.frr:.1%} pinned={report.pinned}")
-    for fam, far in sorted(report.far_by_family.items()):
-        print(f"  {fam}: FAR={far:.1%}")
-    return 0 if report.pinned else 1
+    for fam in sorted(report.far_by_family):
+        print(f"  {fam}: FAR={report.far_by_family[fam]:.1%}")
+    print(f"scored {len(items)} controls, spend ${spend:.4f}; wrote eval/judge-validation.md")
+    if not report.all_gates_pass:
+        print(
+            "judge-validate: a GATE FAILED — publish the number, do not tune the prompt to pass it",
+            file=sys.stderr,
+        )
+        return EXIT_GATE_FAILED
+    return 0
 
 
 # --------------------------------------------------------------------------------------------
@@ -510,15 +654,25 @@ def build_parser() -> argparse.ArgumentParser:
     ct.add_argument("--out", type=Path, default=None, help="output .jsonl path")
     ct.set_defaults(func=cmd_controls)
 
+    cp = sub.add_parser(
+        "controls-positive", help="generate the paraphrase POSITIVE controls (one cached LLM pass)"
+    )
+    cp.add_argument("--n", type=int, default=None)
+    cp.add_argument("--out", type=Path, default=None, help="output .jsonl path")
+    cp.add_argument("--cache-dir", default=None, help="LLM cache dir ('' disables)")
+    cp.set_defaults(func=cmd_controls_positive)
+
     jd = sub.add_parser("judge", help="judge a run's answers.jsonl → judgments.jsonl")
     jd.add_argument("--run", required=True, help="run_id under out/")
     jd.add_argument("--judge", default=None, help="override judge model")
     jd.add_argument("--resume", action="store_true")
     jd.set_defaults(func=cmd_judge)
 
-    jv = sub.add_parser("judge-validate", help="build + score the perturbed control set")
-    jv.add_argument("--n", type=int, default=None)
-    jv.add_argument("--judge", default=None)
+    jv = sub.add_parser("judge-validate", help="score the committed control set; publish FAR/FRR")
+    jv.add_argument("--judge", default=None, help="override the judge model under test")
+    jv.add_argument("--negatives", type=Path, default=None)
+    jv.add_argument("--positives", type=Path, default=None)
+    jv.add_argument("--cache-dir", default=None, help="LLM cache dir ('' disables)")
     jv.set_defaults(func=cmd_judge_validate)
 
     rp = sub.add_parser("report", help="emit out/report/table.md + caption")

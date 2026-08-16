@@ -3,10 +3,17 @@
 Credit-gated. Never exercised by the offline test bar and never called inside pytest.
 Every call writes one append-only ledger row (§6.3 schema); ``usd`` is computed from the
 PINNED price sheet, not from the provider's self-reported figure (stored as ``usd_reported``).
+
+An optional on-disk cache (``cache_dir``) mirrors packages/llm's: temperature-0 calls are
+content-addressed by (model, prompt, temperature, max_tokens, response_format), so re-running a
+deterministic pass — the judge-validation control set, a positive-control rebuild — is $0 and
+byte-identical instead of a second charge. A cache hit still writes a ledger row (``usd`` 0.0,
+``cost_source`` "cache"): the ledger stays the single account of what the harness did.
 """
 
 from __future__ import annotations
 
+import hashlib
 import os
 import random
 import threading
@@ -30,6 +37,37 @@ class SpendCapError(RuntimeError):
 
 class CircuitBreak(RuntimeError):
     """Raised on HTTP 402 (out of credits) — stop immediately, do not retry."""
+
+
+def cache_key_for(
+    *,
+    model: str,
+    prompt: str,
+    temperature: float,
+    max_tokens: int,
+    response_format: dict[str, Any] | None = None,
+    reasoning_enabled: bool | None = None,
+) -> str:
+    """Content address of one completion request. Pure; the cache's whole identity lives here.
+
+    Everything that can change the reply is in the key — including ``reasoning_enabled``, which
+    changes it drastically: a thinking model spends the token budget on reasoning and returns a
+    reply truncated mid-word, so a cache that ignored the flag would serve those truncations back
+    forever. ``seed`` deliberately is NOT in the key: the harness sends it only to pin provider
+    nondeterminism at temperature 0. Nothing else may be added without invalidating every entry.
+    """
+    canonical = orjson.dumps(
+        {
+            "model": model,
+            "prompt": prompt,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "response_format": response_format,
+            "reasoning_enabled": reasoning_enabled,
+        },
+        option=orjson.OPT_SORT_KEYS,
+    )
+    return hashlib.sha256(canonical).hexdigest()
 
 
 @dataclass(slots=True)
@@ -108,12 +146,14 @@ class OpenRouterClient:
         timeout_s: float = 120.0,
         max_attempts: int = 6,
         component: str = "eval",
+        cache_dir: str | Path | None = None,
     ) -> None:
         self.prices = prices
         self.ledger = ledger
         self.run_id = run_id
         self.component = component
         self.max_attempts = max_attempts
+        self.cache_dir = Path(cache_dir) if cache_dir is not None else None
         key = api_key or os.environ.get("OPENROUTER_API_KEY")
         if not key:
             raise RuntimeError("OPENROUTER_API_KEY not set (secrets live in env only)")
@@ -141,6 +181,17 @@ class OpenRouterClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        cache_key = cache_key_for(
+            model=model,
+            prompt=prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+            reasoning_enabled=reasoning_enabled,
+        )
+        hit = self._read_cache(cache_key)
+        if hit is not None:
+            return self._record_cache_hit(hit, model, op, ref)
         if seed is not None:
             payload["seed"] = seed
         if response_format is not None:
@@ -180,7 +231,7 @@ class OpenRouterClient:
                 continue
 
             body = resp.json()
-            return self._record(body, model, op, ref, attempt, latency_ms)
+            return self._record(body, model, op, ref, attempt, latency_ms, cache_key)
 
         self._log_failure(model, op, ref, self.max_attempts, last_error or "unknown")
         raise RuntimeError(f"OpenRouter call failed after {self.max_attempts} attempts: {last_error}")
@@ -194,6 +245,7 @@ class OpenRouterClient:
         ref: dict[str, Any] | None,
         attempt: int,
         latency_ms: float,
+        cache_key: str = "",
     ) -> LLMResult:
         choice = (body.get("choices") or [{}])[0]
         text = (choice.get("message") or {}).get("content", "") or ""
@@ -224,6 +276,15 @@ class OpenRouterClient:
                 "ref": ref or {},
             }
         )
+        self._write_cache(
+            cache_key,
+            {
+                "text": text,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "trace_id": trace_id,
+            },
+        )
         return LLMResult(
             text=text,
             prompt_tokens=prompt_tokens,
@@ -234,6 +295,70 @@ class OpenRouterClient:
             trace_id=trace_id,
             model=model,
             attempt=attempt,
+        )
+
+    # ---- on-disk cache -----------------------------------------------------------------------
+    def _cache_path(self, key: str) -> Path | None:
+        if self.cache_dir is None or not key:
+            return None
+        return self.cache_dir / f"{key}.json"
+
+    def _read_cache(self, key: str) -> dict[str, Any] | None:
+        path = self._cache_path(key)
+        if path is None or not path.exists():
+            return None
+        try:
+            return orjson.loads(path.read_bytes())
+        except (orjson.JSONDecodeError, OSError):
+            return None
+
+    def _write_cache(self, key: str, value: dict[str, Any]) -> None:
+        path = self._cache_path(key)
+        if path is None:
+            return
+        try:  # best-effort: a cache write must never fail a call that already succeeded
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(orjson.dumps(value))
+        except OSError:
+            pass
+
+    def _record_cache_hit(
+        self, hit: dict[str, Any], model: str, op: str, ref: dict[str, Any] | None
+    ) -> LLMResult:
+        """A replay costs $0 but is still an event, so it still gets a ledger row."""
+        prompt_tokens = int(hit.get("prompt_tokens", 0))
+        completion_tokens = int(hit.get("completion_tokens", 0))
+        self.ledger.append(
+            {
+                "ts": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                "component": self.component,
+                "op": op,
+                "run_id": self.run_id,
+                "provider": "openrouter",
+                "model": model,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "cached_prompt_tokens": prompt_tokens,
+                "usd": 0.0,
+                "usd_reported": 0.0,
+                "latency_ms": 0.0,
+                "ok": True,
+                "attempt": 0,
+                "cost_source": "cache",
+                "error": None,
+                "ref": ref or {},
+            }
+        )
+        return LLMResult(
+            text=str(hit.get("text", "")),
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            usd=0.0,
+            usd_reported=0.0,
+            latency_ms=0.0,
+            trace_id=str(hit.get("trace_id", "")),
+            model=model,
+            attempt=0,
         )
 
     def _log_failure(
