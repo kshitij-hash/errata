@@ -164,12 +164,27 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     arm = _build_arm(args.arm, config)
     written = 0
+    empty_streak = 0
     with open(answers_path, "ab") as fh:
         for seed in seeds:
             for q in chosen:
                 if (args.arm, seed, q.question_id) in done:
                     continue
                 row = arm.answer(q, seed=seed)
+                # circuit breaker: a paid arm producing empty answers is burning budget on garbage
+                # (a thinking model once spent the whole max_tokens on reasoning — 448/450 empty
+                # answers, ~$6 wasted). Three consecutive empties aborts the arm BEFORE scale.
+                if not str(row.get("answer") or "").strip():
+                    empty_streak += 1
+                    if empty_streak >= 3:
+                        print(
+                            f"run {run_id}: ABORT — {empty_streak} consecutive empty answers "
+                            f"from arm={args.arm}; fix the arm before spending more",
+                            file=sys.stderr,
+                        )
+                        return 5
+                else:
+                    empty_streak = 0
                 fh.write(orjson.dumps(row))
                 fh.write(b"\n")
                 written += 1
