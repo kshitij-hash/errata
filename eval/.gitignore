@@ -13,3 +13,6 @@ data/*
 # Run outputs are gitignored EXCEPT the committed report directory.
 out/*
 !out/report/
+
+# The failure taxonomy is an analysis deliverable, not a run output.
+!out/failure-taxonomy.md

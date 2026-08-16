@@ -268,6 +268,21 @@ export function sessionsByExternalId(historyId: string, sessionId: string): Stmt
   return { text, params: { history_id: historyId, session_id: sessionId } };
 }
 
+/** Every Claim in one history — a bounded label scan, DIAGNOSTIC ONLY (the failure-taxonomy replay
+ *  asks "does a claim supporting the gold answer exist at all?"). Same admin class as `countLabel`:
+ *  never on the ask path, never on the demo path. */
+export function claimsForHistory(historyId: string, limit = 2000): Stmt {
+  const text =
+    `MATCH (c:Claim)\n` +
+    `WHERE c.history_id = $history_id\n` +
+    `RETURN c.id AS claim_id, c.attribute AS attribute, c.subject_norm AS subject_norm,\n` +
+    `       c.value_text AS value, c.event_time AS event_time,\n` +
+    `       c.session_id AS session_id, c.turn_index AS turn_index,\n` +
+    `       c.evidence_span AS evidence_span\n` +
+    `LIMIT ${Math.max(1, Math.floor(limit))}`;
+  return { text, params: { history_id: historyId } };
+}
+
 /** Per-history node count for /api/meta/health (label scan; admin only, never demo path). */
 export function countLabel(label: NodeLabel, historyId: string): Stmt {
   const text =

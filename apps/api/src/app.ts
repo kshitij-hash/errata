@@ -79,13 +79,15 @@ app.get('/api/turns', async (c) => {
 });
 
 app.post('/api/ask', async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { question?: string; history_id?: string; question_date?: string; explain?: boolean };
+  const body = (await c.req.json().catch(() => ({}))) as { question?: string; history_id?: string; question_date?: string; explain?: boolean; debug?: boolean };
   const historyId = body.history_id ?? config.demoHistory;
   if (!body.question) return c.json({ error: 'question is required' }, 400);
   if (!historyId) return c.json({ error: 'history_id is required' }, 400);
   const out = await askQuery(db(), historyId, body.question, lexicon(historyId), {
     completer: answerCompleter() ?? undefined,
     questionDate: body.question_date,
+    // opt-in diagnostic trace (eval/failure_review.py). Costs two extra reads; never set by the UI.
+    debug: body.debug === true,
   });
   return c.json(out);
 });

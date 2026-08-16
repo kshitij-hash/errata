@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import {
   claimsForEntities,
   claimsForEntityAttribute,
+  claimsForHistory,
   enumerateChain,
   keys,
   revisionEdgesForEntity,
@@ -200,6 +201,32 @@ export interface AskResult {
   evidence: unknown;
   nearest_miss?: unknown[];
   latency_ms: number;
+  /** DIAGNOSTIC ONLY, opt-in via `debug: true` on POST /api/ask. Absent otherwise, so the eval's
+   *  contract-v1.1 rows are byte-identical whether or not this exists. Written for
+   *  `eval/failure_review.py`: it needs to know WHY a row abstained, not just that it did. */
+  trace?: AskTrace;
+}
+
+/** One ask, opened up: what the front door resolved, what material the synthesis saw, and the
+ *  exact gate that produced the outcome. See `AskResult.trace`. */
+export interface AskTrace {
+  tokens: string[];
+  matched_tokens: string[];
+  unmatched_tokens: string[];
+  first_person: boolean;
+  anchors: number;
+  anchors_resolved: number;
+  claim_rows: number;
+  attributes: string[];
+  best_attribute: string | null;
+  best_score: number;
+  material: { attribute: string; value: string; s: number; session_id: string; turn_index: number; span: string }[];
+  decision: string;
+  synth: 'none' | 'insufficient' | 'answer' | 'empty';
+  /** the gate that produced an abstention, or null when the ask answered. */
+  abstain_reason: 'no_anchor' | 'no_claim_fit' | 'synth_insufficient' | 'below_tau' | null;
+  /** every claim in the history (bounded scan) — the extraction-gap denominator. */
+  history_claims: { attribute: string; value: string; span: string }[];
 }
 
 /** The one LLM seam in the answer path (v2 synthesis). Injected so vitest never touches an LLM
@@ -219,6 +246,8 @@ export interface AnswerCompleter {
 export interface AskOptions {
   completer?: AnswerCompleter;
   questionDate?: string;
+  /** attach `trace` to the result (extra reads; diagnostic replays only, never the demo path). */
+  debug?: boolean;
 }
 
 export async function askQuery(client: GraphClient, historyId: string, question: string, lex: { self: number[]; terms: Record<string, number[]> } | null, opts: AskOptions = {}): Promise<AskResult> {
@@ -241,6 +270,8 @@ export async function askQuery(client: GraphClient, historyId: string, question:
 
   // resolve anchors (spec 31 §4.7 step 0): lexicon terms + first-person → SELF
   const anchorSet = new Set<number>();
+  const matchedTokens: string[] = [];
+  const unmatchedTokens: string[] = [];
   let resolved = 0;
   if (firstPerson && lex) for (const id of lex.self) anchorSet.add(id);
   for (const t of tokens) {
@@ -248,19 +279,53 @@ export async function askQuery(client: GraphClient, historyId: string, question:
     if (ids && ids.length) {
       for (const id of ids) anchorSet.add(id);
       resolved++;
+      matchedTokens.push(t);
     } else if (FIRST_PERSON.has(t)) {
       resolved++;
+      matchedTokens.push(t);
+    } else {
+      unmatchedTokens.push(t);
     }
   }
   const anchors = [...anchorSet].slice(0, 8);
   const anchorsResolved = Math.min(resolved, tokens.length);
 
-  const abstain = (nearest: unknown[]): AskResult => {
+  // diagnostic replay only: the whole history's claims, so the taxonomy can separate a ranking
+  // miss (the claim exists but never reached the material) from an extraction gap (it never existed).
+  const historyClaims = opts.debug
+    ? (await run(client, claimsForHistory(historyId))).map((r) => ({
+        attribute: String(r.attribute),
+        value: String(r.value),
+        span: String(r.evidence_span ?? ''),
+      }))
+    : [];
+  const dbg = {
+    best_attribute: null as string | null,
+    best_score: 0,
+    material: [] as AskTrace['material'],
+    claim_rows: 0,
+    attributes: [] as string[],
+    synth: 'none' as AskTrace['synth'],
+  };
+  const traceOf = (decision: string, reason: AskTrace['abstain_reason']): { trace?: AskTrace } =>
+    opts.debug
+      ? {
+          trace: {
+            tokens, matched_tokens: matchedTokens, unmatched_tokens: unmatchedTokens,
+            first_person: firstPerson, anchors: anchors.length, anchors_resolved: anchorsResolved,
+            claim_rows: dbg.claim_rows, attributes: dbg.attributes,
+            best_attribute: dbg.best_attribute, best_score: dbg.best_score, material: dbg.material,
+            decision, synth: dbg.synth, abstain_reason: reason, history_claims: historyClaims,
+          },
+        }
+      : {};
+
+  const abstain = (nearest: unknown[], reason: AskTrace['abstain_reason']): AskResult => {
     const score = scoreEvidence({ contentTokens: tokens, anchorsResolved, hasTimeConstraint: hasTimeConstraint(question), timeConstraintViolated: false }, [], config.tau);
-    return { answer: null, abstained: true, confidence: score.E, citations: [], nearest_miss: nearest, evidence: score, latency_ms: +(performance.now() - t0).toFixed(1), ...base };
+    return { answer: null, abstained: true, confidence: score.E, citations: [], nearest_miss: nearest, evidence: score, latency_ms: +(performance.now() - t0).toFixed(1), ...base, ...traceOf('ABSTAIN', reason) };
   };
 
-  if (anchors.length === 0) return abstain([]);
+  if (anchors.length === 0) return abstain([], 'no_anchor');
 
   const claimRows = await run(client, claimsForEntities(anchors, historyId), cypher);
   const nmOf = (): unknown[] => {
@@ -283,7 +348,11 @@ export async function askQuery(client: GraphClient, historyId: string, question:
       best = r;
     }
   }
-  if (!best) return abstain(nmOf());
+  dbg.claim_rows = claimRows.length;
+  dbg.attributes = [...new Set(claimRows.map((r) => String(r.attribute)))];
+  dbg.best_score = bestSc;
+  dbg.best_attribute = best ? String(best.attribute) : null;
+  if (!best) return abstain(nmOf(), 'no_claim_fit');
 
   // resolve the belief for the chosen attribute at the best claim's own SUBJECT entity (P2-15 —
   // deriving from best.subject, not insertion order, so non-first-person questions don't misfire).
@@ -317,9 +386,13 @@ export async function askQuery(client: GraphClient, historyId: string, question:
         const e = Number(r.event_time);
         return e > 0 ? new Date(e * 1000).toISOString().slice(0, 10) : 'undated';
       };
-      const material = ranked
-        .slice()
-        .sort((a, b) => Number(a._row.event_time) - Number(b._row.event_time))
+      const ordered = ranked.slice().sort((a, b) => Number(a._row.event_time) - Number(b._row.event_time));
+      dbg.material = ordered.map((c) => ({
+        attribute: c.attribute, value: c.value, s: c.s,
+        session_id: String(c._row.session_id), turn_index: Number(c._row.turn_index),
+        span: String(c._row.evidence_span ?? ''),
+      }));
+      const material = ordered
         .map((c) => `[${dateOf(c._row)}] ${c.attribute.replace(/_/g, ' ')}: ${c.value} (session ${String(c._row.session_id)}, turn ${Number(c._row.turn_index)}) — "${String(c._row.evidence_span ?? '')}"`)
         .join('\n');
       const prompt = ANSWER_PROMPT
@@ -339,8 +412,10 @@ export async function askQuery(client: GraphClient, historyId: string, question:
       const paid = { ...base, cost: res.cost_usd, usage: res.usage };
       const synthLatency = +(performance.now() - t0).toFixed(1);
       if (text.startsWith('INSUFFICIENT_INFORMATION')) {
-        return { answer: null, abstained: true, confidence: score.E, citations: [], nearest_miss: nmOf(), evidence: score, latency_ms: synthLatency, ...paid };
+        dbg.synth = 'insufficient';
+        return { answer: null, abstained: true, confidence: score.E, citations: [], nearest_miss: nmOf(), evidence: score, latency_ms: synthLatency, ...paid, ...traceOf('ABSTAIN', 'synth_insufficient') };
       }
+      dbg.synth = text === '' ? 'empty' : 'answer';
       if (text !== '') {
         return {
           answer: text,
@@ -356,6 +431,7 @@ export async function askQuery(client: GraphClient, historyId: string, question:
           evidence: score,
           latency_ms: synthLatency,
           ...paid,
+          ...traceOf('SYNTHESIS', null),
         };
       }
       // empty content from the model: fall through to the deterministic fold — never return ''.
@@ -379,7 +455,8 @@ export async function askQuery(client: GraphClient, historyId: string, question:
       evidence: score,
       latency_ms: latency,
       ...base,
+      ...traceOf(decision, null),
     };
   }
-  return abstain(nmOf());
+  return abstain(nmOf(), 'below_tau');
 }

@@ -73,6 +73,7 @@ const stmts = (): cy.Stmt[] => [
   cy.turnForClaim(1),
   cy.turnsByIds([11, 22, 33]),
   cy.sessionsByExternalId('h', 's9'),
+  cy.claimsForHistory('h'),
   cy.countLabel('Turn', 'h'),
 ];
 
