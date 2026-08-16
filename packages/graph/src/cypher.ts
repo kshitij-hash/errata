@@ -17,14 +17,19 @@ export interface Stmt {
 export type NodeLabel = 'Session' | 'Turn' | 'Speaker' | 'Entity' | 'Claim';
 export type EdgeType = 'STATED_IN' | 'ABOUT' | 'SUPPORTS' | 'SUPERSEDES' | 'CONTRADICTS';
 
+/** Arms per id-pinned probe statement — the widest UNION any builder here emits. Declared before
+ *  INTEGER_KEYS because it sizes the `a<i>` anchor-key list: an anchor key missing from that set
+ *  is sent as a Bolt Float and the engine answers "node id property must be an integer". */
+export const PROBE_ARM_MAX = 64;
+
 /** Keys whose numeric values must be encoded as Bolt integers (never floats). `confidence` is a
  *  float and is deliberately absent. bolt.ts wraps exactly these with neo4j.int(). */
 export const INTEGER_KEYS: ReadonlySet<string> = new Set([
   // scalar params
   'entity_vid', 'claim_vid', 'newer_vid', 'older_vid', 'at',
-  // id-pinned UNION arms: 8 entity anchors on the ask path, up to TURN_WINDOW_MAX on /api/turns
-  'a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7',
-  'a8', 'a9', 'a10', 'a11', 'a12', 'a13', 'a14', 'a15',
+  // id-pinned UNION arms: 8 entity anchors on the ask path, TURN_WINDOW_MAX on /api/turns,
+  // PROBE_ARM_MAX on the health probes.
+  ...Array.from({ length: PROBE_ARM_MAX }, (_, i) => `a${i}`),
   // row fields
   'id', 'src', 'dst',
   'event_time', 'ingest_time', 'turn_idx', 'turn_index', 'token_count', 'ordinal', 'turn_count', 'mention_count',
@@ -283,11 +288,87 @@ export function claimsForHistory(historyId: string, limit = 2000): Stmt {
   return { text, params: { history_id: historyId } };
 }
 
-/** Per-history node count for /api/meta/health (label scan; admin only, never demo path). */
+/** Per-history node count by label scan. ADMIN/DIAGNOSTIC ONLY — no longer used by any route.
+ *
+ *  Kept as the thing the health route stopped doing, with the reason attached. A label scan's
+ *  candidate set is the WHOLE label, not the filtered subset, so once the store passed 250K Turns
+ *  the engine refused it outright — `cypher_vertex_label_index_candidates rejected by admission
+ *  control: actual 250001 exceeds limit 250000` — and 503'd the deployed demo's health route (G5).
+ *  Speaker, whose two-nodes-per-history shape looks trivial, timed out at 30 s for the same
+ *  reason: the scan is over every Speaker in the store. Health now counts id-anchored
+ *  (`nodesByIds` → `entityIdsForSessions` → `claimIdsForEntities`), bounded by the HISTORY's size
+ *  rather than the STORE's, which is the same discipline the ask path has always had.
+ */
 export function countLabel(label: NodeLabel, historyId: string): Stmt {
   const text =
     `MATCH (n:${label})\n` +
     `WHERE n.history_id = $history_id\n` +
     `RETURN count(*) AS n`;
   return { text, params: { history_id: historyId } };
+}
+
+function idPinnedUnion(
+  arm: (i: number) => string,
+  vids: number[],
+  extraParams: Record<string, unknown> = {},
+): Stmt {
+  const ids = vids.slice(0, PROBE_ARM_MAX);
+  const text = ids.map((_, i) => arm(i)).join('\nUNION\n');
+  const params: Record<string, unknown> = { ...extraParams };
+  ids.forEach((id, i) => (params[`a${i}`] = id));
+  return { text, params };
+}
+
+/** Id-pinned node probe: N UNION arms, one per id, returning `id` plus the requested properties.
+ *
+ *  `turnsByIds` generalised to any label — the read shape bounded by what the caller asked for
+ *  instead of by what the store happens to hold. Property names are checked against the label's
+ *  declared property list, so the interpolation can only emit a property this schema defines.
+ */
+export function nodesByIds(label: NodeLabel, vids: number[], props: readonly string[] = []): Stmt {
+  if (vids.length === 0) throw new Error('nodesByIds: at least one id required');
+  const allowed = new Set<string>([...NODE_PROPS[label], 'id']);
+  for (const p of props) {
+    if (!allowed.has(p)) throw new Error(`nodesByIds: ${label} has no property '${p}'`);
+  }
+  const returned = ['id', ...props.filter((p) => p !== 'id')];
+  return idPinnedUnion(
+    (i) =>
+      `MATCH (n:${label} {id: $a${i}})\n` +
+      `RETURN ${returned.map((p) => `n.${p} AS ${p}`).join(', ')}`,
+    vids,
+  );
+}
+
+/** The distinct Entity ids reachable from a bounded set of Sessions (Session←Turn←Claim→Entity).
+ *  UNION dedupes, so the row count IS the distinct entity count. Admin class, never the ask path.
+ *
+ *  The pattern is written ANCHOR-FIRST, and that is not cosmetic: the planner starts at the first
+ *  element it can bind, so the same four hops written `(e:Entity)<-[:ABOUT]-…-(s:Session {id})`
+ *  measured 1,233 ms per arm against 22 ms for this order, and 52 arms of the slow form exceeded
+ *  the engine's 30 s query timeout outright. Anchor first, walk outwards. */
+export function entityIdsForSessions(sessionVids: number[]): Stmt {
+  if (sessionVids.length === 0) throw new Error('entityIdsForSessions: at least one session id required');
+  return idPinnedUnion(
+    (i) =>
+      `MATCH (s:Session {id: $a${i}})<-[:STATED_IN]-(t:Turn)<-[:STATED_IN]-(c:Claim)-[:ABOUT]->(e:Entity)\n` +
+      `RETURN e.id AS id`,
+    sessionVids,
+  );
+}
+
+/** The distinct Claim ids at a bounded set of Entity anchors — `claimsForEntities`' read, ids
+ *  only, wider bound, written anchor-first for the planner. Anchoring on the ENTITY rather than on
+ *  the Turn is what makes a user correction countable: a correction claim is ABOUT its subject but
+ *  is STATED_IN no turn, so a turn-anchored count would miss exactly the claims the demo makes. */
+export function claimIdsForEntities(entityVids: number[], historyId: string): Stmt {
+  if (entityVids.length === 0) throw new Error('claimIdsForEntities: at least one anchor required');
+  return idPinnedUnion(
+    (i) =>
+      `MATCH (e:Entity {id: $a${i}})<-[:ABOUT]-(c:Claim)\n` +
+      `WHERE c.history_id = $history_id\n` +
+      `RETURN c.id AS id`,
+    entityVids,
+    { history_id: historyId },
+  );
 }

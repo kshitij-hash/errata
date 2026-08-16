@@ -75,6 +75,10 @@ const stmts = (): cy.Stmt[] => [
   cy.sessionsByExternalId('h', 's9'),
   cy.claimsForHistory('h'),
   cy.countLabel('Turn', 'h'),
+  cy.nodesByIds('Session', [1, 2, 3], ['turn_count']),
+  cy.nodesByIds('Speaker', [1, 2]),
+  cy.entityIdsForSessions([1, 2, 3]),
+  cy.claimIdsForEntities([1, 2, 3], 'h'),
 ];
 
 describe('cypher builders (spec 31 §7 tests 42-44)', () => {
@@ -127,6 +131,43 @@ describe('cypher builders (spec 31 §7 tests 42-44)', () => {
     expect(Object.keys(capped.params)).toHaveLength(cy.TURN_WINDOW_MAX);
     expect(lintCypher(capped.text)).toEqual([]);
     expect(() => cy.turnsByIds([])).toThrow(/at least one turn id/);
+  });
+
+  it('the health probes are id-pinned, capped, and never scan a label', () => {
+    // G5: five per-history label scans 503'd /api/meta/health once the store passed 250K Turns.
+    const probes = [
+      cy.nodesByIds('Session', [1, 2, 3], ['turn_count']),
+      cy.nodesByIds('Speaker', [1, 2]),
+      cy.entityIdsForSessions([1, 2, 3]),
+      cy.claimIdsForEntities([1, 2, 3], 'h'),
+    ];
+    for (const s of probes) {
+      expect(lintCypher(s.text), s.text).toEqual([]);
+      // every MATCH arm pins a vertex by id; none opens on a bare label.
+      for (const line of s.text.split('\n').filter((l) => l.startsWith('MATCH'))) {
+        expect(line, line).toMatch(/\{id: \$a\d+\}/);
+      }
+    }
+    expect(cy.nodesByIds('Session', [1, 2, 3], ['turn_count']).text.match(/UNION/g)).toHaveLength(2);
+    expect(cy.claimIdsForEntities([1, 2], 'h').params).toEqual({ history_id: 'h', a0: 1, a1: 2 });
+  });
+
+  it('the health probes cap their arms and refuse an empty anchor list', () => {
+    const many = Array.from({ length: 200 }, (_, i) => i + 1);
+    expect(Object.keys(cy.nodesByIds('Session', many).params)).toHaveLength(cy.PROBE_ARM_MAX);
+    expect(Object.keys(cy.entityIdsForSessions(many).params)).toHaveLength(cy.PROBE_ARM_MAX);
+    // history_id rides along with the arms, so the claim probe carries one extra param
+    expect(Object.keys(cy.claimIdsForEntities(many, 'h').params)).toHaveLength(cy.PROBE_ARM_MAX + 1);
+    expect(() => cy.nodesByIds('Session', [])).toThrow(/at least one id/);
+    expect(() => cy.entityIdsForSessions([])).toThrow(/at least one session id/);
+    expect(() => cy.claimIdsForEntities([], 'h')).toThrow(/at least one anchor/);
+  });
+
+  it('nodesByIds only ever returns a property the label actually declares', () => {
+    expect(cy.nodesByIds('Session', [1], ['turn_count']).text).toContain('n.turn_count AS turn_count');
+    expect(cy.nodesByIds('Speaker', [1]).text).toContain('n.id AS id');
+    expect(() => cy.nodesByIds('Session', [1], ['text'])).toThrow(/Session has no property 'text'/);
+    expect(() => cy.nodesByIds('Session', [1], ['1 AS x} RETURN 1 //'])).toThrow(/no property/);
   });
 
   it('turnForClaim returns the key and turn_idx a neighbour window needs', () => {

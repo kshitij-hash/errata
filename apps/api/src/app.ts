@@ -6,10 +6,10 @@ import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { Hono } from 'hono';
 import { ANSWER_MODEL, ANSWER_PROMPT, SCHEMA_VERSION } from '@errata/core';
-import { countLabel } from '@errata/graph';
-import type { NodeLabel } from '@errata/graph';
 import { defaultLedgerDir, rollup } from '@errata/llm';
 import { answerCompleter, config, db, lexicon } from './deps.js';
+import { historyCounts } from './health.js';
+import type { CountValue } from './health.js';
 import { CorrectionBody, CorrectionError, correctionWrite } from './correction.js';
 import { askQuery, beliefQuery, diffQuery } from './query.js';
 import { turnsQuery } from './turns.js';
@@ -153,21 +153,32 @@ app.get('/api/meta', (c) => {
 });
 
 app.get('/api/meta/health', async (c) => {
+  // Counts are id-anchored and bounded by the HISTORY (see health.ts). Five label scans of the
+  // whole STORE is what made this route 503 at full-corpus size while the demo itself was fine —
+  // /api/ask never scans. Entity/Claim need a traversal and are opt-in via `?counts=deep`; any
+  // count that cannot be taken says "skipped_at_scale". Only an unreachable graph is a 503.
   const historyId = c.req.query('history_id') ?? config.demoHistory;
-  const node_counts: Record<string, number> = {};
-  let readyz = false;
+  const deep = c.req.query('counts') === 'deep';
+  let node_counts: Record<string, CountValue> = {};
+  let counts_complete = true;
   try {
     if (historyId) {
-      for (const label of ['Claim', 'Turn', 'Session', 'Entity', 'Speaker'] as NodeLabel[]) {
-        const rows = await db().read(countLabel(label, historyId));
-        node_counts[label] = Number(rows[0]?.n ?? 0);
-      }
+      const result = await historyCounts(db(), historyId, { deep });
+      node_counts = result.counts;
+      counts_complete = result.complete;
     }
-    readyz = true;
   } catch (e) {
     return c.json({ readyz: false, error: String(e) }, 503);
   }
-  return c.json({ readyz, bookmark: db().bookmark.length > 0, node_counts, id_collisions: 0, full_scan_warnings: 0 });
+  return c.json({
+    readyz: true,
+    bookmark: db().bookmark.length > 0,
+    node_counts,
+    counts_mode: deep ? 'id_anchored_deep' : 'id_anchored',
+    counts_complete,
+    id_collisions: 0,
+    full_scan_warnings: 0,
+  });
 });
 
 app.get('/api/meta/costs', (c) => {

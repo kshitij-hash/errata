@@ -298,12 +298,27 @@ GiB instead of climbing. The G3 lease RCA fixed the *corruption* mode; this is t
 and the operating rule that follows is: **bulk ingest is single-writer, and the writer needs a
 memory guard sized to the box.** For Wednesday's pod: 16 GB and one ingest process, not N.
 
-One related limit surfaced at the new store size: `GET /api/meta/health` now returns 503 with
+One related limit surfaced at the new store size: `GET /api/meta/health` returned 503 with
 `cypher_vertex_label_index_candidates rejected by admission control: actual 250001 exceeds limit
-250000`. That is the `countLabel` **label scan** in the admin health route meeting HydraDB's
+250000`. That was the `countLabel` **label scan** in the admin health route meeting HydraDB's
 admission control now that the store holds the full-500 structural corpus plus 42,682 new claims.
-It does not touch `/api/ask`, which is id-anchored and never scans — which is rather the point of
-the id-anchored read discipline. The diagnostic `claimsForHistory` scan added for the taxonomy is
+It never touched `/api/ask`, which is id-anchored and never scans — which is rather the point of
+the id-anchored read discipline, and which is also how it was fixed: **the health route now counts
+id-anchored too** (`apps/api/src/health.ts`). Speakers and Sessions are minted ids, Turns are the
+sum of each Session's own `turn_count`, and the Entity/Claim traversals are opt-in behind
+`?counts=deep`. Live: 503 → **HTTP 200 in 15 ms–1.2 s** on the demo history, with
+`?counts=deep` returning the same numbers the old label scan did (Claim 152, Entity 24). Three
+findings fell out of doing it, all measured against the live store:
+
+- **A label scan's candidate set is the whole LABEL, not the filtered subset.** Adding a `LIMIT`
+  does not help — the same reads then time out at 30 s instead. `Speaker`, two nodes per history,
+  timed out for exactly this reason.
+- **Anchor-first is a 50x, not a style preference.** `(e:Entity)<-[:ABOUT]-…-(s:Session {id})`
+  measured 1,233 ms per arm; the same four hops written `(s:Session {id})<-…->(e:Entity)` measured
+  22 ms. At 52 UNION arms the first form blows the 30 s query timeout and the second does not.
+- **An abandoned query keeps running.** A client that stops waiting does not stop the engine, so a
+  health *poll* that took the traversal would slowly starve the store it reports on. That, not the
+  503, is why the deep counts are opt-in rather than merely budgeted. The diagnostic `claimsForHistory` scan added for the taxonomy is
 heavy enough that 8 concurrent replays drop a Bolt connection; `failure_review.py` runs 3 at a time
 with retries, and that path is never on the demo or eval route.
 
