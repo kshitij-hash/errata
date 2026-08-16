@@ -174,7 +174,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 # circuit breaker: a paid arm producing empty answers is burning budget on garbage
                 # (a thinking model once spent the whole max_tokens on reasoning — 448/450 empty
                 # answers, ~$6 wasted). Three consecutive empties aborts the arm BEFORE scale.
-                if not str(row.get("answer") or "").strip():
+                if not row.get("abstained") and not str(row.get("answer") or "").strip():
                     empty_streak += 1
                     if empty_streak >= 3:
                         print(
