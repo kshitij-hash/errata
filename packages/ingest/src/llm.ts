@@ -85,7 +85,9 @@ const EXTRACT_SYSTEM = [
 const BATCH = 12;
 // independent extraction batches in flight per history; ledger writes are lock-free appends and
 // the graph write happens after ALL batches return, so concurrency here is safe.
-const EXTRACT_CONCURRENCY = 10;
+// Raise for a bulk corpus pass (`ERRATA_EXTRACT_CONCURRENCY`); the process-wide @errata/llm
+// semaphore still bounds it, and THAT is the cap that protects the provider.
+const EXTRACT_CONCURRENCY = Number(process.env.ERRATA_EXTRACT_CONCURRENCY ?? 10) || 10;
 
 function salientTurns(history: History): { sessionId: string; dateIso: string; turn: Turn }[] {
   const out: { sessionId: string; dateIso: string; turn: Turn }[] = [];

@@ -22,6 +22,20 @@ Corpus: `xiaowu0162/longmemeval-cleaned`, 500 questions, 30 abstentions
 
 `judge-validate` builds the perturbed control set and measures the judge false-accept rate.
 
+## Two analysis scripts (no new spend)
+
+    uv run python failure_review.py --run <run_id> --compare naive=<run_id>   # out/failure-taxonomy.md
+    uv run python tau_sweep.py --run <run_id>                                 # τ sensitivity table
+
+`failure_review.py` joins a run's answers + judgments with the gold corpus and replays every
+question through `POST /api/ask` with `debug: true`, which returns a `trace` (anchors, the ranked
+material, the gate that fired). The answer LLM is served from Errata's on-disk cache, so replaying
+an already-run question is $0. It buckets every non-CORRECT row by cause — see its docstring.
+
+`tau_sweep.py` reports how the published numbers move with τ. It is a sweep and not a fit, and its
+docstring says why: all 30 of the corpus's abstention questions are inside the comparison set by
+design, so this corpus has no held-out slice on which τ could honestly be fitted.
+
 ## Projected cost (dry run)
 
 `uv run errata-eval estimate` projects per-arm and total USD from `sample-150.json`, the pinned

@@ -213,3 +213,119 @@ G2) plus the collapsed duplicate; the one attribute the demo needed from it, `jo
 recovered by the registry synonym above. `mortgage_preapproval_amount` is now a two-claim,
 single-threaded chain — `$400,000` superseding `$350,000` — and the API serves it with one
 predecessor instead of two.
+
+## G5 — the 51.3-vs-56.2 deficit: failure taxonomy, then the fix (2026-08-17) — PASS
+
+**Verdict: PASS.** Errata went from losing to both baselines to leading both. Overall (the 120
+non-abstention questions) **41.7 → 53.3** against full-context 47.5 and naive 45.8; counting all 450
+rows including abstention, **51.3 → 61.3** against 54.0 and 56.2. Answered-precision rose at the
+same time, **61.7% → 70.3%**, so the arm did not buy the number by answering more. Full table and
+caption: `eval/RESULTS.md`.
+
+### The taxonomy came first, and it moved the diagnosis
+
+`eval/failure_review.py` joins a run's answers + judgments with the gold corpus and replays every
+question through `POST /api/ask` with a new opt-in `debug: true` trace (anchors, the ranked
+material, the exact gate that fired). The answer LLM is served from Errata's on-disk cache, so
+replaying an already-run question is $0 — the whole analysis cost nothing.
+
+The going-in diagnosis was that question phrasing fails the exact-token lexicon lookup, so the ask
+never anchors. **The trace says that was 1 of 42 over-abstentions.** Anchors resolved and a median
+of 181 claims came back on nearly every question. What was broken was one layer further in:
+
+| Before, measured | |
+|---|---|
+| over-abstentions on answerable questions | 42 of 120 (35%) |
+| …that never resolved an anchor | **1** |
+| …that reached the model with material not containing the answer | 39 |
+| questions where NO question token matched any lexicon term | 67 of 150 |
+| claims reachable from anchors, median | 181 |
+| claims that reached the model | **12**, ranked by a token-F1 that was 0 for most of them |
+| the evidence span, the field carrying the transcript's own wording | **not scored at all** |
+
+And cutting the same run by the corpus's own `question_type` instead of by `ability` — `ability`
+folds three single-session types into one column — showed the rest of it: **Errata already beat or
+matched both baselines on every question type except `single-session-assistant` (0.0% vs 92.9% and
+92.9%) and `single-session-preference` (0.0% vs 20.8% and 0.0%).** Those 22 of 150 questions were
+the entire headline gap, and they were not a retrieval failure at all: the salience gate dropped
+assistant turns unless they contained a first-person cue, and the extraction prompt asked only for
+"durable personal facts stated by the user", so the fact was never in the graph to retrieve.
+
+Verified while there, as asked: all 150 sampled histories had extracted claims (127–269 each). No
+history-level extraction hole.
+
+### Fixes
+
+| Layer | Fix |
+|---|---|
+| Answer-path ranking | `packages/core/src/lexical.ts` — lemma-lite stemming, `normValue`-v2-shaped number/currency/date canonicalization, and IDF-weighted **asymmetric** coverage over attribute + value + **evidence span**. Replaces `tokenF1(question, attribute + " " + value)` everywhere the ask path ranked |
+| Anchoring | SELF is now **always** an anchor, not only on first-person questions. A question naming one rare entity used to narrow retrieval to that entity alone (one case reached the model with 1 claim out of 147); a question naming nothing resolved to zero anchors and abstained without a read. Bigram probes catch multi-word entity names; a most-mentioned-entity fallback catches the rest |
+| Material window | 12 → `ERRATA_MATERIAL_MAX` (30) claims. Prompt goes 923 → 2,095 tokens/question — still 1/52nd of full-context |
+| Write-side aliases | `packages/ingest/src/aliases.ts` — ONE extractor-model call per history produces entity surface forms and, for each attribute, the phrasings a person would ASK with (`direct_report_count` → "team size", "how many people", "reports"). Baked into the lexicon artifact; a frozen string→string map by the time a question arrives, so the answer path stays model-free and vector-free (CONTEXT rule 2) |
+| Extraction scope | The prompt now names all six things the corpus asks about — profile facts, quantities with units, dates/plans, preferences, reported events, and **substantive content the assistant provided** |
+| Salience | `isSalient` keeps a session's main substantive assistant reply (≥40 tokens, following a salient user turn, one per session), not only assistant turns that restate a user fact |
+| Calibration | E's `s` term now takes the same relevance the retrieval used, via a `fit` field on `ScoredClaim`, instead of recomputing a worse number |
+
+Effect on the front door: questions where no token matched the lexicon went **67 → 4** of 150;
+claims per history **127–269 → 392–571**; over-abstentions **42 → 31**; anchor failures **1 → 0**.
+
+### Write-path economics — the $20.72 prompt that was measured and rejected
+
+Extraction cost is ~92% output tokens, so scope and volume are separate dials and only one of them
+is affordable. The first cut of the broadened prompt ended with "prefer many small specific claims
+over one broad one", measured **6,077 output tokens per 12-turn batch** (≈7 claims per turn) and
+projected **$20.72** to re-extract the comparison-150 — 6x the old pass and 4x the sprint's ceiling.
+Two cheaper extractors were tried and both failed on quality, not price: `qwen/qwen3.7-flash`
+returned 0 claims across 34 batches (reasoning ate the whole budget — the Arm-B incident again, now
+fixed by `reasoningEnabled: false` on the extraction call, which every extractor benefits from), and
+`deepseek/deepseek-v4-flash` came in at $3.38/150 but abstained on the validation question and ran
+at 6.2 min/history. The shipped configuration keeps `openai/gpt-5.6-luna`, caps the prompt at 10
+claims per batch behind a 2,400-token hard ceiling, and caps assistant replies at one per session:
+**915 output tokens/call, $4.19 for all 150 histories, 104 minutes.**
+
+That cap is also why `single-session-assistant` only reached 7.1%. A ten-item enumerated assistant
+answer cannot survive a 10-claim batch shared with 11 other turns. The chess case ("the move after
+27. Kg2 Bd5+" → "28. Kg3 Be6") works end to end; the list cases do not. It is a priced, disclosed
+budget decision and it is written down as one rather than described as a model limitation.
+
+### Operational finding — HydraDB is a single-writer store under bulk ingest
+
+Sharding the re-extraction three ways to save wall-clock ratcheted the node's RSS from 3.7 GiB to
+**6.3 GiB in ~9 histories** and would have reached the 7.75 GiB VM ceiling long before 150. Reverted
+to **one writer with `--mem-guard-gb 5.0`**: the existing graceful drain-and-restart fired **15
+times across the run, all clean, zero failed histories**, and RSS oscillated between ~20 MiB and 5
+GiB instead of climbing. The G3 lease RCA fixed the *corruption* mode; this is the *capacity* one,
+and the operating rule that follows is: **bulk ingest is single-writer, and the writer needs a
+memory guard sized to the box.** For Wednesday's pod: 16 GB and one ingest process, not N.
+
+One related limit surfaced at the new store size: `GET /api/meta/health` now returns 503 with
+`cypher_vertex_label_index_candidates rejected by admission control: actual 250001 exceeds limit
+250000`. That is the `countLabel` **label scan** in the admin health route meeting HydraDB's
+admission control now that the store holds the full-500 structural corpus plus 42,682 new claims.
+It does not touch `/api/ask`, which is id-anchored and never scans — which is rather the point of
+the id-anchored read discipline. The diagnostic `claimsForHistory` scan added for the taxonomy is
+heavy enough that 8 concurrent replays drop a Bolt connection; `failure_review.py` runs 3 at a time
+with retries, and that path is never on the demo or eval route.
+
+### τ was not re-fitted, and that is the finding
+
+A held-out fit needs abstention-positive examples. LongMemEval has exactly 30 and
+`sample.abstention_whole = true` puts all 30 inside the comparison set by design, so every
+abstention-positive example the corpus owns is inside the reported test set and any τ fitted against
+them is in-sample. τ stays at its a-priori **0.35** and `eval/tau_sweep.py` publishes the
+sensitivity instead: overall is flat at 61.3 across τ ∈ [0.20, 0.40], so the result is a plateau
+rather than a knife edge. On the *previous* run the same veto at τ = 0.35 would have cut overall
+from 51.3 to 35.3 — E and τ were on different scales, and a veto is not something to switch on
+quietly. Reasoning and table: `eval/RESULTS.md`.
+
+### Spend
+
+Sprint incremental **$5.16**: $0.53 exploratory (including the $20.72-projected prompt and the two
+rejected extractors), $4.19 re-extraction + alias pass over 150 histories, $0.01 for 450 answers
+(**$0.000021/question**), $0.43 judge. Ingest ledger $8.18 of a $50 cap; eval ledger $11.67 of a
+$13.00 cap. Six disposable probe namespaces (`-g5probe`, `-g5b`, `-g5q`, `-g5q2`, `-g5ds`, `-g5f`)
+are left in the store: nothing points at them, and there is no deletion path.
+
+The re-extraction was an **append into the same history namespaces**, not a wipe — every old claim
+still has its id, value, citation and confidence, and the new pass simply added more. That is the
+same invariant G4 relied on, exercised at 150-history scale.

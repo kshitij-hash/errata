@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -78,19 +79,27 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return [orjson.loads(line) for line in path.read_bytes().splitlines() if line]
 
 
-def replay(base_url: str, q: Question, timeout_s: float) -> dict[str, Any]:
-    with httpx.Client(timeout=timeout_s) as client:
-        resp = client.post(
-            f"{base_url.rstrip('/')}/api/ask",
-            json={
-                "question": q.question,
-                "history_id": q.history_id,
-                "question_date": q.question_date,
-                "debug": True,
-            },
-        )
-        resp.raise_for_status()
-        return resp.json()
+def replay(base_url: str, q: Question, timeout_s: float, attempts: int = 3) -> dict[str, Any]:
+    """One debug ask. `debug: true` adds a whole-history Claim scan, which is heavy enough that a
+    handful of them in flight will drop a Bolt connection — hence the low worker count below and
+    this retry, neither of which the un-instrumented ask path needs."""
+    payload = {
+        "question": q.question,
+        "history_id": q.history_id,
+        "question_date": q.question_date,
+        "debug": True,
+    }
+    last: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            with httpx.Client(timeout=timeout_s) as client:
+                resp = client.post(f"{base_url.rstrip('/')}/api/ask", json=payload)
+                resp.raise_for_status()
+                return resp.json()
+        except httpx.HTTPError as exc:
+            last = exc
+            time.sleep(2 * (attempt + 1))
+    raise RuntimeError(f"replay failed for {q.question_id}: {last}")
 
 
 def classify(q: Question, verdict: str | None, row: dict[str, Any], trace: dict[str, Any]) -> dict[str, Any]:
@@ -364,7 +373,7 @@ def main(argv: list[str] | None = None) -> int:
         body = replay(base, q, config.errata.timeout_s)
         return classify(q, verdict_by_qid.get(q.question_id), row, body.get("trace") or {})
 
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    with ThreadPoolExecutor(max_workers=3) as pool:
         rows = [r for r in pool.map(one, chosen) if r is not None]
 
     runs: dict[str, Path] = {"errata": run_dir}
