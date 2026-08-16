@@ -1,8 +1,14 @@
-export default function Home() {
+import { TourRibbon } from '../components/TourRibbon';
+import { AskSpread } from '../components/ask/AskSpread';
+
+export default function AskPage() {
   return (
-    <main>
-      <h1>Errata</h1>
-      <p>Memory that keeps its corrections.</p>
-    </main>
+    <>
+      <TourRibbon />
+      <main className="route">
+        <h1 className="rtitle">Ask the memory</h1>
+        <AskSpread />
+      </main>
+    </>
   );
 }
