@@ -82,9 +82,25 @@ async function main(): Promise<void> {
     let claims = 0;
     let turns = 0;
     let done = 0;
+    const failed: string[] = [];
     for (const rec of records) {
       const history = parseHistory(rec);
-      const s = await ingestHistory(client, history, { extractor, judge, lexiconDir });
+      // one history failing must not kill a multi-hour run: reconnect, retry once, else record
+      // and continue (ingest is MERGE-idempotent, so the failed id can simply be re-run later).
+      let s: Awaited<ReturnType<typeof ingestHistory>>;
+      try {
+        s = await ingestHistory(client, history, { extractor, judge, lexiconDir });
+      } catch (e1) {
+        console.error(`  ${history.historyId}: FAILED (${(e1 as Error).message.slice(0, 120)}) — reconnecting for one retry`);
+        try {
+          await client.verify();
+          s = await ingestHistory(client, history, { extractor, judge, lexiconDir });
+        } catch (e2) {
+          console.error(`  ${history.historyId}: FAILED TWICE (${(e2 as Error).message.slice(0, 120)}) — skipping`);
+          failed.push(history.historyId);
+          continue;
+        }
+      }
       nodeBatches += s.nodeBatches;
       edgeBatches += s.edgeBatches;
       claims += s.counts.claims;
@@ -101,6 +117,10 @@ async function main(): Promise<void> {
     }
     const secs = (Date.now() - t0) / 1000;
     console.log(`OK — ${done} histories, ${nodeBatches}+${edgeBatches} node+edge batches, ${turns} turns, ${claims} claims in ${secs.toFixed(1)}s (${(done / secs).toFixed(1)} hist/s, ${(secs / done * 1000).toFixed(0)} ms/history)`);
+    if (failed.length > 0) {
+      console.error(`FAILED ${failed.length} histor${failed.length === 1 ? 'y' : 'ies'} (re-run these ids): ${failed.join(' ')}`);
+      process.exit(2);
+    }
   } finally {
     await client.close();
   }

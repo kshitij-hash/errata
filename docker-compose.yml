@@ -32,6 +32,8 @@ services:
 
   hydradb:
     image: ghcr.io/hydra-db/hydradb@sha256:db78309a233be54662db29744047e985a39b51c45a270d1a1f47c31a62cdb709
+    restart: unless-stopped                          # compute is disposable (state lives in MinIO);
+                                                     # self-heal after an OOM kill instead of staying down
     depends_on:
       minio-init: { condition: service_completed_successfully }
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"     # image runs as UID 10001; bind mount is yours
@@ -53,6 +55,9 @@ services:
       GRAPH_BOLT_NODE_ADDRESSES: node-0=0.0.0.0:7687
       GRAPH_ADVERTISED_BOLT_ADDR: hydradb:7687       # never consulted — we use bolt:// everywhere
       GRAPH_DATA_CACHE_DIR: /cache
+      GRAPH_DATA_CACHE_BYTES: "2147483648"           # 2 GiB (default 8 GiB): on an 8 GB Docker VM the
+                                                     # node grew until the kernel OOM-killed it (137)
+                                                     # mid-way through the sample-150 write load
       GRAPH_AUTH_TOKEN_FILE: /data/auth-token
       GRAPH_ALLOW_PLAINTEXT: "true"                  # TLS is required by default; without this
                                                      # nothing listens in the clear
