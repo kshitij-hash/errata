@@ -148,7 +148,13 @@ def cmd_run(args: argparse.Namespace) -> int:
     config = _load_config(args)
     run_id = _run_id(config)
     seeds = [int(s) for s in args.seeds.split(",")] if args.seeds else config.run.seeds
-    n = config.sample.full_n if args.set == "full" else config.sample.comparison_n
+    n = (
+        config.sample.full_n
+        if args.set == "full"
+        else config.sample.smoke_n
+        if args.set == "smoke"
+        else config.sample.comparison_n
+    )
     chosen = _load_sample(config, n, config.run.sample_seed, verify=args.verify)
 
     out_dir = Path("out") / run_id
@@ -362,6 +368,64 @@ def _read_jsonl(path: Path) -> list[dict]:
     return [orjson.loads(line) for line in path.read_bytes().splitlines() if line]
 
 
+def cmd_judge(args: argparse.Namespace) -> int:
+    """Judge every answer row of a run: deterministic for abstention gold, LLM for the rest.
+
+    Writes ``out/<run_id>/judgments.jsonl`` (append; ``--resume`` skips already-judged keys), the
+    file ``report`` consumes. The LLM path goes through the capped, ledgered OpenRouterClient.
+    """
+    from .judge import judge_run
+    from .openrouter import Ledger, OpenRouterClient
+
+    config = _load_config(args)
+    run_dir = Path("out") / args.run
+    answers = _read_jsonl(run_dir / "answers.jsonl")
+    if not answers:
+        print(f"judge: no answers in {run_dir}/answers.jsonl", file=sys.stderr)
+        return 1
+    out_path = run_dir / "judgments.jsonl"
+    done = {
+        (j.get("arm"), j.get("seed"), j.get("question_id")) for j in _read_jsonl(out_path)
+    } if args.resume else set()
+    todo = [r for r in answers if (r.get("arm"), r.get("seed"), r.get("question_id")) not in done]
+    if not todo:
+        print("judge: nothing to do")
+        return 0
+
+    corpus = load_corpus(config.data_path())
+    gold_by_qid = {
+        q.question_id: {"question": q.question, "answer": q.answer, "is_abstention": q.abstention}
+        for q in corpus
+    }
+    ledger = Ledger(
+        Path(config.spend.ledger_path),
+        warn_at_usd=config.spend.warn_at_usd,
+        hard_cap_usd=config.spend.hard_cap_usd,
+        run_id=config.run.run_id,
+    )
+    client = OpenRouterClient(
+        cfg.load_prices(cfg.default_prices_path()), ledger, run_id=config.run.run_id
+    )
+    model = args.judge or config.models.judge_primary
+    gen = config.generation
+    rows = judge_run(
+        client,
+        model,
+        todo,
+        gold_by_qid=gold_by_qid,
+        shuffle_seed=config.run.sample_seed,
+        temperature=gen.judge_temperature,
+        max_tokens=gen.judge_max_tokens,
+    )
+    with open(out_path, "ab") as fh:
+        for row in rows:
+            fh.write(orjson.dumps(row))
+            fh.write(b"\n")
+    spent = sum(r.get("usd", 0.0) or 0.0 for r in rows)
+    print(f"judge: wrote {len(rows)} judgments to {out_path} (llm spend ${spent:.4f})")
+    return 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     config = _load_config(args)
     corpus = load_corpus(config.data_path())
@@ -429,6 +493,12 @@ def build_parser() -> argparse.ArgumentParser:
     ct.add_argument("--seed", type=int, default=None)
     ct.add_argument("--out", type=Path, default=None, help="output .jsonl path")
     ct.set_defaults(func=cmd_controls)
+
+    jd = sub.add_parser("judge", help="judge a run's answers.jsonl → judgments.jsonl")
+    jd.add_argument("--run", required=True, help="run_id under out/")
+    jd.add_argument("--judge", default=None, help="override judge model")
+    jd.add_argument("--resume", action="store_true")
+    jd.set_defaults(func=cmd_judge)
 
     jv = sub.add_parser("judge-validate", help="build + score the perturbed control set")
     jv.add_argument("--n", type=int, default=None)

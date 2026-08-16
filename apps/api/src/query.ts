@@ -155,10 +155,11 @@ function hasTimeConstraint(question: string): boolean {
   return /\b(20\d{2}|january|february|march|april|may|june|july|august|september|october|november|december|yesterday|last (week|month|year)|when|before|after|on \w+ \d)\b/i.test(question);
 }
 
-/** Contract v1.1 ask response. `answer` present iff answered; `abstained:true` present iff abstained. */
+/** Contract v1.1 ask response. `answer`, `abstained`, `citations`, `confidence` are ALWAYS present
+ * (the eval's ErrataArm rejects a body missing any of them); `answer` is null when abstaining. */
 export interface AskResult {
-  answer?: string;
-  abstained?: true;
+  answer: string | null;
+  abstained: boolean;
   disputed?: boolean;
   confidence: number;
   citations: { session_id: string; turn_index: number; span: string; claim_id?: number }[];
@@ -208,7 +209,7 @@ export async function askQuery(client: GraphClient, historyId: string, question:
 
   const abstain = (nearest: unknown[]): AskResult => {
     const score = scoreEvidence({ contentTokens: tokens, anchorsResolved, hasTimeConstraint: hasTimeConstraint(question), timeConstraintViolated: false }, [], config.tau);
-    return { abstained: true, confidence: score.E, citations: [], nearest_miss: nearest, evidence: score, latency_ms: +(performance.now() - t0).toFixed(1), ...base };
+    return { answer: null, abstained: true, confidence: score.E, citations: [], nearest_miss: nearest, evidence: score, latency_ms: +(performance.now() - t0).toFixed(1), ...base };
   };
 
   if (anchors.length === 0) return abstain([]);
@@ -259,6 +260,7 @@ export async function askQuery(client: GraphClient, historyId: string, question:
     const citations = (belief.disputed ? belief.heads : [head]).map((h) => cite(h.citation, h.evidence_span));
     return {
       answer: belief.disputed ? belief.heads.map((h) => h.value).join(' | ') : head.value,
+      abstained: false,
       disputed: belief.disputed,
       confidence: conf,
       citations,
