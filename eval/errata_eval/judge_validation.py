@@ -9,6 +9,7 @@ We publish the number whatever it is. Credit-gated.
 from __future__ import annotations
 
 import random
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
@@ -210,3 +211,311 @@ def evaluate(
     report.passes_superseded = far_by_family.get("superseded-value", 1.0) <= far_gate_superseded
     report.passes_frr = frr <= frr_gate
     return report
+
+
+# ============================================================================================
+# Deterministic negative controls — NO LLM, free, offline, reproducible from a fixed seed.
+#
+# The 60 *positive* paraphrase controls genuinely need a perturber model (build_control_set
+# above). The 60 *negative* controls do not: an on-topic-but-wrong answer can be manufactured
+# from the corpus's own gold data with template transforms, one per family (§4.3). This gives a
+# deterministic, zero-cost floor for the judge-validation set that the funded run only augments.
+# ============================================================================================
+
+# Families in fixed order; 12 negatives each => 60. Distinct from PERTURB_FAMILIES (LLM prompts):
+# these are mechanical transforms, and each records exactly which transform + source ids produced it.
+NEGATIVE_FAMILIES: tuple[str, ...] = (
+    "entity-swap",
+    "value-shift",
+    "attribution-flip",
+    "superseded-value",
+    "topical-filler",
+)
+
+# Seed governs ONLY which eligible questions each family draws; the transforms are deterministic.
+CONTROL_SEED = 20260818
+
+_PROPER_RE = re.compile(r"[A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+)*")
+# Mid-sentence capitalized spans (preceded by a lowercase word or comma) are almost always real
+# proper nouns, not sentence-initial adverbs — a cleaner pool to draw entity swaps from.
+_MIDSENT_RE = re.compile(r"(?<=[a-z,]\s)([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+)*)")
+_NUM_RE = re.compile(r"\d+")
+
+# Capitalized words that are not entities (sentence starters / determiners / quantifiers). A
+# single-word proper-noun match in this set is dropped; multi-word matches are always kept.
+_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "The", "A", "An", "I", "It", "He", "She", "We", "They", "You", "This", "That", "These",
+        "Those", "There", "Here", "My", "Your", "His", "Her", "Our", "Its", "Their", "Some",
+        "Many", "Most", "All", "Both", "Each", "Every", "Yes", "No", "Not", "And", "But", "Or",
+        "So", "Then", "Now", "Also", "However", "When", "While", "During", "After", "Before",
+        "Today", "Yesterday", "Tomorrow", "About", "For", "With", "From", "To", "Of", "In", "On",
+        "AM", "PM", "M", "OK", "TV",
+        "First", "Second", "Third", "Fourth", "Fifth", "Next", "Last", "Finally", "Later",
+        "Overall", "Yeah",
+    }
+)
+
+# Whole-word attribution swaps. In these gold answers first- AND second-person both refer to the
+# USER, so both flip to the assistant (attributing the fact to the wrong party); the bare nouns
+# "user"/"assistant" swap for each other so "The user …" -> "The assistant …" stays grammatical.
+# Applied in ONE pass so tokens map independently and cannot cascade.
+_ATTRIBUTION_MAP: dict[str, str] = {
+    "myself": "the assistant",
+    "mine": "the assistant's",
+    "my": "the assistant's",
+    "me": "the assistant",
+    "i": "the assistant",
+    "yourself": "the assistant",
+    "yours": "the assistant's",
+    "your": "the assistant's",
+    "you": "the assistant",
+    "user": "assistant",
+    "assistant": "user",
+}
+_ATTRIBUTION_RE = re.compile(
+    r"\b(" + "|".join(sorted(_ATTRIBUTION_MAP, key=len, reverse=True)) + r")\b",
+    re.IGNORECASE,
+)
+
+
+@dataclass(slots=True)
+class NegativeControl:
+    question_id: str
+    question: str
+    gold_answer: str
+    candidate: str  # the derived on-topic-but-wrong answer
+    family: str
+    provenance: dict[str, Any]
+    label: str = "negative"
+
+    def to_row(self) -> dict[str, Any]:
+        return {
+            "question_id": self.question_id,
+            "family": self.family,
+            "label": self.label,
+            "question": self.question,
+            "gold_answer": self.gold_answer,
+            "answer": self.candidate,
+            "provenance": self.provenance,
+        }
+
+
+def _clean_spans(spans: list[str]) -> list[str]:
+    out: list[str] = []
+    for span in spans:
+        if " " not in span and span in _STOPWORDS:
+            continue
+        if len(span) < 2:
+            continue
+        out.append(span)
+    return out
+
+
+def _entities(text: str) -> list[str]:
+    """Proper-noun-ish spans, sentence-initial common words filtered out."""
+    return _clean_spans([m.group(0) for m in _PROPER_RE.finditer(text)])
+
+
+def _history_text(q: Question) -> str:
+    return " ".join(t.content for s in q.sessions for t in s.turns)
+
+
+def _history_entities(q: Question) -> list[str]:
+    """Mid-sentence proper nouns from the history — the swap-replacement pool."""
+    return _clean_spans([m.group(1) for m in _MIDSENT_RE.finditer(_history_text(q))])
+
+
+def _pick_gold_entity(ents: list[str]) -> str:
+    # The most specific entity in the gold answer: longest, ties broken lexicographically.
+    return min(set(ents), key=lambda e: (-len(e), e))
+
+
+def _pick_replacement(alts: list[str], like: str) -> str:
+    # A plausible swap resembles the original in shape: same word count, then closest length.
+    like_words = like.count(" ") + 1
+    like_len = len(like)
+    return min(
+        set(alts),
+        key=lambda e: (abs((e.count(" ") + 1) - like_words), abs(len(e) - like_len), e),
+    )
+
+
+def _t_entity_swap(q: Question) -> tuple[str, dict[str, Any]] | None:
+    gold_ents = _entities(q.answer)
+    if not gold_ents:
+        return None
+    gold_set = set(gold_ents)
+    alts = [e for e in _history_entities(q) if e not in gold_set and len(e) >= 3]
+    if not alts:
+        return None
+    original = _pick_gold_entity(gold_ents)
+    replacement = _pick_replacement(alts, original)
+    if replacement == original:
+        return None
+    candidate = q.answer.replace(original, replacement, 1)
+    if candidate == q.answer:
+        return None
+    return candidate, {
+        "transform": "entity-swap",
+        "source_question_id": q.question_id,
+        "original_entity": original,
+        "replacement_entity": replacement,
+        "replacement_source": "same-history proper noun",
+    }
+
+
+def _t_value_shift(q: Question) -> tuple[str, dict[str, Any]] | None:
+    m = _NUM_RE.search(q.answer)
+    if not m:
+        return None
+    original = m.group(0)
+    shifted = str(int(original) + 1)
+    candidate = q.answer[: m.start()] + shifted + q.answer[m.end() :]
+    if candidate == q.answer:
+        return None
+    return candidate, {
+        "transform": "value-shift",
+        "source_question_id": q.question_id,
+        "original_value": original,
+        "shifted_value": shifted,
+        "delta": 1,
+    }
+
+
+def _t_attribution_flip(q: Question) -> tuple[str, dict[str, Any]] | None:
+    flips: list[tuple[str, str]] = []
+
+    def _repl(m: re.Match[str]) -> str:
+        word = m.group(0)
+        rep = _ATTRIBUTION_MAP[word.lower()]
+        if word[:1].isupper():
+            rep = rep[:1].upper() + rep[1:]
+        flips.append((word, rep))
+        return rep
+
+    candidate = _ATTRIBUTION_RE.sub(_repl, q.answer)
+    if not flips or candidate == q.answer:
+        return None
+    return candidate, {
+        "transform": "attribution-flip",
+        "source_question_id": q.question_id,
+        "flips": flips,
+    }
+
+
+def _t_superseded_value(q: Question) -> tuple[str, dict[str, Any]] | None:
+    """Use an EARLIER value that literally appears in this knowledge-update history."""
+    hist = _history_text(q)
+    gold_nums = _NUM_RE.findall(q.answer)
+    if gold_nums:
+        g0 = int(gold_nums[0])
+        gold_set = {int(n) for n in gold_nums}
+        hist_alts = sorted({int(n) for n in _NUM_RE.findall(hist)} - gold_set)
+        if hist_alts:
+            chosen = min(hist_alts, key=lambda v: (abs(v - g0), v))
+            m = _NUM_RE.search(q.answer)
+            assert m is not None
+            candidate = q.answer[: m.start()] + str(chosen) + q.answer[m.end() :]
+            if candidate != q.answer:
+                return candidate, {
+                    "transform": "superseded-value",
+                    "source_question_id": q.question_id,
+                    "gold_value": m.group(0),
+                    "earlier_value": str(chosen),
+                    "mode": "numeric",
+                    "earlier_source": "same knowledge-update history",
+                }
+    gold_ents = _entities(q.answer)
+    if gold_ents:
+        gold_set = set(gold_ents)
+        alts = [e for e in _history_entities(q) if e not in gold_set and len(e) >= 3]
+        if alts:
+            original = _pick_gold_entity(gold_ents)
+            replacement = _pick_replacement(alts, original)
+            candidate = q.answer.replace(original, replacement, 1)
+            if candidate != q.answer:
+                return candidate, {
+                    "transform": "superseded-value",
+                    "source_question_id": q.question_id,
+                    "gold_value": original,
+                    "earlier_value": replacement,
+                    "mode": "entity",
+                    "earlier_source": "same knowledge-update history",
+                }
+    return None
+
+
+def _t_topical_filler(q: Question) -> tuple[str, dict[str, Any]] | None:
+    """A fluent on-topic hedge that contains NONE of the gold facts (numbers or entities)."""
+    question = q.question.strip()
+    candidate = (
+        "Your chat history touches on this topic, but it does not record a specific answer to "
+        f'"{question}"; the earlier conversations stay general and never pin down a single value.'
+    )
+    gold_tokens = set(_NUM_RE.findall(q.answer)) | set(_entities(q.answer))
+    for tok in gold_tokens:
+        if tok and tok in candidate:  # the question echoed a gold fact — not fact-free, skip
+            return None
+    return candidate, {
+        "transform": "topical-filler",
+        "source_question_id": q.question_id,
+        "basis": "question-derived generic hedge",
+    }
+
+
+_NEGATIVE_TRANSFORMS = {
+    "entity-swap": _t_entity_swap,
+    "value-shift": _t_value_shift,
+    "attribution-flip": _t_attribution_flip,
+    "superseded-value": _t_superseded_value,
+    "topical-filler": _t_topical_filler,
+}
+
+
+def build_negative_controls(
+    corpus: list[Question], *, seed: int = CONTROL_SEED, family_size: int = FAMILY_SIZE
+) -> list[NegativeControl]:
+    """Manufacture ``family_size`` negatives per family from gold data. Deterministic given seed.
+
+    superseded-value draws only from knowledge-update questions (its whole point is an
+    earlier/updated value); the rest draw from the full non-abstention pool. No question is
+    reused across families. Raises if any family cannot be filled — that means the corpus changed.
+    """
+    non_abs = sorted((q for q in corpus if not q.abstention), key=lambda q: q.question_id)
+    knowledge_update = [q for q in non_abs if q.question_type == "knowledge-update"]
+
+    used: set[str] = set()
+    items: list[NegativeControl] = []
+    for fam in NEGATIVE_FAMILIES:
+        pool = knowledge_update if fam == "superseded-value" else non_abs
+        order = list(pool)
+        random.Random(seed + NEGATIVE_FAMILIES.index(fam)).shuffle(order)
+        transform = _NEGATIVE_TRANSFORMS[fam]
+        picked = 0
+        for q in order:
+            if q.question_id in used:
+                continue
+            res = transform(q)
+            if res is None:
+                continue
+            candidate, provenance = res
+            items.append(
+                NegativeControl(
+                    question_id=q.question_id,
+                    question=q.question,
+                    gold_answer=q.answer,
+                    candidate=candidate,
+                    family=fam,
+                    provenance=provenance,
+                )
+            )
+            used.add(q.question_id)
+            picked += 1
+            if picked >= family_size:
+                break
+        if picked < family_size:
+            raise ValueError(
+                f"family {fam!r}: only {picked}/{family_size} negatives available — corpus changed"
+            )
+    return items

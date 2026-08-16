@@ -9,11 +9,14 @@ rendered ``00.0 (1 run)`` so it cannot pass for a 3-run number; if any arm's err
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import orjson
+
+from . import metrics
 
 ROW_ORDER = ("errata", "full_context", "naive")
 ARM_DISPLAY = {
@@ -47,6 +50,54 @@ class ArmReport:
     latency_p50_s: float
     latency_p95_s: float
     error_rate: float = 0.0
+
+
+# --------------------------------------------------------------------------------------------
+# aggregation: enriched judged rows -> one ArmReport per arm (the production path, made pure)
+# --------------------------------------------------------------------------------------------
+def aggregate_arm_reports(rows: Iterable[Mapping[str, Any]], *, warmup: int = 0) -> list[ArmReport]:
+    """Build one ``ArmReport`` per arm from enriched judged rows.
+
+    Each row carries: ``arm``, ``seed``, ``is_abstention``, ``ability``, ``predicted_abstain``,
+    ``verdict``, ``prompt_tokens``, ``usd``, ``latency_ms``, ``status``. Accuracy is computed per
+    seed then reduced to mean±sd; abstention P/R, ctx tokens, $/Q and error rate pool every row;
+    latency percentiles exclude the first ``warmup`` rows (in arm→seed order). Deterministic.
+    """
+    by_arm: dict[str, list[Mapping[str, Any]]] = {}
+    for r in rows:
+        by_arm.setdefault(str(r["arm"]), []).append(r)
+
+    reports: list[ArmReport] = []
+    for arm, arm_rows in by_arm.items():
+        seeds = sorted({r["seed"] for r in arm_rows})
+        overall_per_seed: list[float] = []
+        ability_per_seed: dict[str, list[float]] = {}
+        all_rows: list[Mapping[str, Any]] = []
+        for seed in seeds:
+            seed_rows = [r for r in arm_rows if r["seed"] == seed]
+            all_rows.extend(seed_rows)
+            overall_per_seed.append(metrics.accuracy(seed_rows))
+            for ability, acc in metrics.accuracy_by_ability(seed_rows).items():
+                ability_per_seed.setdefault(ability, []).append(acc)
+
+        abst = metrics.abstention_pr(all_rows)
+        lat = [float(r.get("latency_ms", 0.0) or 0.0) / 1000.0 for r in all_rows[warmup:]]
+        pct = metrics.percentiles(lat)
+        reports.append(
+            ArmReport(
+                arm=arm,
+                n_runs=len(seeds),
+                overall=metrics.mean_sd(overall_per_seed),
+                by_ability={a: metrics.mean_sd(v) for a, v in ability_per_seed.items()},
+                abstention=(float(abst["precision"]), float(abst["recall"])),
+                ctx_tokens=metrics.mean_prompt_tokens(all_rows),
+                cost_per_q=metrics.cost_per_question(all_rows),
+                latency_p50_s=pct[50],
+                latency_p95_s=pct[95],
+                error_rate=metrics.error_rate(all_rows),
+            )
+        )
+    return reports
 
 
 # --------------------------------------------------------------------------------------------

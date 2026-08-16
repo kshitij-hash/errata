@@ -19,7 +19,6 @@ from typing import Any
 import orjson
 
 from . import config as cfg
-from . import metrics
 from .dataset import Question, load_corpus, sample, verify_checksum
 from .prompts import ANSWER_PROMPT_SHA256
 from .report import ArmReport, render_caption, write_report
@@ -79,9 +78,17 @@ def cmd_sample(args: argparse.Namespace) -> int:
     n = args.n or config.sample.comparison_n
     seed = args.seed if args.seed is not None else config.run.sample_seed
     chosen = _load_sample(config, n, seed)
-    if args.print_ids:
-        for q in chosen:
-            print(q.question_id)
+    ids = [q.question_id for q in chosen]
+    if args.out:
+        # The ingest-coupling artifact: a plain JSON array of question_ids, sorted, so the
+        # ingest job and every arm answer exactly this seeded comparison set (spec §8, seam #3).
+        out_path = Path(args.out)
+        out_path.write_bytes(orjson.dumps(ids, option=orjson.OPT_INDENT_2) + b"\n")
+        n_abs = sum(1 for q in chosen if q.abstention)
+        print(f"wrote {len(ids)} question_ids ({n_abs} abstention, seed={seed}) to {out_path}")
+    elif args.print_ids:
+        for qid in ids:
+            print(qid)
     else:
         n_abs = sum(1 for q in chosen if q.abstention)
         print(f"sampled {len(chosen)} questions (seed={seed}); {n_abs} abstention")
@@ -216,6 +223,67 @@ def _build_arm(arm_name: str, config: cfg.EvalConfig) -> Any:
 
 
 # --------------------------------------------------------------------------------------------
+# estimate — pre-run cost projection (§6.2)
+# --------------------------------------------------------------------------------------------
+EXIT_OVER_CAP = 3
+
+
+def _default_sample_path() -> Path:
+    return cfg.repo_root() / "eval" / "sample-150.json"
+
+
+def cmd_estimate(args: argparse.Namespace) -> int:
+    from .estimate import estimate_cost, render_estimate
+
+    config = _load_config(args)
+    prices = cfg.load_prices(args.prices or cfg.default_prices_path())
+    sample_path = args.sample or _default_sample_path()
+    sample_ids = orjson.loads(Path(sample_path).read_bytes())
+
+    est = estimate_cost(sample_ids=sample_ids, config=config, prices=prices)
+    print(render_estimate(est, hard_cap=config.spend.hard_cap_usd, already_spent=args.already_spent))
+    if est.projected_usd + args.already_spent > config.spend.hard_cap_usd:
+        print(
+            f"estimate: projected + already_spent exceeds hard cap "
+            f"${config.spend.hard_cap_usd:.2f} — aborting (exit {EXIT_OVER_CAP})",
+            file=sys.stderr,
+        )
+        return EXIT_OVER_CAP
+    return 0
+
+
+# --------------------------------------------------------------------------------------------
+# controls — write the deterministic negative judge-control set (NO LLM)
+# --------------------------------------------------------------------------------------------
+POSITIVE_STUB_HEADER = (
+    "# TODO(funded): 60 positive paraphrase controls require an LLM perturber "
+    "(see judge_validation.build_control_set); this stub carries no fabricated rows.\n"
+)
+
+
+def cmd_controls(args: argparse.Namespace) -> int:
+    from .judge_validation import CONTROL_SEED, build_negative_controls
+
+    config = _load_config(args)
+    corpus = load_corpus(config.data_path())
+    seed = args.seed if args.seed is not None else CONTROL_SEED
+    items = build_negative_controls(corpus, seed=seed)
+
+    out_path = Path(args.out) if args.out else Path("judge-controls.jsonl")
+    with open(out_path, "wb") as fh:
+        for item in items:
+            fh.write(orjson.dumps(item.to_row()))
+            fh.write(b"\n")
+    stub_path = out_path.with_name(out_path.stem + "-positive.stub.jsonl")
+    stub_path.write_text(POSITIVE_STUB_HEADER, encoding="utf-8")
+
+    fams = sorted({item.family for item in items})
+    print(f"wrote {len(items)} negative controls ({len(fams)} families, seed={seed}) to {out_path}")
+    print(f"wrote positive-control stub (no rows) to {stub_path}")
+    return 0
+
+
+# --------------------------------------------------------------------------------------------
 # judge-validate
 # --------------------------------------------------------------------------------------------
 def cmd_judge_validate(args: argparse.Namespace) -> int:
@@ -262,61 +330,30 @@ def _build_arm_reports(
     answers: list[dict], judgments: list[dict], gold: dict[str, Question], warmup: int
 ) -> list[ArmReport]:
     from .arms import predicted_abstain
+    from .report import aggregate_arm_reports
 
     verdict_by_key = {(j["arm"], j["seed"], j["question_id"]): j["verdict"] for j in judgments}
-    by_arm: dict[str, list[dict]] = {}
+    enriched: list[dict] = []
     for a in answers:
-        by_arm.setdefault(a["arm"], []).append(a)
-
-    reports: list[ArmReport] = []
-    for arm, arm_rows in by_arm.items():
-        seeds = sorted({r["seed"] for r in arm_rows})
-        overall_per_seed: list[float] = []
-        ability_per_seed: dict[str, list[float]] = {}
-        all_rows: list[dict] = []
-        for seed in seeds:
-            seed_rows = [r for r in arm_rows if r["seed"] == seed]
-            enriched = []
-            for r in seed_rows:
-                q = gold.get(r["question_id"])
-                if q is None:
-                    continue
-                enriched.append(
-                    {
-                        "is_abstention": q.abstention,
-                        "ability": q.ability,
-                        "predicted_abstain": predicted_abstain(arm, r),
-                        "verdict": verdict_by_key.get((arm, seed, r["question_id"])),
-                        "prompt_tokens": r.get("prompt_tokens") or 0,
-                        "usd": r.get("usd") or 0.0,
-                        "latency_ms": r.get("latency_ms_client") or 0.0,
-                        "status": r.get("status"),
-                    }
-                )
-            all_rows.extend(enriched)
-            overall_per_seed.append(metrics.accuracy(enriched))
-            for ability, acc in metrics.accuracy_by_ability(enriched).items():
-                ability_per_seed.setdefault(ability, []).append(acc)
-
-        abst = metrics.abstention_pr(all_rows)
-        # latency excludes warmup rows per seed
-        lat = [r["latency_ms"] / 1000.0 for r in all_rows[warmup:]]
-        pct = metrics.percentiles(lat)
-        reports.append(
-            ArmReport(
-                arm=arm,
-                n_runs=len(seeds),
-                overall=metrics.mean_sd(overall_per_seed),
-                by_ability={a: metrics.mean_sd(v) for a, v in ability_per_seed.items()},
-                abstention=(float(abst["precision"]), float(abst["recall"])),
-                ctx_tokens=metrics.mean_prompt_tokens(all_rows),
-                cost_per_q=metrics.cost_per_question(all_rows),
-                latency_p50_s=pct[50],
-                latency_p95_s=pct[95],
-                error_rate=metrics.error_rate(all_rows),
-            )
+        q = gold.get(a["question_id"])
+        if q is None:
+            continue
+        arm, seed = a["arm"], a["seed"]
+        enriched.append(
+            {
+                "arm": arm,
+                "seed": seed,
+                "is_abstention": q.abstention,
+                "ability": q.ability,
+                "predicted_abstain": predicted_abstain(arm, a),
+                "verdict": verdict_by_key.get((arm, seed, a["question_id"])),
+                "prompt_tokens": a.get("prompt_tokens") or 0,
+                "usd": a.get("usd") or 0.0,
+                "latency_ms": a.get("latency_ms_client") or 0.0,
+                "status": a.get("status"),
+            }
         )
-    return reports
+    return aggregate_arm_reports(enriched, warmup=warmup)
 
 
 def _read_jsonl(path: Path) -> list[dict]:
@@ -364,10 +401,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--config", type=Path, default=None, help="path to eval.toml")
     sub = p.add_subparsers(dest="command", required=True)
 
-    s = sub.add_parser("sample", help="print the seeded stratified comparison set")
+    s = sub.add_parser("sample", help="print/write the seeded stratified comparison set")
     s.add_argument("--n", type=int, default=None)
     s.add_argument("--seed", type=int, default=None)
     s.add_argument("--print-ids", action="store_true")
+    s.add_argument("--out", type=Path, default=None, help="write question_ids as a JSON array")
     s.set_defaults(func=cmd_sample)
 
     pa = sub.add_parser("parity", help="assert /api/meta matches our prompt sha + answer model")
@@ -380,6 +418,17 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--resume", action="store_true")
     r.add_argument("--verify", action="store_true", help="sha256-gate the corpus first")
     r.set_defaults(func=cmd_run)
+
+    es = sub.add_parser("estimate", help="project per-arm + total USD before any spend (§6.2)")
+    es.add_argument("--sample", type=Path, default=None, help="path to sample-150.json")
+    es.add_argument("--prices", type=Path, default=None, help="path to prices.toml")
+    es.add_argument("--already-spent", type=float, default=0.0)
+    es.set_defaults(func=cmd_estimate)
+
+    ct = sub.add_parser("controls", help="write the deterministic negative judge-control set (no LLM)")
+    ct.add_argument("--seed", type=int, default=None)
+    ct.add_argument("--out", type=Path, default=None, help="output .jsonl path")
+    ct.set_defaults(func=cmd_controls)
 
     jv = sub.add_parser("judge-validate", help="build + score the perturbed control set")
     jv.add_argument("--n", type=int, default=None)
