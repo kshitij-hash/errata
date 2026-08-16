@@ -154,6 +154,26 @@ export class GraphClient {
   }
 
   /** Two-phase batched loader: ALL nodes, then ALL edges, ≤1024 rows/batch, single writer. */
+  /**
+   * A batch write, retried on HydraDB's fixed 30 s query timeout (Transaction.Terminated: SlateDB
+   * compaction debt on a grown store can push an occasional MERGE batch over the limit — seen on
+   * the sample-150 cache replay, where writes arrive back-to-back with no LLM pauses). Safe by
+   * construction: every batch is an idempotent MERGE-by-id, so a replay changes nothing.
+   */
+  private async writeWithRetry(stmt: Stmt, attempts = 4): Promise<void> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await this.write(stmt);
+        return;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const timedOut = msg.includes('query timeout') || (e as { code?: string }).code === 'Neo.ClientError.Transaction.Terminated';
+        if (!timedOut || attempt >= attempts) throw e;
+        await new Promise((r) => setTimeout(r, 2000 * 2 ** (attempt - 1))); // 2s/4s/8s: let compaction drain
+      }
+    }
+  }
+
   async loadTwoPhase(
     nodes: NodeBatch[],
     edges: EdgeBatch[],
@@ -164,7 +184,7 @@ export class GraphClient {
     for (const n of nodes) {
       const parts = chunk(n.rows);
       for (let i = 0; i < parts.length; i++) {
-        await this.write(upsertNodes(n.label, parts[i]!));
+        await this.writeWithRetry(upsertNodes(n.label, parts[i]!));
         nodeBatches++;
         onProgress?.('nodes', n.label, i + 1, parts.length);
       }
@@ -172,7 +192,7 @@ export class GraphClient {
     for (const e of edges) {
       const parts = chunk(e.rows);
       for (let i = 0; i < parts.length; i++) {
-        await this.write(upsertEdges(e.type, e.srcLabel, e.dstLabel, parts[i]!));
+        await this.writeWithRetry(upsertEdges(e.type, e.srcLabel, e.dstLabel, parts[i]!));
         edgeBatches++;
         onProgress?.('edges', e.type, i + 1, parts.length);
       }
