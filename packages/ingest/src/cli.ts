@@ -1,13 +1,14 @@
 #!/usr/bin/env node
-// @errata/ingest CLI — ingest one LongMemEval history into HydraDB.
-//   errata-ingest <history_id> [--file data-raw/longmemeval_s_cleaned.json]
-//                              [--extractor rule|replay] [--replay-dir <dir>] [--lexicon-dir var/lexicon]
+// @errata/ingest CLI — ingest LongMemEval histories into HydraDB.
+//   errata-ingest <history_id>              ingest one history (RuleExtractor by default)
+//   errata-ingest --all --structural-only   ingest ALL 500 histories, structural pass only (zero LLM)
+// flags: --file <path> --extractor rule|replay|llm --replay-dir <d> --lexicon-dir <d> --judge
 import { readFileSync } from 'node:fs';
 import { GraphClient } from '@errata/graph';
-import { OpenRouterClient, rollup, defaultLedgerDir } from '@errata/llm';
+import { OpenRouterClient, defaultLedgerDir, rollup } from '@errata/llm';
 import { parseHistory, turnCount } from './reader.js';
 import type { RawRecord } from './reader.js';
-import { RuleExtractor, ReplayExtractor } from './extract.js';
+import { NullExtractor, ReplayExtractor, RuleExtractor } from './extract.js';
 import type { Extractor } from './extract.js';
 import { LlmExtractor, makeJudge } from './llm.js';
 import type { ConflictJudge } from './llm.js';
@@ -17,53 +18,81 @@ function arg(name: string, fallback = ''): string {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1]! : fallback;
 }
-
-function loadRecord(path: string, historyId: string): RawRecord {
-  const data = JSON.parse(readFileSync(path, 'utf8')) as RawRecord[];
-  const rec = data.find((r) => r.question_id === historyId);
-  if (!rec) throw new Error(`history_id ${historyId} not found in ${path}`);
-  return rec;
-}
+const has = (name: string): boolean => process.argv.includes(`--${name}`);
 
 async function main(): Promise<void> {
-  const historyId = process.argv[2];
-  if (!historyId || historyId.startsWith('--')) {
-    console.error('usage: errata-ingest <history_id> [--file <path>] [--extractor rule|replay]');
-    process.exit(1);
-  }
   const file = arg('file', 'data-raw/longmemeval_s_cleaned.json');
+  const structuralOnly = has('structural-only');
+  const all = has('all');
   const extractorName = arg('extractor', 'rule');
   const lexiconDir = arg('lexicon-dir', 'var/lexicon');
+  const useJudge = has('judge');
   const url = process.env.HYDRA_BOLT_URL ?? 'bolt://127.0.0.1:7687';
   const token = process.env.HYDRA_TOKEN ?? readFileSync('.data/hydra/auth-token', 'utf8').trim();
 
-  const history = parseHistory(loadRecord(file, historyId));
-  console.log(`ingesting ${historyId}: ${history.sessions.length} sessions, ${turnCount(history)} turns`);
+  // resolve the records to ingest (load the 277 MB corpus exactly once)
+  const corpus = JSON.parse(readFileSync(file, 'utf8')) as RawRecord[];
+  let records: RawRecord[];
+  if (all) {
+    records = corpus;
+  } else {
+    const id = process.argv[2];
+    if (!id || id.startsWith('--')) {
+      console.error('usage: errata-ingest <history_id>|--all [--structural-only] [--extractor rule|replay|llm] [--judge]');
+      process.exit(1);
+    }
+    const rec = corpus.find((r) => r.question_id === id);
+    if (!rec) {
+      console.error(`history_id ${id} not found in ${file}`);
+      process.exit(1);
+    }
+    records = [rec];
+  }
 
-  const useJudge = process.argv.includes('--judge');
+  // build the extractor (+ judge)
   let extractor: Extractor;
   let judge: ConflictJudge | undefined;
-  if (extractorName === 'llm' || useJudge) {
-    // seed the budget guard from the ledger so per-history CLI runs share one running total
-    // (otherwise a 500-history batch could spend 500×cap). P0-3.
+  if (structuralOnly) {
+    extractor = new NullExtractor();
+  } else if (extractorName === 'llm' || useJudge) {
     const cap = process.env.ERRATA_BUDGET_CAP ? Number(process.env.ERRATA_BUDGET_CAP) : 50;
-    const spent = rollup(defaultLedgerDir(), cap).spent_usd;
-    const or = new OpenRouterClient({ initialSpent: spent }); // reads OPENROUTER_API_KEY + config/models.json
-    if (extractorName === 'llm') extractor = new LlmExtractor(or, 'llm-extractor', historyId);
-    else extractor = new RuleExtractor();
-    if (useJudge) judge = makeJudge(or, historyId, historyId);
+    const or = new OpenRouterClient({ initialSpent: rollup(defaultLedgerDir(), cap).spent_usd });
+    extractor = extractorName === 'llm' ? new LlmExtractor(or, 'llm-extractor') : new RuleExtractor();
+    if (useJudge) judge = makeJudge(or, 'ingest');
   } else {
     extractor = extractorName === 'replay' ? new ReplayExtractor(arg('replay-dir', 'fixtures/replay')) : new RuleExtractor();
   }
+
+  console.log(`ingesting ${records.length} histor${records.length === 1 ? 'y' : 'ies'} with ${extractor.model}${structuralOnly ? ' (structural only)' : ''}`);
 
   const client = new GraphClient({ url, token });
   try {
     await client.verify();
     const t0 = Date.now();
-    const s = await ingestHistory(client, history, { extractor, judge, lexiconDir });
-    const ms = Date.now() - t0;
-    console.log(JSON.stringify({ ...s, bookmark: s.bookmark.length ? '<set>' : '<none>', ms }, null, 2));
-    console.log(`OK — ${s.counts.claims} claims, ${s.counts.supersedes} supersessions, ${s.nodeBatches}+${s.edgeBatches} batches in ${ms}ms`);
+    let nodeBatches = 0;
+    let edgeBatches = 0;
+    let claims = 0;
+    let turns = 0;
+    let done = 0;
+    for (const rec of records) {
+      const history = parseHistory(rec);
+      const s = await ingestHistory(client, history, { extractor, judge, lexiconDir });
+      nodeBatches += s.nodeBatches;
+      edgeBatches += s.edgeBatches;
+      claims += s.counts.claims;
+      turns += s.counts.turns;
+      done++;
+      if (all) {
+        if (done % 25 === 0 || done === records.length) {
+          const el = (Date.now() - t0) / 1000;
+          console.log(`  ${done}/${records.length} · ${(done / el).toFixed(1)} hist/s · ${turns} turns · ${claims} claims`);
+        }
+      } else {
+        console.log(`  ${history.historyId}: ${history.sessions.length} sessions, ${turnCount(history)} turns → ${s.counts.claims} claims, ${s.counts.supersedes} supersessions`);
+      }
+    }
+    const secs = (Date.now() - t0) / 1000;
+    console.log(`OK — ${done} histories, ${nodeBatches}+${edgeBatches} node+edge batches, ${turns} turns, ${claims} claims in ${secs.toFixed(1)}s (${(done / secs).toFixed(1)} hist/s, ${(secs / done * 1000).toFixed(0)} ms/history)`);
   } finally {
     await client.close();
   }

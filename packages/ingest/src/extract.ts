@@ -19,6 +19,7 @@ export interface ExtractedClaim {
   polarity: 'AFFIRM' | 'NEGATE';
   eventTimeIso: string; // '' → fall back to the session date
   sessionId: string;
+  sessionOrdinal?: number; // 0-based session position — the true identity (session_id is not unique)
   turnIdx: number; // positional citation half
   evidenceSpan: string; // ≤160 chars, verbatim
   confidence: number;
@@ -86,6 +87,7 @@ export class RuleExtractor implements Extractor {
                 polarity: 'AFFIRM',
                 eventTimeIso: '',
                 sessionId: turn.sessionId,
+                sessionOrdinal: session.ordinal,
                 turnIdx: turn.turnIdx,
                 evidenceSpan: span(m[0]),
                 confidence: 0.72,
@@ -113,5 +115,14 @@ export class ReplayExtractor implements Extractor {
     } catch {
       return [];
     }
+  }
+}
+
+/** Structural-only ingest: no claims. The S1 pass alone (sessions/turns/speakers + STATED_IN) makes
+ *  a history queryable and citable at zero token cost — the full-corpus unlock (wrap-up Block A). */
+export class NullExtractor implements Extractor {
+  readonly model = 'structural-only@1';
+  async extract(): Promise<ExtractedClaim[]> {
+    return [];
   }
 }

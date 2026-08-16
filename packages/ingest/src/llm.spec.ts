@@ -6,10 +6,10 @@ import { LlmExtractor, makeJudge, resolveConflictsWithJudge, verdictToEdge } fro
 import type { Completer, JudgeVerdict } from './llm.js';
 
 class MockCompleter implements Completer {
-  calls: { role: string }[] = [];
+  calls: { role: string; messages: { role: string; content: string }[] }[] = [];
   constructor(private readonly byRole: Record<string, unknown>) {}
-  async complete(args: { role: string }): Promise<{ text: string; json?: unknown }> {
-    this.calls.push({ role: args.role });
+  async complete(args: Parameters<Completer['complete']>[0]): Promise<{ text: string; json?: unknown }> {
+    this.calls.push({ role: args.role, messages: args.messages });
     const json = this.byRole[args.role];
     return { text: JSON.stringify(json), json };
   }
@@ -42,6 +42,38 @@ describe('LlmExtractor (mocked completer)', () => {
     expect(claims[0]!.value).toBe('Globex');
     expect(claims[0]!.sessionId).toBe('s1');
     expect(completer.calls.some((c) => c.role === 'extractor')).toBe(true);
+  });
+
+  it('keeps the valid claims when ONE claim in the batch is malformed (per-claim resilience, P2-13)', async () => {
+    const completer = new MockCompleter({
+      extractor: {
+        claims: [
+          { subject: 'the user', attribute: 'employer', value: 'Globex', polarity: 'AFFIRM', event_time_iso: '', session_id: 's1', turn_idx: 0, evidence_span: 'globex' },
+          { subject: 'the user', attribute: 'employer', polarity: 'AFFIRM', event_time_iso: '', session_id: 's1', turn_idx: 0, evidence_span: 'no value → malformed' }, // missing `value`
+          { subject: 'the user', attribute: 'city_of_residence', value: 'Berlin', polarity: 'AFFIRM', event_time_iso: '', session_id: 's1', turn_idx: 0, evidence_span: 'berlin' },
+        ],
+      },
+    });
+    const claims = await new LlmExtractor(completer).extract(H);
+    expect(claims.map((c) => c.value).sort()).toEqual(['Berlin', 'Globex']); // malformed dropped, siblings survive
+  });
+});
+
+describe('makeJudge payload (spec 31 §3.5)', () => {
+  it('sends history_id + per-side claim_id, time_basis, and confidence', async () => {
+    const completer = new MockCompleter({ judge: { relation: 'SUPERSEDES', confidence: 0.9, same_attribute: true, temporal_order: 'CANDIDATE_NEWER', rationale: 'r' } });
+    const judge = makeJudge(completer, 'hist_x');
+    const side = (value: string, id: number): never =>
+      ({ claimKey: `k${id}`, claimId: id, subjectNorm: 'the user', attribute: 'employer', arity: 'FUNCTIONAL', value, valueNorm: value.toLowerCase(), eventTimeIso: '2023-01-01', timeBasis: 'EXPLICIT', confidence: 0.8, evidenceSpan: value } as never);
+    await judge(side('Acme', 1), side('Globex', 2));
+    const user = completer.calls[0]!.messages.find((m) => m.role === 'user')!;
+    const payload = JSON.parse(user.content) as { history_id: string; incumbent: Record<string, unknown>; candidate: Record<string, unknown> };
+    expect(payload.history_id).toBe('hist_x');
+    for (const s of [payload.incumbent, payload.candidate]) {
+      expect(s).toHaveProperty('claim_id');
+      expect(s).toHaveProperty('time_basis');
+      expect(s).toHaveProperty('confidence');
+    }
   });
 });
 

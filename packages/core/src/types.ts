@@ -90,6 +90,8 @@ export interface BeliefResult {
   heads: BeliefValue[];
   /** Displaced claims, still retrievable (the supersession edge is the history). */
   superseded: BeliefValue[];
+  /** NEGATE-polarity claims ("no longer X") — surfaced as evidence, not dropped (review P2-21). */
+  negations: BeliefValue[];
   disputed: boolean;
   /** the head is touched by an unresolved CONTRADICTS edge (caps answer confidence downstream). */
   contested: boolean;

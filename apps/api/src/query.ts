@@ -83,6 +83,7 @@ function shapeBelief(result: BeliefResult, cypher?: Cypher[]): Record<string, un
     belief: shapeValue(head),
     heads: result.heads.map(shapeValue),
     superseded: result.superseded.map(shapeValue),
+    negations: result.negations.map(shapeValue),
     disputed: result.disputed, contested: result.contested, chain_len: result.chain_len,
     cycle_broken: result.cycle_broken, chain_repaired: result.chain_repaired,
     ...(cypher ? { cypher } : {}),

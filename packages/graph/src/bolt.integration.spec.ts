@@ -21,9 +21,9 @@ describe.skipIf(!RUN)('GraphClient — live round-trip against HydraDB', () => {
   let client: GraphClient;
   const eKey = keys.entity(H, 'the user');
   const eId = vid(eKey);
-  const c1Key = keys.claim(H, 'the user', 'employer', 'acme', 's1', 0);
+  const c1Key = keys.claim(H, 'the user', 'employer', 'acme', 0, 0);
   const c1Id = vid(c1Key);
-  const c2Key = keys.claim(H, 'the user', 'employer', 'globex', 's2', 0);
+  const c2Key = keys.claim(H, 'the user', 'employer', 'globex', 1, 0);
   const c2Id = vid(c2Key);
 
   beforeAll(async () => {

@@ -31,6 +31,7 @@ export interface PreparedClaim {
   eventTimeIso: string;
   timeBasis: TimeBasis;
   sessionId: string;
+  ordinal: number; // session position — the identity that keys sessions/turns/claims
   turnIdx: number;
   turnId: string;
   evidenceSpan: string;
@@ -60,8 +61,11 @@ function etypeOf(norm: string): string {
 
 /** Normalize + mint ids for extracted claims against a history (S4 input). */
 export function prepareClaims(history: History, extracted: ExtractedClaim[]): PreparedClaim[] {
-  const sessionEpoch = new Map(history.sessions.map((s) => [s.sessionId, s.epoch]));
-  const sessionIso = new Map(history.sessions.map((s) => [s.sessionId, s.dateIso]));
+  const byOrdinal = new Map(history.sessions.map((s) => [s.ordinal, s]));
+  // first-occurrence fallback for extractors that only report session_id (not the ordinal)
+  const firstOrdinal = new Map<string, number>();
+  for (const s of history.sessions) if (!firstOrdinal.has(s.sessionId)) firstOrdinal.set(s.sessionId, s.ordinal);
+
   const out: PreparedClaim[] = [];
   for (const c of extracted) {
     const subjectNorm = normText(c.subject);
@@ -69,6 +73,8 @@ export function prepareClaims(history: History, extracted: ExtractedClaim[]): Pr
     const { name: attribute, arity, registered } = resolveAttribute(c.attribute);
     const valueNorm = normText(c.value);
     if (!valueNorm) continue;
+    const ordinal = c.sessionOrdinal ?? firstOrdinal.get(c.sessionId) ?? 0;
+    const session = byOrdinal.get(ordinal);
     let eventTime: number;
     let eventTimeIso: string;
     let timeBasis: TimeBasis;
@@ -77,11 +83,11 @@ export function prepareClaims(history: History, extracted: ExtractedClaim[]): Pr
       eventTimeIso = c.eventTimeIso;
       timeBasis = 'EXPLICIT';
     } else {
-      eventTime = sessionEpoch.get(c.sessionId) ?? -1;
-      eventTimeIso = sessionIso.get(c.sessionId) ?? '';
+      eventTime = session?.epoch ?? -1;
+      eventTimeIso = session?.dateIso ?? '';
       timeBasis = eventTime > -1 ? 'SESSION_DATE' : 'UNKNOWN';
     }
-    const claimKey = keys.claim(history.historyId, subjectNorm, attribute, valueNorm, c.sessionId, c.turnIdx);
+    const claimKey = keys.claim(history.historyId, subjectNorm, attribute, valueNorm, ordinal, c.turnIdx);
     out.push({
       claimId: vid(claimKey),
       claimKey,
@@ -97,6 +103,7 @@ export function prepareClaims(history: History, extracted: ExtractedClaim[]): Pr
       eventTimeIso,
       timeBasis,
       sessionId: c.sessionId,
+      ordinal,
       turnIdx: c.turnIdx,
       turnId: `${c.sessionId}:${c.turnIdx}`,
       evidenceSpan: c.evidenceSpan,
@@ -204,8 +211,8 @@ export function buildClaims(
       about.push(aboutRow(c.claimId, c.claimKey, ve.id, ve.key, 'MENTION', h, c.eventTime, c.eventTimeIso, ingestTime, c.confidence, runId));
     }
 
-    // STATED_IN: Claim → Turn
-    const tKey = keys.turn(h, c.sessionId, c.turnIdx);
+    // STATED_IN: Claim → Turn (keyed by session ordinal, matching the structural Turn node)
+    const tKey = keys.turn(h, c.ordinal, c.turnIdx);
     const eKey = keys.edge('STATED_IN', c.claimKey, tKey);
     statedIn.push({
       id: vid(eKey), src: c.claimId, dst: vid(tKey), key: eKey, history_id: h,

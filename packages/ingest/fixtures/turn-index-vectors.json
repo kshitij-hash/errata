@@ -1,0 +1,33 @@
+{
+  "_doc": "Positional turn-identity golden (integration seam #2). turn_index is the 0-based position within its session; the SAME session_id may appear twice in a history (LongMemEval does this in ~13 of 500), so session identity is the ordinal, not session_id. This fixture is asserted by ingest vitest AND eval pytest so both languages count turns identically. Self-contained: parse `raw`, expect `expected`.",
+  "raw": {
+    "question_id": "turnidx_golden",
+    "question": "q",
+    "answer": "a",
+    "question_date": "2023/12/01 (Fri) 00:00",
+    "answer_session_ids": ["dupe_sid"],
+    "haystack_session_ids": ["sess_a", "dupe_sid", "dupe_sid"],
+    "haystack_dates": ["2023/05/23 (Tue) 23:54", "2023/05/29 (Mon) 13:56", "2023/06/01 (Thu) 10:00"],
+    "haystack_sessions": [
+      [
+        { "role": "user", "content": "first turn of session a" },
+        { "role": "assistant", "content": "reply in session a" }
+      ],
+      [
+        { "role": "user", "content": "dupe session FIRST occurrence turn 0" },
+        { "role": "assistant", "content": "r1" },
+        { "role": "user", "content": "dupe FIRST occurrence turn 2" }
+      ],
+      [
+        { "role": "user", "content": "dupe session SECOND occurrence turn 0" }
+      ]
+    ]
+  },
+  "expected": [
+    { "session_ordinal": 0, "turn_index": 0, "session_id": "sess_a", "role": "user", "content": "first turn of session a" },
+    { "session_ordinal": 0, "turn_index": 1, "session_id": "sess_a", "role": "assistant", "content": "reply in session a" },
+    { "session_ordinal": 1, "turn_index": 0, "session_id": "dupe_sid", "role": "user", "content": "dupe session FIRST occurrence turn 0" },
+    { "session_ordinal": 1, "turn_index": 2, "session_id": "dupe_sid", "role": "user", "content": "dupe FIRST occurrence turn 2" },
+    { "session_ordinal": 2, "turn_index": 0, "session_id": "dupe_sid", "role": "user", "content": "dupe session SECOND occurrence turn 0" }
+  ]
+}

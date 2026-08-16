@@ -49,12 +49,15 @@ function seg(label: string, v: string): string {
   return v;
 }
 
+// Session/Turn/Claim identity keys on the positional session ORDINAL, not session_id: LongMemEval
+// reuses a session_id within ~13 histories, so session_id is not unique — the ordinal is. session_id
+// rides along as a display property for citations.
 export const keys = {
-  session: (historyId: string, sessionId: string): string =>
-    `h:${seg('history_id', historyId)}|s:${seg('session_id', sessionId)}`,
+  session: (historyId: string, ordinal: number): string =>
+    `h:${seg('history_id', historyId)}|s:${ordinal}`,
 
-  turn: (historyId: string, sessionId: string, turnIdx: number): string =>
-    `h:${seg('history_id', historyId)}|s:${seg('session_id', sessionId)}|t:${turnIdx}`,
+  turn: (historyId: string, ordinal: number, turnIdx: number): string =>
+    `h:${seg('history_id', historyId)}|s:${ordinal}|t:${turnIdx}`,
 
   speaker: (historyId: string, role: string): string =>
     `h:${seg('history_id', historyId)}|sp:${seg('role', role)}`,
@@ -67,13 +70,13 @@ export const keys = {
     subjectNorm: string,
     attribute: string,
     valueNorm: string,
-    sessionId: string,
+    ordinal: number,
     turnIdx: number,
   ): string => {
     const inner = `${seg('subject_norm', subjectNorm)}|${seg('attribute', attribute)}|${seg(
       'value_norm',
       valueNorm,
-    )}|${seg('session_id', sessionId)}|${turnIdx}`;
+    )}|${ordinal}|${turnIdx}`;
     return `h:${seg('history_id', historyId)}|c:${b16(inner)}`;
   },
 

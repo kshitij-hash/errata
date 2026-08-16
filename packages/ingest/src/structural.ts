@@ -40,7 +40,7 @@ export function buildStructural(history: History, runId: string, ingestTime: num
   }
 
   for (const session of history.sessions) {
-    const sKey = keys.session(h, session.sessionId);
+    const sKey = keys.session(h, session.ordinal);
     const sId = vid(sKey);
     sessionRows.push({
       id: sId, key: sKey, history_id: h, session_id: session.sessionId, session_date_iso: session.dateIso,
@@ -57,7 +57,7 @@ export function buildStructural(history: History, runId: string, ingestTime: num
       salience.set(turn.turnId, salient);
       if (salient) salientN++;
 
-      const tKey = keys.turn(h, session.sessionId, turn.turnIdx);
+      const tKey = keys.turn(h, session.ordinal, turn.turnIdx);
       const tId = vid(tKey);
       turnRows.push({
         id: tId, key: tKey, history_id: h, session_id: session.sessionId, turn_id: turn.turnId, turn_idx: turn.turnIdx,

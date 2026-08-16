@@ -5,8 +5,8 @@ import { keys, vid } from './ids.js';
 
 function sampleNodeRow(): Record<string, unknown> {
   return {
-    id: vid(keys.claim('h', 'the user', 'employer', 'globex', 's9', 4)),
-    key: keys.claim('h', 'the user', 'employer', 'globex', 's9', 4),
+    id: vid(keys.claim('h', 'the user', 'employer', 'globex', 9, 4)),
+    key: keys.claim('h', 'the user', 'employer', 'globex', 9, 4),
     history_id: 'h',
     subject: 'the user',
     subject_norm: 'the user',

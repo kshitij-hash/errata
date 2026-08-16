@@ -84,6 +84,8 @@ describe('resolveBelief — supersession chains (spec 31 §7 tests 11-18)', () =
     const r = resolveBelief([chess, hiking, noChess], edges);
     expect(r.heads.map((h) => h.value).sort()).toEqual(['hiking']);
     expect(r.superseded.map((s) => s.claim_id)).toContain(1);
+    // the NEGATE claim is surfaced as a negation, not dropped from every view (P2-21)
+    expect(r.negations.map((n) => n.claim_id)).toContain(3);
   });
 
   it('17: a SUPERSEDES cycle A→B→A is broken, and a head is still returned', () => {

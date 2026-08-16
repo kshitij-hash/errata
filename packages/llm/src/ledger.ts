@@ -29,7 +29,7 @@ export type CostSource = (typeof COST_SOURCES)[number];
 
 /** One completed-or-attempted LLM call. Append-only; never mutated in place. */
 export interface LedgerLine {
-  ts: string; // ISO-8601
+  ts: string; // ISO-8601 UTC — the ledger timestamp is ISO everywhere (review item 11 decision); the eval reader parses it as ISO too (spec 31 §6.5)
   run_id: string;
   role: string;
   model: string;

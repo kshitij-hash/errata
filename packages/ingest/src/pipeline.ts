@@ -72,7 +72,11 @@ export async function ingestHistory(client: GraphClient, history: History, opts:
   const revision = opts.judge ? await resolveConflictsWithJudge(prepared, opts.judge) : resolveConflicts(prepared);
   const a = assembleFrom(history, prepared, revision, { model: opts.extractor.model, runId, ingestTime });
   const { nodeBatches, edgeBatches } = await client.loadTwoPhase(a.nodes, a.edges);
-  const lex = buildLexicon(history.historyId, a.entities);
-  const lexiconPath = writeLexicon(opts.lexiconDir ?? 'var/lexicon', lex);
+  // structural-only histories have no entities → no lexicon (keeps the ask path from anchoring on
+  // nothing, and avoids writing 500 empty files during a full-corpus structural pass).
+  let lexiconPath = '';
+  if (a.entities.length > 0) {
+    lexiconPath = writeLexicon(opts.lexiconDir ?? 'var/lexicon', buildLexicon(history.historyId, a.entities));
+  }
   return { ...a, historyId: history.historyId, runId, nodeBatches, edgeBatches, bookmark: client.bookmark, lexiconPath };
 }

@@ -151,12 +151,18 @@ function emptyResult(): BeliefResult {
     head: null,
     heads: [],
     superseded: [],
+    negations: [],
     disputed: false,
     contested: false,
     chain_len: 0,
     cycle_broken: false,
     chain_repaired: false,
   };
+}
+
+/** NEGATE-polarity claims, surfaced as evidence rather than dropped (review P2-21). */
+function negationsOf(claims: ClaimRow[], bv: (c: ClaimRow) => BeliefValue): BeliefValue[] {
+  return claims.filter((c) => c.polarity === 'NEGATE').map(bv);
 }
 
 function resolveFunctional(claims: ClaimRow[], edges: RevisionEdgeRow[]): BeliefResult {
@@ -229,6 +235,7 @@ function resolveFunctional(claims: ClaimRow[], edges: RevisionEdgeRow[]): Belief
     head: disputed ? null : bv(head),
     heads: headIds.map(bv),
     superseded,
+    negations: negationsOf(claims, bv),
     disputed,
     contested,
     chain_len,
@@ -257,6 +264,7 @@ function resolveMulti(claims: ClaimRow[], edges: RevisionEdgeRow[]): BeliefResul
     head: null,
     heads: heads.map(bv),
     superseded: superseded.map(bv),
+    negations: negationsOf(claims, bv),
     disputed: false,
     contested: false,
     chain_len: heads.length,
