@@ -133,6 +133,7 @@ class OpenRouterClient:
         op: str = "answer",
         ref: dict[str, Any] | None = None,
         response_format: dict[str, Any] | None = None,
+        reasoning_enabled: bool | None = None,
     ) -> LLMResult:
         payload: dict[str, Any] = {
             "model": model,
@@ -144,6 +145,11 @@ class OpenRouterClient:
             payload["seed"] = seed
         if response_format is not None:
             payload["response_format"] = response_format
+        if reasoning_enabled is not None:
+            # Hybrid thinking models (qwen3.7-flash) spend the whole max_tokens budget on reasoning
+            # and return EMPTY content — 448/450 empty answers in the first Arm B run. Answer arms
+            # pass False: plain completion, no thinking.
+            payload["reasoning"] = {"enabled": reasoning_enabled}
 
         last_error: str | None = None
         for attempt in range(1, self.max_attempts + 1):

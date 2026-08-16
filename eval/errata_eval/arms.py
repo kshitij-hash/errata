@@ -186,6 +186,7 @@ class _LLMArm:
             seed=seed,
             op="answer",
             ref={"arm": self.name, "seed": seed, "question_id": question.question_id},
+            reasoning_enabled=False,  # answer arms are plain completions (see openrouter.py note)
         )
         return {
             "arm": self.name,
