@@ -3,6 +3,9 @@
 //   errata-ingest <history_id>              ingest one history (RuleExtractor by default)
 //   errata-ingest --all --structural-only   ingest ALL 500 histories, structural pass only (zero LLM)
 // flags: --file <path> --ids-file <json-array> --extractor rule|replay|llm --replay-dir <d> --lexicon-dir <d> --judge
+//        --mem-guard-gb <n> (default 4.5; 0 disables) drain-and-restart the local HydraDB container
+//        at a HISTORY BOUNDARY when its RSS crosses n GiB, instead of letting the kernel SIGKILL it
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { GraphClient } from '@errata/graph';
 import { OpenRouterClient, defaultLedgerDir, rollup } from '@errata/llm';
@@ -19,6 +22,50 @@ function arg(name: string, fallback = ''): string {
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1]! : fallback;
 }
 const has = (name: string): boolean => process.argv.includes(`--${name}`);
+
+// ---- memory guard -------------------------------------------------------------------------------
+// The HydraDB node's RSS grows without bound under sustained bulk writes (no documented RAM knob;
+// write buffers are already 64 MiB — the growth is internal engine state). Unguarded, the Docker VM
+// kernel SIGKILLs it mid-write, which is what corrupts the cell-ownership lease ("cell cell-0 is
+// not owned by this node"). The fix is flow control on OUR side: watch the node's RSS and, at a
+// history boundary (never mid-batch), gracefully drain-and-restart it BEFORE the kernel acts. A
+// graceful stop releases the lease cleanly, so the failure mode disappears rather than being retried.
+
+const HYDRA_CONTAINER = process.env.ERRATA_HYDRA_CONTAINER ?? 'errata-hydradb-1';
+
+/** Node RSS in GiB via `docker stats` (the only reliable gauge on a macOS VM); -1 = unknown. */
+function nodeMemGiB(): number {
+  try {
+    const out = execFileSync('docker', ['stats', '--no-stream', '--format', '{{.MemUsage}}', HYDRA_CONTAINER], {
+      encoding: 'utf8',
+      timeout: 15_000,
+    });
+    const m = /^([\d.]+)(KiB|MiB|GiB)/.exec(out.trim());
+    if (!m) return -1;
+    const v = Number(m[1]);
+    return m[2] === 'GiB' ? v : m[2] === 'MiB' ? v / 1024 : v / (1024 * 1024);
+  } catch {
+    return -1;
+  }
+}
+
+/** Gracefully restart the node and wait for healthy. Only ever called between histories. */
+async function drainRestart(client: GraphClient): Promise<void> {
+  execFileSync('docker', ['compose', 'restart', 'hydradb'], { timeout: 120_000 });
+  for (let i = 0; i < 40; i++) {
+    try {
+      const s = execFileSync('docker', ['inspect', '-f', '{{.State.Health.Status}}', HYDRA_CONTAINER], {
+        encoding: 'utf8',
+        timeout: 10_000,
+      }).trim();
+      if (s === 'healthy') break;
+    } catch {
+      /* container mid-restart */
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  await client.verify(); // recreates the driver against the fresh node
+}
 
 async function main(): Promise<void> {
   const file = arg('file', 'data-raw/longmemeval_s_cleaned.json');
@@ -83,8 +130,16 @@ async function main(): Promise<void> {
     let turns = 0;
     let done = 0;
     const failed: string[] = [];
+    const memGuardGb = Number(arg('mem-guard-gb', '4.5'));
     for (const rec of records) {
       const history = parseHistory(rec);
+      if (memGuardGb > 0) {
+        const gib = nodeMemGiB();
+        if (gib > memGuardGb) {
+          console.log(`  [mem-guard] node at ${gib.toFixed(2)} GiB > ${memGuardGb} GiB — graceful drain-and-restart before next history`);
+          await drainRestart(client);
+        }
+      }
       // one history failing must not kill a multi-hour run: reconnect, retry once, else record
       // and continue (ingest is MERGE-idempotent, so the failed id can simply be re-run later).
       let s: Awaited<ReturnType<typeof ingestHistory>>;
