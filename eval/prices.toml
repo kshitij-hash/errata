@@ -10,8 +10,12 @@ source     = "openrouter.ai/api/v1/models"
 fetched_at = "2026-08-16"
 
 ["qwen/qwen3.7-flash"]              # ANSWER MODEL, all arms
-in = 0.030
-out = 0.130
+# Catalog headline is 0.03/0.13, but provider-reported cost on ~110K-token prompts is ~0.10/M in
+# (long-context tier, not exposed in /api/v1/models). Pinned at the tier rate so the ledger's cap
+# enforcement is CONSERVATIVE; short-prompt arms will slightly over-count. Reconciled 2026-08-16
+# against usd_reported (170 calls: table $0.567 vs reported $1.889).
+in = 0.100
+out = 0.390
 ctx = 1000000
 
 ["google/gemini-3.7-flash"]         # perturber + sensitivity check
