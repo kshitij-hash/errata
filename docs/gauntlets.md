@@ -54,6 +54,30 @@ case. Flagged for a possible upstream report (spec 33 §2.3 anticipated the lega
 **Verdict: PASS.** Loader usable, traversals stable, every load-bearing read form verified; the one
 rejected primitive (MSpaths list param) was already the first Tier-2 cut.
 
+## G2 — funded LLM extraction + conflict judge (2026-08-16) — PASS
+
+First funded run, demo history `852ce960` (39 sessions, 396 turns), extractor
+`openai/gpt-5.6-luna`, judge `google/gemini-3.7-flash`, via OpenRouter.
+
+**Finding — strict-mode 400s from the loose request schema.** The extractor requested structured
+output with `LooseExtractSchema` (`claims: unknown[]`), whose JSON Schema contains `items: {}`;
+OpenAI's strict mode rejects that with HTTP 400 on EVERY unit. The client's repair path then
+retried WITHOUT `response_format`, so the run "worked" — at double the calls and with free-form
+output. Worse, free-form mode badly under-extracted: **52 claims, 0 supersessions, and the demo's
+own mortgage facts missed** (only the rule extractor's overlay saved the answer).
+**Fix:** request with the STRICT `ExtractSchema` (server-enforced structure); the per-claim loose
+salvage (P2-13) still runs on the response. Result: **22/22 first-attempt 200s, 149 claims
+(~2.9×), both mortgage claims extracted, 1 judge call → `SUPERSEDES $350,000 → $400,000`**, and
+`/api/ask` serves `$400,000` with the correct Nov-30 citation. Cost: $0.039 for both runs.
+
+**Note — value normalization across extractors.** The LLM wrote `400000 USD` where the rule pass
+wrote `$400,000`; the differing `value_norm` minted two claim vertices (each correctly superseding
+$350,000). Harmless append-only duplication on the doubly-ingested demo history; a corpus run uses
+one extractor, so chains stay single-threaded there.
+
+**Throughput.** 133 s/history sequential → extraction batches now run 6-wide per history
+(order-preserving slots), and the CLI gained `--ids-file` for the eval's sample-150 run.
+
 ## Block B — the "unhealthy" HydraDB container (2026-08-16) — FIXED
 
 `errata-hydradb-1` reported `unhealthy` (FailingStreak 667) while serving correctly (live suite

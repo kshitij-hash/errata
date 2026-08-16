@@ -2,7 +2,7 @@
 // @errata/ingest CLI — ingest LongMemEval histories into HydraDB.
 //   errata-ingest <history_id>              ingest one history (RuleExtractor by default)
 //   errata-ingest --all --structural-only   ingest ALL 500 histories, structural pass only (zero LLM)
-// flags: --file <path> --extractor rule|replay|llm --replay-dir <d> --lexicon-dir <d> --judge
+// flags: --file <path> --ids-file <json-array> --extractor rule|replay|llm --replay-dir <d> --lexicon-dir <d> --judge
 import { readFileSync } from 'node:fs';
 import { GraphClient } from '@errata/graph';
 import { OpenRouterClient, defaultLedgerDir, rollup } from '@errata/llm';
@@ -32,9 +32,17 @@ async function main(): Promise<void> {
 
   // resolve the records to ingest (load the 277 MB corpus exactly once)
   const corpus = JSON.parse(readFileSync(file, 'utf8')) as RawRecord[];
+  const idsFile = arg('ids-file');
   let records: RawRecord[];
   if (all) {
     records = corpus;
+  } else if (idsFile !== '') {
+    const ids = new Set(JSON.parse(readFileSync(idsFile, 'utf8')) as string[]);
+    records = corpus.filter((r) => ids.has(r.question_id));
+    if (records.length !== ids.size) {
+      console.error(`ids-file: ${ids.size} ids requested, ${records.length} found in corpus`);
+      process.exit(1);
+    }
   } else {
     const id = process.argv[2];
     if (!id || id.startsWith('--')) {

@@ -49,6 +49,9 @@ const EXTRACT_SYSTEM = [
 ].join(' ');
 
 const BATCH = 12;
+// independent extraction batches in flight per history; ledger writes are lock-free appends and
+// the graph write happens after ALL batches return, so concurrency here is safe.
+const EXTRACT_CONCURRENCY = 6;
 
 function salientTurns(history: History): { sessionId: string; dateIso: string; turn: Turn }[] {
   const out: { sessionId: string; dateIso: string; turn: Turn }[] = [];
@@ -75,32 +78,48 @@ export class LlmExtractor implements Extractor {
 
   async extract(history: History): Promise<ExtractedClaim[]> {
     const turns = salientTurns(history);
-    const out: ExtractedClaim[] = [];
     const valid = new Set(turns.map((t) => `${t.sessionId}:${t.turn.turnIdx}`));
-    for (let i = 0; i < turns.length; i += BATCH) {
-      const batch = turns.slice(i, i + BATCH);
-      const listing = batch
-        .map((b) => `[session_id=${b.sessionId} turn_idx=${b.turn.turnIdx} date=${b.dateIso} role=${b.turn.role}] ${b.turn.text}`)
-        .join('\n');
-      let claimsRaw: unknown[];
-      try {
-        const res = await this.completer.complete({
-          role: 'extractor',
-          history_id: history.historyId,
-          unit_id: `${batch[0]!.sessionId}:${batch[0]!.turn.turnIdx}..${batch.at(-1)!.turn.turnIdx}`,
-          run_id: this.runId,
-          schema: LooseExtractSchema,
-          schemaName: 'claims',
-          messages: [
-            { role: 'system', content: EXTRACT_SYSTEM },
-            { role: 'user', content: listing },
-          ],
-        });
-        const parsed = LooseExtractSchema.safeParse(res.json);
-        claimsRaw = parsed.success ? parsed.data.claims : [];
-      } catch {
-        continue; // an API/parse failure drops THIS batch only, never the whole history
+    const batches: (typeof turns)[] = [];
+    for (let i = 0; i < turns.length; i += BATCH) batches.push(turns.slice(i, i + BATCH));
+
+    // Batches are independent one-shot calls; run up to EXTRACT_CONCURRENCY at a time. Results land
+    // in per-batch slots so claim order stays deterministic regardless of completion order.
+    const slots: unknown[][] = batches.map(() => []);
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      for (;;) {
+        const idx = next++;
+        if (idx >= batches.length) return;
+        const batch = batches[idx]!;
+        const listing = batch
+          .map((b) => `[session_id=${b.sessionId} turn_idx=${b.turn.turnIdx} date=${b.dateIso} role=${b.turn.role}] ${b.turn.text}`)
+          .join('\n');
+        try {
+          const res = await this.completer.complete({
+            role: 'extractor',
+            history_id: history.historyId,
+            unit_id: `${batch[0]!.sessionId}:${batch[0]!.turn.turnIdx}..${batch.at(-1)!.turn.turnIdx}`,
+            run_id: this.runId,
+            // request with the STRICT schema — OpenAI strict mode rejects Loose's `items:{}` with a
+            // 400 on every unit (G2 finding). The response is still salvaged per-claim below.
+            schema: ExtractSchema,
+            schemaName: 'claims',
+            messages: [
+              { role: 'system', content: EXTRACT_SYSTEM },
+              { role: 'user', content: listing },
+            ],
+          });
+          const parsed = LooseExtractSchema.safeParse(res.json);
+          slots[idx] = parsed.success ? parsed.data.claims : [];
+        } catch {
+          // an API/parse failure drops THIS batch only, never the whole history
+        }
       }
+    };
+    await Promise.all(Array.from({ length: Math.min(EXTRACT_CONCURRENCY, batches.length) }, worker));
+
+    const out: ExtractedClaim[] = [];
+    for (const claimsRaw of slots) {
       for (const raw of claimsRaw) {
         const c = ClaimItemSchema.safeParse(raw); // a malformed claim drops only itself (P2-13)
         if (!c.success) continue;
