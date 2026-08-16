@@ -1,0 +1,204 @@
+{
+  "history_id": "852ce960",
+  "question": "What was the amount I was pre-approved for when I got my mortgage from Wells Fargo?",
+  "sessions": [
+    {
+      "ordinal": 0,
+      "session_id": "ultrachat_218093",
+      "date": "2023-07-12"
+    },
+    {
+      "ordinal": 1,
+      "session_id": "d36d11b9_2",
+      "date": "2023-08-02"
+    },
+    {
+      "ordinal": 2,
+      "session_id": "answer_3a6f1e82_1",
+      "date": "2023-08-11"
+    },
+    {
+      "ordinal": 3,
+      "session_id": "b89a3ec3",
+      "date": "2023-08-12"
+    },
+    {
+      "ordinal": 4,
+      "session_id": "0840765f_2",
+      "date": "2023-08-17"
+    },
+    {
+      "ordinal": 5,
+      "session_id": "ultrachat_327379",
+      "date": "2023-08-18"
+    },
+    {
+      "ordinal": 6,
+      "session_id": "114c1fb7_4",
+      "date": "2023-08-26"
+    },
+    {
+      "ordinal": 7,
+      "session_id": "ultrachat_390626",
+      "date": "2023-08-29"
+    },
+    {
+      "ordinal": 8,
+      "session_id": "sharegpt_FYhsZ0Q_0",
+      "date": "2023-08-30"
+    },
+    {
+      "ordinal": 9,
+      "session_id": "b0fd1357",
+      "date": "2023-09-01"
+    },
+    {
+      "ordinal": 10,
+      "session_id": "sharegpt_uiECyCD_66",
+      "date": "2023-09-01"
+    },
+    {
+      "ordinal": 11,
+      "session_id": "sharegpt_eN4o9Zr_0",
+      "date": "2023-09-05"
+    },
+    {
+      "ordinal": 12,
+      "session_id": "e8bfacec_1",
+      "date": "2023-09-05"
+    },
+    {
+      "ordinal": 13,
+      "session_id": "c578da1f_1",
+      "date": "2023-09-09"
+    },
+    {
+      "ordinal": 14,
+      "session_id": "ultrachat_241587",
+      "date": "2023-09-09"
+    },
+    {
+      "ordinal": 15,
+      "session_id": "ultrachat_513982",
+      "date": "2023-09-15"
+    },
+    {
+      "ordinal": 16,
+      "session_id": "a76e7e3c_1",
+      "date": "2023-09-18"
+    },
+    {
+      "ordinal": 17,
+      "session_id": "ultrachat_475483",
+      "date": "2023-09-18"
+    },
+    {
+      "ordinal": 18,
+      "session_id": "sharegpt_4L5LmyO_0",
+      "date": "2023-10-16"
+    },
+    {
+      "ordinal": 19,
+      "session_id": "cae09ac0_1",
+      "date": "2023-10-17"
+    },
+    {
+      "ordinal": 20,
+      "session_id": "1e32d50a",
+      "date": "2023-10-26"
+    },
+    {
+      "ordinal": 21,
+      "session_id": "ultrachat_174714",
+      "date": "2023-10-26"
+    },
+    {
+      "ordinal": 22,
+      "session_id": "bdfcb4d3",
+      "date": "2023-10-27"
+    },
+    {
+      "ordinal": 23,
+      "session_id": "sharegpt_hChsWOp_128",
+      "date": "2023-10-29"
+    },
+    {
+      "ordinal": 24,
+      "session_id": "ultrachat_211551",
+      "date": "2023-10-31"
+    },
+    {
+      "ordinal": 25,
+      "session_id": "sharegpt_Rmlombn_5",
+      "date": "2023-11-01"
+    },
+    {
+      "ordinal": 26,
+      "session_id": "a110c4dc_1",
+      "date": "2023-11-11"
+    },
+    {
+      "ordinal": 27,
+      "session_id": "f55fee5b_2",
+      "date": "2023-11-15"
+    },
+    {
+      "ordinal": 28,
+      "session_id": "bfe8bb0e",
+      "date": "2023-11-20"
+    },
+    {
+      "ordinal": 29,
+      "session_id": "sharegpt_V2j1zkI_1",
+      "date": "2023-11-23"
+    },
+    {
+      "ordinal": 30,
+      "session_id": "aaf22693",
+      "date": "2023-11-23"
+    },
+    {
+      "ordinal": 31,
+      "session_id": "ultrachat_444553",
+      "date": "2023-11-24"
+    },
+    {
+      "ordinal": 32,
+      "session_id": "ultrachat_260641",
+      "date": "2023-11-25"
+    },
+    {
+      "ordinal": 33,
+      "session_id": "sharegpt_8p1Wa3W_0",
+      "date": "2023-11-26"
+    },
+    {
+      "ordinal": 34,
+      "session_id": "010a28ab_3",
+      "date": "2023-11-29"
+    },
+    {
+      "ordinal": 35,
+      "session_id": "e184e4c3_2",
+      "date": "2023-11-29"
+    },
+    {
+      "ordinal": 36,
+      "session_id": "answer_3a6f1e82_2",
+      "date": "2023-11-30"
+    },
+    {
+      "ordinal": 37,
+      "session_id": "ultrachat_224140",
+      "date": "2023-12-11"
+    },
+    {
+      "ordinal": 38,
+      "session_id": "sharegpt_Hr4ZH5Y_0",
+      "date": "2023-12-14"
+    }
+  ],
+  "turn_count": 396,
+  "char_count": 492670,
+  "approx_tokens": 123168
+}
