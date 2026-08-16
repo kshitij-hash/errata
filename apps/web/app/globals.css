@@ -1037,6 +1037,12 @@ footer.colophon {
   background: var(--red);
   transition: width 1.3s cubic-bezier(0.3, 0.7, 0.4, 1);
 }
+/* the provenance line under the vector pane's meter — citation + the retrieval measurement */
+.pnote {
+  margin-top: 0.5rem;
+  font: 400 0.72rem/1.5 var(--mono);
+  color: var(--sub);
+}
 .stamp {
   position: absolute;
   top: 46%;

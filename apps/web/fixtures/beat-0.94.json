@@ -1,14 +1,82 @@
 {
-  "query": "What model does the user prefer for their coding assistant?",
+  "query": "What was the amount I was pre-approved for when I got my mortgage from Wells Fargo?",
+  "embedder": "BAAI/bge-small-en-v1.5",
+  "measured_at": "2026-08-16",
+  "measured_by": "eval/embed_beat.py",
+  "history_id": "852ce960-clean",
+  "corpus_question_id": "852ce960",
+  "pair": {
+    "cosine": 0.9109,
+    "attribute": "mortgage_preapproval_amount",
+    "basis": "cosine between the two claims' evidence spans (bge-small, no query prefix); highest of every superseded↔current pair in this history",
+    "superseded": {
+      "text": "pre-approved for $350,000 from Wells Fargo.",
+      "value": "$350,000",
+      "citation": {
+        "session_id": "answer_3a6f1e82_1",
+        "turn_index": 2,
+        "session_date": "2023-08-11",
+        "claim_id": 6341458025447090
+      }
+    },
+    "current": {
+      "text": "pre-approved for $400,000 from Wells Fargo?",
+      "value": "$400,000",
+      "citation": {
+        "session_id": "answer_3a6f1e82_2",
+        "turn_index": 0,
+        "session_date": "2023-11-30",
+        "claim_id": 6423372368317097
+      }
+    }
+  },
+  "retrieval": {
+    "basis": "the question against 2000-char dated session chunks — the granularity the eval's naive top-k arm indexes at",
+    "chunks": 304,
+    "top": {
+      "cosine": 0.7457,
+      "session_id": "answer_3a6f1e82_1",
+      "session_date": "2023-08-11",
+      "session_ordinal": 2,
+      "superseded": true
+    },
+    "superseded_session": {
+      "cosine": 0.7457,
+      "session_id": "answer_3a6f1e82_1",
+      "session_date": "2023-08-11",
+      "session_ordinal": 2,
+      "superseded": true
+    },
+    "current_session": {
+      "cosine": 0.6492,
+      "session_id": "answer_3a6f1e82_2",
+      "session_date": "2023-11-30",
+      "session_ordinal": 36,
+      "superseded": false
+    }
+  },
   "candidates": [
     {
-      "text": "The user now prefers Qwen3.7-Flash for their coding assistant.",
-      "cosine": 0.6945
+      "text": "pre-approved for $350,000 from Wells Fargo.",
+      "cosine": 0.7457,
+      "superseded": true,
+      "citation": {
+        "session_id": "answer_3a6f1e82_1",
+        "turn_index": 2,
+        "session_date": "2023-08-11",
+        "claim_id": 6341458025447090
+      }
     },
     {
-      "text": "The user prefers GPT-4o for their coding assistant.",
-      "cosine": 0.7416
+      "text": "pre-approved for $400,000 from Wells Fargo?",
+      "cosine": 0.6492,
+      "superseded": false,
+      "citation": {
+        "session_id": "answer_3a6f1e82_2",
+        "turn_index": 0,
+        "session_date": "2023-11-30",
+        "claim_id": 6423372368317097
+      }
     }
-  ],
-  "embedder": "BAAI/bge-small-en-v1.5"
+  ]
 }

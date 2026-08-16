@@ -7,10 +7,16 @@ import { CHIPS } from '../../config/demo';
 import { prefersReducedMotion } from '../../lib/format';
 import { readParam } from '../../lib/urlstate';
 
-const sorted = [...beat.candidates].sort((a, b) => b.cosine - a.cosine);
-/** a vector store serves the HIGHEST cosine — which here is the stale claim. That is the beat. */
-const STALE = sorted[0]!;
-const CURRENT = sorted[sorted.length - 1]!;
+// Two measurements, both from eval/embed_beat.py against the real demo history, both in the
+// fixture with their provenance (B3):
+//   pair.cosine  — the superseded claim's span against the current claim's span. THIS is the beat's
+//                  number: two claims an embedder cannot tell apart, one of them retired.
+//   retrieval    — the question against dated session chunks, the granularity a vector store
+//                  actually indexes. On this history its top hit is the SUPERSEDED session.
+const STALE = beat.pair.superseded;
+const CURRENT = beat.pair.current;
+const PAIR_COSINE = beat.pair.cosine;
+const RETRIEVAL = beat.retrieval;
 const TYPED = `“${STALE.text}”`;
 
 export function Duel() {
@@ -39,8 +45,8 @@ export function Duel() {
     setRan(true);
     if (prefersReducedMotion()) {
       setTyped(TYPED);
-      setCos(STALE.cosine);
-      setFill(STALE.cosine * 100);
+      setCos(PAIR_COSINE);
+      setFill(PAIR_COSINE * 100);
       setStamp(true);
       setGraph(true);
       setVerdict(true);
@@ -63,12 +69,12 @@ export function Duel() {
     );
     timers.push(
       setTimeout(() => {
-        setFill(STALE.cosine * 100);
+        setFill(PAIR_COSINE * 100);
         let c = 0;
         const m = setInterval(() => {
           c += 0.02 + Math.random() * 0.03;
-          if (c >= STALE.cosine) {
-            c = STALE.cosine;
+          if (c >= PAIR_COSINE) {
+            c = PAIR_COSINE;
             clearInterval(m);
           }
           setCos(c);
@@ -100,9 +106,13 @@ export function Duel() {
             <div className="mbar">
               <div className="mfill" style={{ width: `${fill}%` }} />
             </div>
-            <span>similarity</span>
+            <span>similarity to the current claim</span>
           </div>
           <div className={`stamp${stamp ? ' in' : ''}`}>SUPERSEDED FACT</div>
+          <div className="pnote">
+            {STALE.citation.session_id} · {STALE.citation.session_date} · retrieved FIRST for this
+            question at cos {RETRIEVAL.top.cosine.toFixed(4)} over {RETRIEVAL.chunks} session chunks
+          </div>
         </div>
         <div className="pane g">
           <div className="ph">
@@ -113,8 +123,9 @@ export function Duel() {
             {CURRENT.text}
             <br />
             <span style={{ font: '400 .74rem var(--mono)', color: 'var(--sub)' }}>
-              the claim no SUPERSEDES points away from · cos {CURRENT.cosine.toFixed(4)} — lower, and right · embedder:{' '}
-              {beat.embedder}
+              the claim no SUPERSEDES points away from · {CURRENT.citation.session_id} ·{' '}
+              {CURRENT.citation.session_date} · its session ranks BELOW the retired one for the same
+              question, at cos {RETRIEVAL.current_session.cosine.toFixed(4)} · embedder: {beat.embedder}
             </span>
           </div>
         </div>
@@ -129,8 +140,12 @@ export function Duel() {
         </button>
       </div>
       <p className="mono" style={{ fontSize: '.74rem', color: 'var(--faint)', marginTop: '1.1rem' }}>
-        both panes read <code>apps/web/fixtures/beat-0.94.json</code> — cosines computed offline against {beat.embedder}
-        , committed, so the demo makes no network call to an embedding service. The same shape on live graph data:{' '}
+        both panes read <code>apps/web/fixtures/beat-0.94.json</code> — measured on {beat.measured_at} by{' '}
+        <code>{beat.measured_by}</code> against {beat.embedder} over history <code>{beat.history_id}</code>, committed,
+        so the demo makes no network call to an embedding service. The {PAIR_COSINE.toFixed(4)} is the cosine between
+        the two claims&rsquo; own evidence spans; {RETRIEVAL.top.cosine.toFixed(4)} vs{' '}
+        {RETRIEVAL.current_session.cosine.toFixed(4)} is what the same embedder retrieves for the question above. The
+        same shape on live graph data:{' '}
         <Link href={`/?q=${encodeURIComponent(CHIPS[0]!.question)}`}>the pre-approval answer</Link> and its{' '}
         <Link href="/timeline">revision chain</Link>.
       </p>

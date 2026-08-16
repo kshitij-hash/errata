@@ -59,11 +59,20 @@ export function lexicon(historyId: string): Lexicon | null {
   return lex;
 }
 
-// --- the 0.94 beat fixture (bge-small vectors precomputed offline by eval/embed_beat.py, R4) ---
+// --- the compare-beat fixture (bge-small cosines measured offline by eval/embed_beat.py, R4/B3) ---
+//
+// Two measurements live in the file, each with its provenance. `candidates` is the one this API
+// serves: what a vector store hands back FOR THE QUERY, highest retrieval cosine first — on the
+// demo history that is the SUPERSEDED claim. `pair` (read by the Compare page, not by this API) is
+// the cosine between the two claims' own evidence spans. The filename is historical: the number in
+// it is whatever was measured, never a target.
 export interface BeatFixture {
   query: string;
-  candidates: { text: string; cosine: number; citation?: unknown }[];
+  candidates: { text: string; cosine: number; superseded?: boolean; citation?: unknown }[];
   embedder: string;
+  measured_at?: string;
+  history_id?: string;
+  pair?: { cosine: number; attribute: string; basis: string };
 }
 let _beat: BeatFixture | null | undefined;
 export function beatFixture(): BeatFixture | null {
