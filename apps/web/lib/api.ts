@@ -69,6 +69,28 @@ export interface AskResponse {
   latency_ms: number;
 }
 
+/** One transcript turn from `/api/turns` — the neighbours around a cited span (blocker B2). */
+export interface TurnRow {
+  turn_id: string;
+  session_id: string;
+  turn_index: number;
+  role: string;
+  text: string;
+  event_time: number;
+  event_time_iso: string;
+  /** true for the turn the citation itself points at */
+  anchor: boolean;
+}
+
+export interface TurnsResponse {
+  history_id: string;
+  session_id: string;
+  session_ordinal: number;
+  around_turn: number;
+  radius: number;
+  turns: TurnRow[];
+}
+
 export interface BeliefResponse {
   belief: BeliefValue | null;
   heads: BeliefValue[];
@@ -150,6 +172,16 @@ export const api = {
     json<BeliefResponse>(
       `/belief?subject=${encodeURIComponent(subject)}&attribute=${encodeURIComponent(attribute)}&history_id=${encodeURIComponent(historyId)}${at != null ? `&at=${at}` : ''}`,
     ),
+  /** The transcript around a citation. `claimId` is the id-anchored path; session/turn is the
+   *  fallback when a citation carries no claim_id. */
+  turns: (historyId: string, q: { claimId?: number; sessionId?: string; aroundTurn?: number; radius?: number }) => {
+    const p = new URLSearchParams({ history_id: historyId });
+    if (q.claimId != null) p.set('claim_id', String(q.claimId));
+    if (q.sessionId) p.set('session_id', q.sessionId);
+    if (q.aroundTurn != null) p.set('around_turn', String(q.aroundTurn));
+    if (q.radius != null) p.set('radius', String(q.radius));
+    return json<TurnsResponse>(`/turns?${p.toString()}`);
+  },
   diff: (subject: string, attribute: string, historyId: string, from: number, to: number) =>
     json<DiffResponse>(
       `/diff?subject=${encodeURIComponent(subject)}&attribute=${encodeURIComponent(attribute)}&history_id=${encodeURIComponent(historyId)}&from=${from}&to=${to}`,

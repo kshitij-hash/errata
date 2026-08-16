@@ -1,11 +1,17 @@
+'use client';
+
 import type { CSSProperties } from 'react';
-import type { AskResponse, BeliefValue } from '../../lib/api';
+import { useEffect, useState } from 'react';
+import { api } from '../../lib/api';
+import type { AskResponse, BeliefValue, TurnRow } from '../../lib/api';
+import { DEMO_HISTORY_ID } from '../../config/demo';
 import { citeLabel, sessionDate, sessionOrdinal } from '../../lib/format';
 
 interface Line {
   key: string;
   sessionId: string;
   turnIndex: number;
+  claimId?: number;
   span: string;
   superseded: boolean;
 }
@@ -26,13 +32,66 @@ function header(sessionId: string, tail: string): string {
   return `SESSION ${ord == null ? sessionId : ord + 1}${date ? ` · ${date}` : ''}${tail}`;
 }
 
+/** long assistant turns are prose; the source column shows the head of one, not a wall of it. */
+const NEIGHBOUR_CHARS = 240;
+function clip(text: string): string {
+  const t = text.replace(/\s+/g, ' ').trim();
+  return t.length <= NEIGHBOUR_CHARS ? t : `${t.slice(0, NEIGHBOUR_CHARS - 1)}…`;
+}
+
+/**
+ * The surrounding transcript for one cited span (blocker B2, now unblocked by `GET /api/turns`).
+ * The cited turn itself is already on screen as the highlighted span, so the window renders the
+ * NEIGHBOURS around it — who · text, in transcript order, above and below the span.
+ */
+function TurnWindow({ line, radius = 2 }: { line: Line; radius?: number }) {
+  const [turns, setTurns] = useState<TurnRow[] | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    setTurns(null);
+    api
+      .turns(DEMO_HISTORY_ID, {
+        claimId: line.claimId,
+        sessionId: line.sessionId,
+        aroundTurn: line.turnIndex,
+        radius,
+      })
+      .then((r) => {
+        if (live) setTurns(r.turns);
+      })
+      .catch(() => {
+        if (live) setTurns([]); // the spans still read correctly without their neighbours
+      });
+    return () => {
+      live = false;
+    };
+  }, [line.claimId, line.sessionId, line.turnIndex, radius]);
+
+  if (!turns || turns.length === 0) return null;
+  const before = turns.filter((t) => !t.anchor && t.turn_index < line.turnIndex);
+  const after = turns.filter((t) => !t.anchor && t.turn_index > line.turnIndex);
+  if (before.length === 0 && after.length === 0) return null;
+
+  const row = (t: TurnRow) => (
+    <div className="tline nbr" key={t.turn_id}>
+      <span className="who">{t.role} ·</span> {clip(t.text)}
+    </div>
+  );
+
+  return (
+    <div className="nbrs">
+      {before.map(row)}
+      {after.map(row)}
+    </div>
+  );
+}
+
 /**
  * The right leaf of the Spread: the transcript evidence, always visible. The cited span takes the
  * highlighter sweep every time an answer lands; a span whose claim has been superseded keeps its
- * in-situ strike and a SUPERSEDED badge — the source is never edited, only marked.
- *
- * NOTE: spans only. The surrounding turns the work order asks for need a turn/transcript read the
- * API does not expose yet (blocker B2).
+ * in-situ strike and a SUPERSEDED badge — the source is never edited, only marked. Each span is
+ * shown in context: `GET /api/turns` fetches the neighbouring turns around it.
  */
 export function SourceColumn({
   resp,
@@ -79,6 +138,7 @@ export function SourceColumn({
     key: `c${i}`,
     sessionId: c.session_id,
     turnIndex: c.turn_index,
+    claimId: c.claim_id,
     span: c.span,
     superseded: false,
   }));
@@ -86,6 +146,7 @@ export function SourceColumn({
     key: `s${i}`,
     sessionId: s.citation.session_id,
     turnIndex: s.citation.turn_index,
+    claimId: s.citation.claim_id,
     span: s.evidence_span,
     superseded: true,
   }));
@@ -98,9 +159,12 @@ export function SourceColumn({
             {header(g.sessionId, ' · THE SOURCE')}
           </div>
           {g.lines.map((l) => (
-            <div className="tline" key={l.key}>
-              <span className="who">{citeLabel(l.sessionId, l.turnIndex)} ·</span>{' '}
-              <span className={`hlspan${swept ? ' swept' : ''}`}>{l.span}</span>
+            <div key={l.key}>
+              <div className="tline">
+                <span className="who">{citeLabel(l.sessionId, l.turnIndex)} ·</span>{' '}
+                <span className={`hlspan${swept ? ' swept' : ''}`}>{l.span}</span>
+              </div>
+              <TurnWindow line={l} />
             </div>
           ))}
         </div>
@@ -111,13 +175,16 @@ export function SourceColumn({
             {header(g.sessionId, ' · SUPERSEDED')}
           </div>
           {g.lines.map((l) => (
-            <div className="tline" key={l.key}>
-              <span className="who">{citeLabel(l.sessionId, l.turnIndex)} ·</span>{' '}
-              <span className="claimline">
-                {l.span}
-                <span className="stk" style={{ '--sx': 1, height: '1.6px' } as CSSProperties} />
-              </span>
-              <span className="srcbadge">SUPERSEDED</span>
+            <div key={l.key}>
+              <div className="tline">
+                <span className="who">{citeLabel(l.sessionId, l.turnIndex)} ·</span>{' '}
+                <span className="claimline">
+                  {l.span}
+                  <span className="stk" style={{ '--sx': 1, height: '1.6px' } as CSSProperties} />
+                </span>
+                <span className="srcbadge">SUPERSEDED</span>
+              </div>
+              <TurnWindow line={l} />
             </div>
           ))}
         </div>

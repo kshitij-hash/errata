@@ -22,7 +22,9 @@ export type EdgeType = 'STATED_IN' | 'ABOUT' | 'SUPPORTS' | 'SUPERSEDES' | 'CONT
 export const INTEGER_KEYS: ReadonlySet<string> = new Set([
   // scalar params
   'entity_vid', 'claim_vid', 'newer_vid', 'older_vid', 'at',
+  // id-pinned UNION arms: 8 entity anchors on the ask path, up to TURN_WINDOW_MAX on /api/turns
   'a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7',
+  'a8', 'a9', 'a10', 'a11', 'a12', 'a13', 'a14', 'a15',
   // row fields
   'id', 'src', 'dst',
   'event_time', 'ingest_time', 'turn_idx', 'turn_index', 'token_count', 'ordinal', 'turn_count', 'mention_count',
@@ -214,13 +216,56 @@ export function msPaths(anchorKeys: string[]): Stmt {
   return { text, params: { anchor_keys: anchorKeys.slice(0, 16) } };
 }
 
-/** Citation hydration — render the full turn behind a claim (one hop). */
+/** Citation hydration — render the full turn behind a claim (one hop).
+ *  `turn_key` and `turn_idx` come back so the caller can derive the session ORDINAL (the Turn's
+ *  identity is `h:<history>|s:<ordinal>|t:<idx>`) and mint its neighbours' ids without a scan. */
 export function turnForClaim(claimVid: number): Stmt {
   const text =
     `MATCH (c:Claim {id: $claim_vid})-[:STATED_IN]->(t:Turn)\n` +
-    `RETURN t.id AS turn_vid, t.session_id AS session_id, t.turn_id AS turn_id,\n` +
-    `       t.role AS role, t.text AS text, t.event_time AS event_time`;
+    `RETURN t.id AS turn_vid, t.key AS turn_key, t.session_id AS session_id, t.turn_id AS turn_id,\n` +
+    `       t.turn_idx AS turn_idx, t.role AS role, t.text AS text,\n` +
+    `       t.event_time AS event_time, t.event_time_iso AS event_time_iso`;
   return { text, params: { claim_vid: claimVid } };
+}
+
+/** Transcript context — the turns at a bounded set of ids, as id-pinned UNION arms.
+ *
+ *  This is the neighbours-by-turn_idx read (blocker B2). It is deliberately NOT a property filter
+ *  on `turn_idx`: HydraDB's subset has no `IN`, and a range predicate over `t.turn_idx` would be a
+ *  label scan of every Turn in the store (246K on the full corpus — see G3's `countLabel` note).
+ *  Turn ids are pure functions of (history_id, session ordinal, turn_idx), so the caller mints the
+ *  window's ids with `keys.turn` and each arm is anchored on one of them. Capped at 16 arms.
+ */
+export const TURN_WINDOW_MAX = 16;
+
+export function turnsByIds(turnVids: number[]): Stmt {
+  const ids = turnVids.slice(0, TURN_WINDOW_MAX);
+  if (ids.length === 0) throw new Error('turnsByIds: at least one turn id required');
+  const arm = (i: number): string =>
+    `MATCH (t:Turn {id: $a${i}})\n` +
+    `RETURN t.id AS turn_vid, t.key AS turn_key, t.session_id AS session_id, t.turn_id AS turn_id,\n` +
+    `       t.turn_idx AS turn_idx, t.role AS role, t.text AS text,\n` +
+    `       t.event_time AS event_time, t.event_time_iso AS event_time_iso`;
+  const text = ids.map((_, i) => arm(i)).join('\nUNION\n');
+  const params: Record<string, unknown> = {};
+  ids.forEach((id, i) => (params[`a${i}`] = id));
+  return { text, params };
+}
+
+/** session_id → ordinal, for callers that only carry the display id (session_id is NOT unique
+ *  across the corpus, so this can legitimately return several rows; they are ordered and bounded).
+ *  A Session label scan filtered by history — the same admin-class read as `countLabel`, off the
+ *  id-anchored path. Prefer anchoring on a claim id (`turnForClaim`) when one is available. */
+export function sessionsByExternalId(historyId: string, sessionId: string): Stmt {
+  const text =
+    `MATCH (s:Session)\n` +
+    `WHERE s.history_id = $history_id\n` +
+    `  AND s.session_id = $session_id\n` +
+    `RETURN s.id AS session_vid, s.ordinal AS ordinal, s.session_id AS session_id,\n` +
+    `       s.session_date_iso AS session_date_iso, s.turn_count AS turn_count\n` +
+    `ORDER BY ordinal\n` +
+    `LIMIT 8`;
+  return { text, params: { history_id: historyId, session_id: sessionId } };
 }
 
 /** Per-history node count for /api/meta/health (label scan; admin only, never demo path). */

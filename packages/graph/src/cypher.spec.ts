@@ -71,6 +71,8 @@ const stmts = (): cy.Stmt[] => [
   cy.entityPrefix('h', 'ac'),
   cy.msPaths(['k1', 'k2']),
   cy.turnForClaim(1),
+  cy.turnsByIds([11, 22, 33]),
+  cy.sessionsByExternalId('h', 's9'),
   cy.countLabel('Turn', 'h'),
 ];
 
@@ -113,6 +115,23 @@ describe('cypher builders (spec 31 §7 tests 42-44)', () => {
     const s = cy.claimsForEntities([10, 20, 30], 'h');
     expect(s.text.match(/UNION/g)).toHaveLength(2); // 3 arms → 2 UNIONs
     expect(s.params).toMatchObject({ a0: 10, a1: 20, a2: 30, history_id: 'h' });
+  });
+
+  it('turnsByIds builds one id-pinned UNION arm per turn and caps the window', () => {
+    const s = cy.turnsByIds([11, 22, 33]);
+    expect(s.text.match(/UNION/g)).toHaveLength(2); // 3 arms → 2 UNIONs
+    expect(s.params).toEqual({ a0: 11, a1: 22, a2: 33 });
+    expect(s.text.includes('WHERE')).toBe(false); // anchored on {id}, never a turn_idx filter
+    const capped = cy.turnsByIds(Array.from({ length: 40 }, (_, i) => i + 1));
+    expect(Object.keys(capped.params)).toHaveLength(cy.TURN_WINDOW_MAX);
+    expect(lintCypher(capped.text)).toEqual([]);
+    expect(() => cy.turnsByIds([])).toThrow(/at least one turn id/);
+  });
+
+  it('turnForClaim returns the key and turn_idx a neighbour window needs', () => {
+    const s = cy.turnForClaim(7);
+    expect(s.text).toContain('t.key AS turn_key');
+    expect(s.text).toContain('t.turn_idx AS turn_idx');
   });
 
   it('property: 500 generated node batches stay clean and within the row cap', () => {

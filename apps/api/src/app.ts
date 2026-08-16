@@ -12,6 +12,7 @@ import { defaultLedgerDir, rollup } from '@errata/llm';
 import { config, db, lexicon } from './deps.js';
 import { CorrectionBody, CorrectionError, correctionWrite } from './correction.js';
 import { askQuery, beliefQuery, diffQuery } from './query.js';
+import { turnsQuery } from './turns.js';
 
 export const app = new Hono();
 
@@ -49,6 +50,31 @@ app.get('/api/diff', async (c) => {
   if (!historyId) return c.json({ error: 'history_id is required' }, 400);
   const explain = c.req.query('explain') === '1';
   const out = await diffQuery(db(), { subject, attribute, historyId, from, to, explain });
+  return c.json(out);
+});
+
+/** Transcript context around a citation (read-only, blocker B2): the cited turn ± radius. */
+app.get('/api/turns', async (c) => {
+  const historyId = c.req.query('history_id') ?? config.demoHistory;
+  const sessionId = c.req.query('session_id') ?? '';
+  const aroundRaw = c.req.query('around_turn');
+  const claimRaw = c.req.query('claim_id');
+  if (!historyId) return c.json({ error: 'history_id is required (no demo default configured)' }, 400);
+  if (!sessionId && !claimRaw) return c.json({ error: 'session_id (or claim_id) is required' }, 400);
+  if (aroundRaw == null && !claimRaw) return c.json({ error: 'around_turn (or claim_id) is required' }, 400);
+  const num = (raw: string | undefined): number | undefined => {
+    if (raw == null || !/^-?\d+$/.test(raw)) return undefined;
+    return Number(raw);
+  };
+  const out = await turnsQuery(db(), {
+    historyId,
+    sessionId,
+    aroundTurn: num(aroundRaw) ?? 0,
+    radius: num(c.req.query('radius')),
+    claimId: num(claimRaw),
+    sessionOrdinal: num(c.req.query('session_ordinal')),
+    explain: c.req.query('explain') === '1',
+  });
   return c.json(out);
 });
 

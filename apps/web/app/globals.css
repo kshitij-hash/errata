@@ -556,6 +556,17 @@ footer.colophon {
 .hlspan.swept {
   background-size: 100% 88%;
 }
+/* the turns around a cited span (/api/turns) — quieter than the span itself, never louder */
+.nbrs {
+  border-left: 1px solid var(--rule);
+  margin: 0.15rem 0 0.6rem 0.35rem;
+  padding-left: 0.75rem;
+}
+.tline.nbr {
+  color: var(--faint);
+  font-size: 0.78rem;
+  line-height: 1.62;
+}
 .srcbadge {
   display: inline-block;
   font: 600 0.64rem var(--mono);

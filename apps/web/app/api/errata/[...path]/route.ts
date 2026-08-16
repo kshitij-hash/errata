@@ -5,7 +5,7 @@
 const UPSTREAM = process.env.ERRATA_API_URL ?? 'http://127.0.0.1:8787';
 
 /** The read surface the UI is allowed to reach, plus the correction write path (blocker B1). */
-const ALLOW_GET = new Set(['meta', 'meta/costs', 'meta/health', 'belief', 'diff']);
+const ALLOW_GET = new Set(['meta', 'meta/costs', 'meta/health', 'belief', 'diff', 'turns']);
 const ALLOW_POST = new Set(['ask', 'correction']);
 
 export const dynamic = 'force-dynamic';
