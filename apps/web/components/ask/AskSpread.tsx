@@ -46,6 +46,8 @@ export function AskSpread() {
       const r = await api.ask(q, DEMO_HISTORY_ID);
       setResp(r);
       setCorrValue(r.answer ?? '');
+      // ?correct=1 arrives with the correction bar already open (stage-mode beat 3)
+      if (readParam('correct') === '1' && !r.abstained) setCorrOpen(true);
       if (sweepTimer.current) clearTimeout(sweepTimer.current);
       // the highlighter sweep — the standing grace note on every cited answer
       sweepTimer.current = setTimeout(() => setSwept(true), prefersReducedMotion() ? 0 : 380);

@@ -5,6 +5,7 @@ import { fraunces, inter, plexMono } from './fonts';
 import { Masthead } from '../components/Masthead';
 import { Colophon } from '../components/Colophon';
 import { CoverBeat } from '../components/CoverBeat';
+import { StageKeys } from '../components/StageKeys';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://errata.tools'),
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className={`${fraunces.variable} ${inter.variable} ${plexMono.variable}`}>
       <body>
         <CoverBeat />
+        <StageKeys />
         <Masthead />
         {children}
         <Colophon />
