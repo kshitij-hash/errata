@@ -60,19 +60,25 @@ export const CHIPS: Chip[] = [
   },
 ];
 
-/** The attribute chain the Timeline opens on (the knowledge-update beat). */
+/** The chains the Timeline can open; the first is the knowledge-update beat. */
 export const TIMELINE_ATTRIBUTES: { attribute: string; label: string }[] = [
-  {
-    attribute: 'mortgage_preapproval_amount',
-    label: 'mortgage pre-approval amount',
-  },
+  { attribute: 'mortgage_preapproval_amount', label: 'mortgage pre-approval amount' },
   { attribute: 'mortgage_lender', label: 'mortgage lender' },
-  {
-    attribute: 'millennium_park_familiarity',
-    label: 'millennium park familiarity',
-  },
+  { attribute: 'job_title', label: 'job title' },
+  { attribute: 'millennium_park_familiarity', label: 'millennium park familiarity' },
+  { attribute: 'home_purchase_status', label: 'home purchase status' },
   { attribute: 'job_offer', label: 'job offer' },
-  { attribute: 'certification_interest', label: 'certification interest' },
+];
+
+/** Attributes the Constellation view draws around the subject (subject-scoped, not the whole graph). */
+export const CONSTELLATION_ATTRIBUTES: string[] = [
+  'mortgage_preapproval_amount',
+  'mortgage_lender',
+  'job_title',
+  'job_offer',
+  'home_purchase_status',
+  'millennium_park_familiarity',
+  'daily_commute_duration_minutes',
 ];
 
 export const TAGLINE =
