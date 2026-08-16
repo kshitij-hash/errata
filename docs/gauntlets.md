@@ -53,3 +53,18 @@ case. Flagged for a possible upstream report (spec 33 §2.3 anticipated the lega
 
 **Verdict: PASS.** Loader usable, traversals stable, every load-bearing read form verified; the one
 rejected primitive (MSpaths list param) was already the first Tier-2 cut.
+
+## Block B — the "unhealthy" HydraDB container (2026-08-16) — FIXED
+
+`errata-hydradb-1` reported `unhealthy` (FailingStreak 667) while serving correctly (live suite
+129/129). **Root cause:** the compose healthcheck ran `curl -fsS …/readyz`, but the upstream image
+ships **no curl, no wget, no nc** — only `bash` (it is otherwise a full Debian). The probe failed
+with `/bin/sh: 1: curl: not found`, never the server.
+
+**Fix:** a `bash /dev/tcp` probe of `/readyz` on the admin port (9090), single-quoted in YAML so the
+`\r\n` reach bash's `printf`:
+`bash -c 'exec 3<>/dev/tcp/127.0.0.1/9090 && printf "GET /readyz HTTP/1.0\r\n\r\n" >&3 && head -1 <&3 | grep -q " 200"'`.
+From a cold `stack:up`, `docker ps` shows **healthy in ~10s** (start_period 15s, then 3s interval).
+
+**Deploy note (for later):** the pod's supervisord image must not assume curl/wget exist either —
+its readiness/liveness probes need the same bash form or a static probe binary added to the image.
