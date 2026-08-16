@@ -16,7 +16,7 @@ get a calibrated **abstention** with the nearest misses. Nothing is ever mutated
 
 ## Status
 
-**Backend and evaluation harness complete.** Frontend, deployment, and funded LLM runs are pending
+**Backend, evaluation harness and web app complete.** Deployment and funded LLM runs are pending
 (the later days of the plan). Concretely:
 
 - **Write path** — deterministic ingest (sessions/turns/speakers + `STATED_IN`, then rule-based claim
@@ -32,6 +32,35 @@ get a calibrated **abstention** with the nearest misses. Nothing is ever mutated
   interfaces as the deterministic path) and the eval's full-context / naive-topk baselines. They run
   the moment an OpenRouter key is funded; the append-only model makes a later LLM pass safe (a new
   `run_id`, nothing mutated).
+
+## The web app
+
+`apps/web` (Next.js 16, App Router, React 19, Tailwind v4) serves five routes: **Ask** — the answer
+with its struck predecessors, a live transcript column with a highlighter sweep on the cited span, a
+per-answer economics line and the exact Cypher behind the answer; **Timeline** — the revision chain
+replaying over event time, with a Constellation view of the same claims; **Compare** — vector
+similarity against the belief graph; **Exhibit**; and **Limits**. Every number on screen comes from
+the API at request time; nothing about an answer is hard-coded.
+
+Three deliberate properties:
+
+- **No UI, motion, icon or graph library.** The scrubber is `<input type=range>`, the disclosure is
+  `<details>`, the graph is ~60 lines of SVG physics, the icons are Unicode glyphs. `apps/web` has
+  **8 direct dependencies** (next, react, react-dom, tailwindcss, @tailwindcss/postcss, postcss and
+  two `@types`), which is the whole reason the supply-chain claim above survives contact with a UI.
+- **Nothing leaves the origin.** Fonts (Fraunces, Inter, IBM Plex Mono — all OFL 1.1) are vendored as
+  woff2 and loaded with `next/font/local`; the API is reached through an origin-only route-handler
+  proxy; the CSP says `connect-src 'self'` and `font-src 'self'`, so the promise is enforced rather
+  than asserted.
+- **Light only, on purpose.** `color-scheme: only light` plus a matching `theme-color`. The design is
+  a print metaphor — proof marks, hairlines, struck type — and dark mode is a documented **non-goal**,
+  not an omission.
+
+Run it against a local API:
+
+```bash
+ERRATA_API_URL=http://127.0.0.1:8787 pnpm dev:web     # http://localhost:3000
+```
 
 ## Quickstart (from a clean clone)
 
