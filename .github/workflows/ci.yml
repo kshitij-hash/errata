@@ -46,4 +46,4 @@ jobs:
       - name: Audit
         run: pnpm audit --prod --audit-level high --ignore-registry-errors
       - name: License gate
-        run: pnpm licenses
+        run: node scripts/license-gate.mjs
