@@ -52,7 +52,7 @@ right-directed, id-anchored `MATCH (c:Claim)-[:ABOUT]->(e {id})` form, unaffecte
 case. Flagged for a possible upstream report (our pre-build notes anticipated the legacy/manifest handshake risk).
 
 **Verdict: PASS.** Loader usable, traversals stable, every load-bearing read form verified; the one
-rejected primitive (MSpaths list param) was already the first Tier-2 cut.
+rejected primitive (MSpaths list param) was already scoped out of the demo path.
 
 ## G2 — funded LLM extraction + conflict judge (2026-08-16) — PASS
 
