@@ -40,7 +40,7 @@ full 500 (~3 min projected graph write).
 | Multi-element `relTypes: ['SUPERSEDES','CONTRADICTS']` in `algo.SPpaths` | **supported** | diff can merge both relations in one call |
 | Planner `full_scan` on the end-anchored revision query | **none logged** | id-anchored reads do not full-scan; the current builder is safe on the demo path |
 | `algo.SPpaths` (single relType) | works, returns `Path` | diff primitive confirmed |
-| `algo.MSpaths` with a list `sourceValues: $keys` | **rejected** — "composite parameter only supported as UNWIND input" | **co-mention expansion is cut to Tier-2** (pre-planned). The ask path uses id-pinned `UNION` arms, so nothing on the demo path depends on it |
+| `algo.MSpaths` with a list `sourceValues: $keys` | **rejected** — "composite parameter only supported as UNWIND input" | **co-mention expansion is deferred by design.** The ask path uses id-pinned `UNION` arms, so nothing on the demo path depends on it |
 
 **Driver/handshake anomaly + mitigation.** `neo4j-driver-lite@6.2.0`'s v2 (manifest) Bolt handshake
 intermittently mis-negotiates with HydraDB — a `RangeError: offset out of range … Received 9` in the
