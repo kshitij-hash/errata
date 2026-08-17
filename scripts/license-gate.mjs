@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // scripts/license-gate.mjs — fail if any production dependency carries a non-permissive license.
 // The JS tree is deliberately MIT/Apache-2.0/BSD/ISC only (no copyleft); this enforces it in CI.
+// FAIL-CLOSED: if the license listing itself cannot be produced or parsed, the gate fails — a
+// broken data source must never read as "clean".
 import { execFileSync } from 'node:child_process';
 
 // Permissive licenses, plus WEAK/library copyleft that is fine for dependencies we consume
@@ -13,41 +15,66 @@ const ALLOW = new Set([
   'MPL-2.0', 'LGPL-2.1', 'LGPL-2.1-or-later', 'LGPL-3.0', 'LGPL-3.0-or-later',
 ]);
 
-function normalize(license) {
-  // strip SPDX combinators; treat "(A OR B)" as permissive if any operand is allowed
-  return String(license)
-    .replace(/[()]/g, '')
-    .split(/\s+(?:OR|AND)\s+/i)
-    .map((s) => s.trim())
-    .filter(Boolean);
+/** SPDX semantics, not string soup: `A OR B` passes if ANY alternative passes; `A AND B` passes
+ *  only if EVERY part is allowed (both licenses apply simultaneously). `WITH <exception>` keeps
+ *  the base license id. An empty or unparseable expression is a violation, never a pass. */
+function isAllowed(license) {
+  const expr = String(license ?? '').replace(/[()]/g, '').trim();
+  if (!expr) return false;
+  const alternatives = expr.split(/\s+OR\s+/i);
+  return alternatives.some((alt) => {
+    const parts = alt.split(/\s+AND\s+/i).map((s) => s.replace(/\s+WITH\s+.*$/i, '').trim()).filter(Boolean);
+    return parts.length > 0 && parts.every((p) => ALLOW.has(p));
+  });
 }
 
-let raw;
+let raw = '';
+let failed = null;
 try {
-  raw = execFileSync('pnpm', ['licenses', 'list', '--prod', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  raw = execFileSync('pnpm', ['licenses', 'list', '--prod', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 } catch (e) {
-  // pnpm exits non-zero when it has nothing to report on some versions; treat empty as clean
+  // some pnpm versions exit non-zero with the report still on stdout — usable; anything else is a
+  // hard failure of the gate's data source.
   raw = e.stdout?.toString() ?? '';
+  failed = e;
 }
 
-const data = raw.trim() ? JSON.parse(raw) : {};
+let data;
+try {
+  data = JSON.parse(raw);
+} catch {
+  console.error('::error::license gate could not obtain a license report from pnpm — failing closed');
+  if (failed) console.error(String(failed.stderr ?? failed.message ?? failed));
+  process.exit(1);
+}
+
 // pnpm emits either { "<license>": [ {name,...} ] } or an array of package records
 const violations = [];
 const check = (license, pkg) => {
-  const parts = normalize(license);
-  if (parts.length && !parts.some((p) => ALLOW.has(p))) violations.push(`${pkg} → ${license}`);
+  if (!isAllowed(license)) violations.push(`${pkg} → ${license || 'UNKNOWN'}`);
 };
 
+let checked = 0;
 if (Array.isArray(data)) {
-  for (const rec of data) check(rec.license ?? rec.licenses ?? 'UNKNOWN', rec.name ?? '?');
+  for (const rec of data) {
+    check(rec.license ?? rec.licenses ?? '', rec.name ?? '?');
+    checked++;
+  }
 } else {
   for (const [license, pkgs] of Object.entries(data)) {
-    for (const p of pkgs) check(license, p.name ?? p.from ?? '?');
+    for (const p of pkgs) {
+      check(license, p.name ?? p.from ?? '?');
+      checked++;
+    }
   }
 }
 
+if (checked === 0) {
+  console.error('::error::license gate saw ZERO packages — an empty report is a broken report, failing closed');
+  process.exit(1);
+}
 if (violations.length) {
   console.error('::error::non-permissive licenses found:\n' + violations.join('\n'));
   process.exit(1);
 }
-console.log('license gate: all production dependencies are permissively licensed');
+console.log(`license gate: all ${checked} production dependency license entries are permissive`);
