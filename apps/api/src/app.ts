@@ -1,4 +1,4 @@
-// apps/api/src/app.ts — the HTTP surface (contract v1.1, spec 30 §2 / 31 §1.4).
+// apps/api/src/app.ts — the HTTP surface (contract v1.1).
 //
 // Read-only with EXACTLY ONE exception: `POST /api/correction`, the append-only correction write
 // path (see its banner comment below). Nothing else here writes.
@@ -53,7 +53,7 @@ app.get('/api/diff', async (c) => {
   return c.json(out);
 });
 
-/** Transcript context around a citation (read-only, blocker B2): the cited turn ± radius. */
+/** Transcript context around a citation (read-only): the cited turn ± radius. */
 app.get('/api/turns', async (c) => {
   const historyId = c.req.query('history_id') ?? config.demoHistory;
   const sessionId = c.req.query('session_id') ?? '';
@@ -182,7 +182,7 @@ app.get('/api/meta/health', async (c) => {
 });
 
 app.get('/api/meta/costs', (c) => {
-  // one accounting: the SAME rollup the ingest budget guard uses (spec 31 §6.5, P1-9).
+  // one accounting: the SAME rollup the ingest budget guard uses (the ledger design, a hardening item).
   const cap = process.env.ERRATA_BUDGET_CAP ? Number(process.env.ERRATA_BUDGET_CAP) : 50;
   return c.json(rollup(defaultLedgerDir(), cap));
 });

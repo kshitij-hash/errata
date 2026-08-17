@@ -87,7 +87,7 @@ export function Duel() {
     return () => timers.forEach(clearTimeout);
   }, [reset]);
 
-  // ?stage=1 auto-runs the duel (36 §4.4) — the video needs it to start without a click
+  // ?stage=1 auto-runs the duel — the video needs it to start without a click
   useEffect(() => {
     if (readParam('stage') != null) run();
   }, [run]);

@@ -14,7 +14,7 @@ const fixture = JSON.parse(
   readFileSync(new URL('../fixtures/turn-index-vectors.json', import.meta.url), 'utf8'),
 ) as { raw: RawRecord; expected: Expected[] };
 
-describe('turn-index golden — positional turn identity (seam #2)', () => {
+describe('turn-index golden — positional turn identity (integration seam)', () => {
   const h = parseHistory(fixture.raw);
 
   it('the reader counts turns 0-based within each session', () => {

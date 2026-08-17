@@ -8,7 +8,7 @@ const ANSWERING = CHIPS.find((c) => !c.abstains)!;
 const ABSTAINING = CHIPS.find((c) => c.abstains)!;
 
 /**
- * Add-on №5 (36 §4.7): keyboard demo mode. With `?stage` on the URL, → and ← step through the five
+ * Add-on №5: keyboard demo mode. With `?stage` on the URL, → and ← step through the five
  * beats; the routes carry the stage flag onward so each one arrives already choreographed.
  * `.` re-runs the current choreography (handled by the route that owns it). No visible UI.
  */

@@ -1,4 +1,4 @@
-/** Every state on every route is URL-addressable (36 §7). replaceState keeps the address bar in
+/** Every state on every route is URL-addressable. replaceState keeps the address bar in
  * step without pushing history entries the demo would then have to walk back through. */
 export function readParam(name: string): string | null {
   if (typeof window === 'undefined') return null;

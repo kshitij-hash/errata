@@ -1,4 +1,4 @@
-"""The ONE markdown table generator (§5.3).
+"""The ONE markdown table generator.
 
 Renders from a results object to ``out/report/table.md``, pasted into the submission README with
 no editing. Row order is fixed (Errata, full-context, naive); a cell with fewer than 3 runs is

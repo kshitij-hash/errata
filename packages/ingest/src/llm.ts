@@ -1,4 +1,4 @@
-// packages/ingest/src/llm.ts — the credit-gated extraction + conflict-judge path (spec 31 §3.5, §6).
+// packages/ingest/src/llm.ts — the credit-gated extraction + conflict-judge path (the conflict-judge design, the eval protocol).
 //
 // These implement the SAME `Extractor` interface and conflict seam as the deterministic path, so the
 // write path is unchanged. They call OpenRouter via @errata/llm (every call writes the ledger).
@@ -159,7 +159,7 @@ export class LlmExtractor implements Extractor {
     const out: ExtractedClaim[] = [];
     for (const claimsRaw of slots) {
       for (const raw of claimsRaw) {
-        const c = ClaimItemSchema.safeParse(raw); // a malformed claim drops only itself (P2-13)
+        const c = ClaimItemSchema.safeParse(raw); // a malformed claim drops only itself
         if (!c.success) continue;
         if (!valid.has(`${c.data.session_id}:${c.data.turn_idx}`)) continue; // reject a hallucinated citation
         out.push({
@@ -179,7 +179,7 @@ export class LlmExtractor implements Extractor {
   }
 }
 
-// ---- conflict judge (spec 31 §3.5) ----
+// ---- conflict judge (conflict-judge design) ----
 
 export const JudgeSchema = z.object({
   relation: z.enum(['SUPERSEDES', 'CONTRADICTS', 'SUPPORTS', 'UNRELATED']),
@@ -223,7 +223,7 @@ export function makeJudge(completer: Completer, historyId: string, runId = 'run'
   };
 }
 
-/** Map a judge verdict to a revision edge, or null when there is no relation (spec 31 §3.5). The
+/** Map a judge verdict to a revision edge, or null when there is no relation (conflict-judge design). The
  *  claim is still appended by build.ts; only the edge is withheld. */
 export function verdictToEdge(v: JudgeVerdict, candidate: PreparedClaim, head: PreparedClaim): RevisionEdgeSpec | null {
   const mk = (type: RevisionEdgeSpec['type'], judge_status: string, confidence: number): RevisionEdgeSpec => ({
@@ -238,18 +238,18 @@ export function verdictToEdge(v: JudgeVerdict, candidate: PreparedClaim, head: P
     confidence,
     provenance: 'INFERRED',
   });
-  if (v.same_attribute === false || v.relation === 'UNRELATED') return null; // no revision edge (P1-8)
+  if (v.same_attribute === false || v.relation === 'UNRELATED') return null; // no revision edge (a hardening item)
   if (v.confidence < 0.55) return mk('CONTRADICTS', 'LOW_CONF', Math.max(v.confidence, 0.1));
   if (v.relation === 'SUPPORTS') return mk('SUPPORTS', 'OK', v.confidence);
   if (v.relation === 'CONTRADICTS') return mk('CONTRADICTS', 'OK', v.confidence);
   // SUPERSEDES — downgrade to CONTRADICTS when the model OR the claims' own event_times say the
-  // incumbent is actually newer (do not trust the model's temporal_order alone; spec 31 §3.5 / P2-11).
+  // incumbent is actually newer (do not trust the model's temporal_order alone; the conflict-judge design / a hardening item).
   const dataIncumbentNewer = head.eventTime > -1 && candidate.eventTime > -1 && candidate.eventTime < head.eventTime;
   if (v.temporal_order === 'INCUMBENT_NEWER' || dataIncumbentNewer) return mk('CONTRADICTS', 'LOW_CONF', v.confidence);
   return mk('SUPERSEDES', 'OK', v.confidence);
 }
 
-/** Async conflict resolution using the LLM judge for FUNCTIONAL-differ cases (spec 31 §3.5). */
+/** Async conflict resolution using the LLM judge for FUNCTIONAL-differ cases (conflict-judge design). */
 export async function resolveConflictsWithJudge(prepared: PreparedClaim[], judge: ConflictJudge): Promise<RevisionEdgeSpec[]> {
   const edges: RevisionEdgeSpec[] = [];
   const groups = new Map<string, PreparedClaim[]>();
@@ -281,7 +281,7 @@ export async function resolveConflictsWithJudge(prepared: PreparedClaim[], judge
       try {
         e = verdictToEdge(await judge(head, cur), cur, head);
       } catch (err) {
-        // 31 §3.5 uncertainty: never abort the ingest. Unparseable-after-repair → UNPARSED/0.15;
+        // 31 the eval protocol uncertainty: never abort the ingest. Unparseable-after-repair → UNPARSED/0.15;
         // unreachable (API backoff / budget trip) → UNJUDGED/0.10. Always append a CONTRADICTS.
         const unparsed = /schema|parse|json/i.test(String((err as { message?: string })?.message ?? err));
         e = {

@@ -1,4 +1,4 @@
-// packages/ingest/src/aliases.ts — WRITE-SIDE semantic bridging (spec 31 §4.7 step 0, G5).
+// packages/ingest/src/aliases.ts — WRITE-SIDE semantic bridging (anchor resolution step 0, G5).
 //
 // The ask path is a lexicon lookup: a question token that is not literally an entity name or an
 // attribute word resolves to nothing. That is the front door the failure taxonomy found shut — the

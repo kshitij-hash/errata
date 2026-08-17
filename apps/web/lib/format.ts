@@ -2,7 +2,7 @@ import { DEMO_SESSIONS } from '../config/demo';
 
 const BY_ID = new Map(DEMO_SESSIONS.map((s) => [s.session_id, s]));
 
-/** Positional citation label: s<session ordinal>:t<turn index> (seam #2 — turn identity is positional). */
+/** Positional citation label: s<session ordinal>:t<turn index> (integration seam — turn identity is positional). */
 export function citeLabel(sessionId: string, turnIndex: number): string {
   const s = BY_ID.get(sessionId);
   return `s${s ? s.ordinal + 1 : '?'}:t${turnIndex}`;

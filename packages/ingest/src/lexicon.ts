@@ -1,4 +1,4 @@
-// packages/ingest/src/lexicon.ts — the term dictionary for the ask path (spec 31 §4.7 step 0).
+// packages/ingest/src/lexicon.ts — the term dictionary for the ask path (anchor resolution, step 0).
 //
 // A plain normToken → [entity_vid] map (plus alias forms), and a stemmed term → [attribute] map.
 // This is NOT a vector store: it maps mentions to ids and contributes nothing to ranking, evidence,

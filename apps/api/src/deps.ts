@@ -65,7 +65,7 @@ export function answerCompleter(): AnswerCompleter | null {
   return _completer;
 }
 
-// --- lexicon cache (spec 31 §4.7 step 0) ---
+// --- lexicon cache (anchor resolution, step 0) ---
 export interface Lexicon {
   historyId: string;
   self: number[];

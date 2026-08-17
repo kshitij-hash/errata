@@ -206,7 +206,7 @@ export function AskSpread() {
                 </div>
 
                 {/*
-                  Two numbers, two labels (R6). `claim` is the head claim's own confidence;
+                  Two numbers, two labels (both scales, labelled). `claim` is the head claim's own confidence;
                   `evidence` is the calibrated answer-evidence score E that decided answer-vs-
                   abstain against τ. They live on different scales — E is bounded by how much of
                   the question resolved to entities and how often the fact was restated, so a

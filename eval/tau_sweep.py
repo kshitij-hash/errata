@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """τ sensitivity for the calibrated refusal — a SWEEP, deliberately not a fit.
 
-Errata's abstention gate is ``E >= τ`` with the five weights of E fixed a priori (spec 31 §5.2)
+Errata's abstention gate is ``E >= τ`` with the five weights of E fixed a priori (evidence-scoring design)
 and τ the one fitted quantity. This script answers the only question that can be answered honestly
 on this corpus: **how much does the published number depend on where τ sits?**
 

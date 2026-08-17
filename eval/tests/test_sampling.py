@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from errata_eval.dataset import ABSTENTION_STRATUM, allocation, largest_remainder, sample
 
-# The computed allocation for n=150 (spec §2.5, arithmetic verified).
+# The computed allocation for n=150 (spec the eval protocol, arithmetic verified).
 EXPECTED_ALLOC_150 = {
     "knowledge-update": 18,
     "multi-session": 31,

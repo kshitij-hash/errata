@@ -1,4 +1,4 @@
-"""Judge validation — the control-set protocol (§4.3), measured, published, and gated.
+"""Judge validation — the control-set protocol, measured, published, and gated.
 
 The control set has two halves, built by two different mechanisms on purpose:
 
@@ -14,7 +14,7 @@ Both halves are committed artifacts, so scoring a judge is a replay of a fixed 1
 than a fresh generation — the measured rate is comparable across judges and across days.
 
 A judge is pinned only if FAR <= 10% overall and superseded-value FAR <= 8%; FRR <= 15% is reported
-and gated alongside. We publish the numbers whatever they are, and a failing gate is a war-room
+and gated alongside. We publish the numbers whatever they are, and a failing gate is an escalation
 item, never a reason to edit the judge prompt until it passes.
 """
 
@@ -30,7 +30,7 @@ from .dataset import Question, largest_remainder
 from .judge import judge_answer
 from .prompts import PERTURB_PROMPT_SHA256, fill_perturb_prompt
 
-# Perturbed-negative families (§4.3), 12 items each so the failure surface is characterised.
+# Perturbed-negative families, 12 items each so the failure surface is characterised.
 # This table is the DEFINITION of each family — what "attribution-flip" means is this sentence —
 # and doubles as the instruction if a future run ever wants LLM-generated negatives. The shipped
 # negatives are the deterministic transforms at the bottom of this file, one per family.
@@ -311,7 +311,7 @@ class ValidationReport:
 
     @property
     def pinned(self) -> bool:
-        """The pin gate proper: FAR overall and on the superseded-value family (§4.3)."""
+        """The pin gate proper: FAR overall and on the superseded-value family."""
         return self.passes_far and self.passes_superseded
 
     @property
@@ -464,7 +464,7 @@ def _gate(ok: bool) -> str:
 
 
 # Everything from this line down in judge-validation.md is written by a human and survives a
-# re-render. A failed gate is a war-room item, and the analysis of WHY it failed is not something
+# re-render. A failed gate is an escalation item, and the analysis of WHY it failed is not something
 # the harness can generate — but it must not be clobbered by the next run either.
 HANDWRITTEN_MARKER = "<!-- hand-written below; preserved across regeneration -->"
 
@@ -629,7 +629,7 @@ def render_validation_md(
 #
 # The 60 *positive* paraphrase controls genuinely need a perturber model (build_control_set
 # above). The 60 *negative* controls do not: an on-topic-but-wrong answer can be manufactured
-# from the corpus's own gold data with template transforms, one per family (§4.3). This gives a
+# from the corpus's own gold data with template transforms, one per family. This gives a
 # deterministic, zero-cost floor for the judge-validation set that the funded run only augments.
 # ============================================================================================
 

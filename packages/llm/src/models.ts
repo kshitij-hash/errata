@@ -1,4 +1,4 @@
-// packages/llm/src/models.ts — model roles + pinned config (spec 31 §6).
+// packages/llm/src/models.ts — model roles + pinned config (ledger design).
 //
 // config/models.json is the single source of truth for role→model mapping, per-role timeouts,
 // the price table, the process-wide concurrency, and the budget cap. These pins are placeholders

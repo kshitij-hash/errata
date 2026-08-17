@@ -3,7 +3,7 @@ import { lintCypher, lintBatchSize, assertCypher } from './linter.js';
 
 const ruleset = (t: string): string[] => lintCypher(t).map((f) => f.rule);
 
-describe('subset linter — rejections (spec 31 §4.8, §7 test 41)', () => {
+describe('subset linter — rejections ', () => {
   it('rejects IN over a list or param', () => {
     expect(ruleset('MATCH (n:X {id: $i}) WHERE n.a IN [1,2] RETURN n.a')).toContain('IN');
     expect(ruleset('MATCH (n:X {id: $i}) WHERE n.a IN $vals RETURN n.a')).toContain('IN');

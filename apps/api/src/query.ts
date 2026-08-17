@@ -1,6 +1,6 @@
 // apps/api/src/query.ts — orchestration: builder → driver → core fold → response shape.
-// Read-only. Every answer carries a citation with a positional turn_index (hard rule 3, seam #2).
-// Responses follow contract v1.1 (blueprint §2).
+// Read-only. Every answer carries a citation with a positional turn_index (hard rule 3, integration seam).
+// Responses follow contract v1.1.
 
 import { randomUUID } from 'node:crypto';
 import {
@@ -130,7 +130,7 @@ export async function diffQuery(client: GraphClient, q: DiffQuery): Promise<Reco
   const { claims, edges } = await loadBelief(client, entityVid, q.historyId, normAttr(q.attribute), sink);
   const diff = diffChain(claims, edges, q.from, q.to);
 
-  // cross-validate the in-memory chain against the graph (spec 31 §4.6, the pathCount-lie guard):
+  // cross-validate the in-memory chain against the graph (the pathCount-lie guard):
   // algo.SPpaths + a bounded enumeration must agree with core.diffChain on the older-claim set.
   let validated = { sp_paths: 0, enumerated: 0, agree: true };
   if (diff.to_belief && diff.revisions.length > 0) {
@@ -180,16 +180,16 @@ export interface AskResult {
   superseded?: unknown[];
   /**
    * v1.1 additive (optional): the HEAD CLAIM's own confidence — a different quantity from
-   * `confidence`, which is the calibrated answer-EVIDENCE score E (spec 31 §5.1).
+   * `confidence`, which is the calibrated answer-EVIDENCE score E (evidence-scoring design).
    *
-   * R6 diagnosis. The flagship answer scored `confidence 0.44` and read as weak. The calibration is
+   * Diagnosis. The flagship answer scored `confidence 0.44` and read as weak. The calibration is
    * correct and no weight is buggy; the two numbers are simply on different scales, and one label
    * was doing both jobs. E = 0.3a + 0.3s + 0.15c + 0.15p + 0.1d with the weights fixed a priori;
    * on the flagship a = 2/7 (only 2 of 7 content tokens name an entity), s = 1/3 (token-F1 of a
    * 12-word question against `mortgage_preapproval_amount $400,000`), c = 0.72 (the head claim's
    * own confidence, judge factor 1.0 — NOT floored: judge_status is NONE, and only UNJUDGED
    * halves it), p = 1/3 (corroboration IS counted, but a fact stated once and later revised has
-   * exactly one citing turn), d = 1. Every component is doing what §5.2 says it should, and E =
+   * exactly one citing turn), d = 1. Every component is doing what the scoring design says it should, and E =
    * 0.4437 sits comfortably above τ = 0.35. A well-cited single-statement fact simply cannot
    * approach 1.0 on this scale: a, s and p are bounded by question-token coverage and restatement
    * count, none of which measure how sure we are of the claim.
@@ -289,7 +289,7 @@ function fallbackAnchors(lex: AskLexicon, k: number): number[] {
 
 export async function askQuery(client: GraphClient, historyId: string, question: string, lex: AskLexicon | null, opts: AskOptions = {}): Promise<AskResult> {
   const t0 = performance.now();
-  const cypher: Cypher[] = []; // always surfaced (criterion 02 shows the Cypher on screen)
+  const cypher: Cypher[] = []; // always surfaced (the demo shows the Cypher on screen)
   const tokens = contentTokens(question);
   // the stemmed / number-canonicalized view of the same question — everything that MATCHES uses
   // these; `tokens` stays the raw content tokens because the calibrated E score is defined on them.
@@ -298,7 +298,7 @@ export async function askQuery(client: GraphClient, historyId: string, question:
   const firstPerson = /\b(i|me|my|myself|mine|we|our)\b/i.test(question.toLowerCase());
   const trace_id = randomUUID();
   // the losing pane of demo beat 1: what a vector store returns for this question (served from the
-  // committed bge-small fixture, R4). Only attached when the question matches the fixture's query.
+  // committed bge-small fixture). Only attached when the question matches the fixture's query.
   const beat = beatFixture();
   // a vector store returns the HIGHEST-cosine candidate — which in the beat is the *superseded*
   // claim, the whole point of the demo (similarity ranks the stale fact above the current one).
@@ -309,7 +309,7 @@ export async function askQuery(client: GraphClient, historyId: string, question:
       : null;
   const base = { cost: 0, usage: { prompt_tokens: 0, completion_tokens: 0 }, cypher, vector_baseline, trace_id };
 
-  // ---- anchor resolution (spec 31 §4.7 step 0) -----------------------------------------------
+  // ---- anchor resolution (anchor resolution, step 0) -----------------------------------------------
   //
   // SELF IS ALWAYS AN ANCHOR. It used to be added only when the question read as first-person, and
   // the taxonomy showed what that cost: a question naming one rare entity narrowed retrieval to
@@ -468,8 +468,7 @@ export async function askQuery(client: GraphClient, historyId: string, question:
   dbg.best_attribute = best ? String(best.attribute) : null;
   if (!best) return abstain([], 'no_claim_fit');
 
-  // resolve the belief for the chosen attribute at the best claim's own SUBJECT entity (P2-15 —
-  // deriving from best.subject, not insertion order, so non-first-person questions don't misfire).
+  // resolve the belief for the chosen attribute at the best claim's own SUBJECT entity.
   const bestAttr = normAttr(String(best.attribute));
   const subjectNorm = best.subject_norm ? String(best.subject_norm) : '';
   const primary = subjectNorm

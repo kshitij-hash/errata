@@ -1,5 +1,5 @@
 // The browser's only network surface. Every call is same-origin against the route-handler proxy
-// (36 §3.5 / craft rule 5) — the CSP's connect-src 'self' is therefore enforceable.
+// the CSP's connect-src 'self' is therefore enforceable.
 
 export interface Citation {
   session_id: string;
@@ -45,7 +45,7 @@ export interface AskResponse {
   attribute?: string | null;
   superseded?: BeliefValue[];
   /** the head CLAIM's own confidence — a different quantity from `confidence`, which is the
-   *  calibrated answer-evidence score E. Both are labelled on the card (R6). */
+   *  calibrated answer-evidence score E. Both are labelled on the card (both scales, labelled). */
   claim_confidence?: number;
   corroboration?: number;
   cost: number;
@@ -72,7 +72,7 @@ export interface AskResponse {
   latency_ms: number;
 }
 
-/** One transcript turn from `/api/turns` — the neighbours around a cited span (blocker B2). */
+/** One transcript turn from `/api/turns` — the neighbours around a cited span. */
 export interface TurnRow {
   turn_id: string;
   session_id: string;

@@ -1,4 +1,4 @@
-// @errata/llm — OpenRouter chat client + append-only cost ledger + budget guard (spec 31 §6).
+// @errata/llm — OpenRouter chat client + append-only cost ledger + budget guard (ledger design).
 //
 // The one door to any LLM in Errata: LLM calls go only through OpenRouterClient, and every call
 // writes the ledger. Nothing here runs inside vitest against the network — `fetch` is injected.

@@ -1,4 +1,4 @@
-// packages/core/src/prompt.ts — the ONE answer prompt (integration seam #5).
+// packages/core/src/prompt.ts — the ONE answer prompt (integration seam).
 //
 // Errata's own answer path is a deterministic graph fold — it does NOT call an LLM to compose the
 // answer (hard rule 2). This template exists so the eval harness's full-context / naive baselines
@@ -7,7 +7,7 @@
 
 export const ANSWER_MODEL = 'errata-graph-fold@1';
 
-// Byte-identical to eval/errata_eval/prompts.py::ANSWER_PROMPT (seam #5). The eval's parity gate
+// Byte-identical to eval/errata_eval/prompts.py::ANSWER_PROMPT (integration seam). The eval's parity gate
 // asserts sha256(this) == /api/meta.answer_prompt_sha256 before any spend. Editing either side
 // without the other breaks that gate — that is the point.
 export const ANSWER_PROMPT = [

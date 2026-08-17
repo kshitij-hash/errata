@@ -1,4 +1,4 @@
-"""The committed ingest-coupling artifact ``sample-150.json`` (blueprint seam #3).
+"""The committed ingest-coupling artifact ``sample-150.json``.
 
 It pins the exact 150 question_ids every arm answers. These assertions bind that file to the
 seeded sampler in ``dataset.sample`` so the artifact can never silently drift from the code that

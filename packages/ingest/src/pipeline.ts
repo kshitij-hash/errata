@@ -1,4 +1,4 @@
-// packages/ingest/src/pipeline.ts — the write-path state machine for one history (spec 31 §3).
+// packages/ingest/src/pipeline.ts — the write-path state machine for one history .
 //
 // S1 structural (zero LLM) → S3 extract → S4 prepare + conflict → S6 batched two-phase load, then
 // write the lexicon. Runs are independent and idempotent (every write is a MERGE). The conflict

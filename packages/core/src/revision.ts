@@ -3,7 +3,7 @@
 // The OpenCypher subset cannot express "a claim with no incoming SUPERSEDES", cannot do min/max,
 // and has no expressions in RETURN, so ALL of head selection, tie-breaking, cycle-breaking, and
 // dispute detection happen here as a pure, deterministic fold over rows the graph returned
-// (spec 31 §4.3, §4.10, ADR-12). No I/O, no LLM, no database.
+// . No I/O, no LLM, no database.
 
 import type {
   BeliefResult,
@@ -160,7 +160,7 @@ function emptyResult(): BeliefResult {
   };
 }
 
-/** NEGATE-polarity claims, surfaced as evidence rather than dropped (review P2-21). */
+/** NEGATE-polarity claims, surfaced as evidence rather than dropped (review a hardening item). */
 function negationsOf(claims: ClaimRow[], bv: (c: ClaimRow) => BeliefValue): BeliefValue[] {
   return claims.filter((c) => c.polarity === 'NEGATE').map(bv);
 }
@@ -213,7 +213,7 @@ function resolveFunctional(claims: ClaimRow[], edges: RevisionEdgeRow[]): Belief
   const disputed = cluster.size > 1;
 
   // 4) contested: head touched by ANY CONTRADICTS edge (even a lone low-confidence one) that is
-  //    not part of the resolved dispute — caps answer confidence downstream (spec 31 §7 test 22).
+  //    not part of the resolved dispute — caps answer confidence downstream .
   const contested = contra.some((e) => e.newer_id === head.claim_id || e.older_id === head.claim_id);
 
   const headIds = disputed
@@ -253,7 +253,7 @@ function resolveMulti(claims: ClaimRow[], edges: RevisionEdgeRow[]): BeliefResul
   // members coexist; a NEGATE claim is a negation, not a displayable value; a supporter corroborates.
   // NB: a NEGATE claim is intentionally absent from `heads` and `superseded` — it is a graph artifact
   // recording *why* a member was retired (the retired member appears in `superseded`); the negation
-  // itself is retrievable via the member's SUPERSEDES edge, not as a belief. (Review P2-21: documented.)
+  // itself is retrievable via the member's SUPERSEDES edge, not as a belief. (Review a hardening item: documented.)
   const heads = claims
     .filter(
       (c) => c.polarity !== 'NEGATE' && !displaced.has(c.claim_id) && !supporters.has(c.claim_id),
@@ -281,7 +281,7 @@ export function resolveBelief(claims: ClaimRow[], edges: RevisionEdgeRow[]): Bel
   return arity === 'FUNCTIONAL' ? resolveFunctional(claims, sorted) : resolveMulti(claims, sorted);
 }
 
-/** Belief at time `t`: filter server-side rows, then run the SAME fold (spec 31 §4.4, C5).
+/** Belief at time `t`: filter server-side rows, then run the SAME fold .
  *  Nothing is rewritten and no snapshot is rebuilt. */
 export function resolveAsOf(
   claims: ClaimRow[],
@@ -318,7 +318,7 @@ export function diffChain(
   const bv = (c: ClaimRow): BeliefValue => toBeliefValue(c, corr.get(c.claim_id) ?? 1);
 
   const revisions: Revision[] = [];
-  const MAX = 8; // spec 31 §4.5 — a chain longer than 8 is itself a finding
+  const MAX = 8; // design rule: a chain longer than 8 is itself a finding
   let cursor: number | undefined = toBelief.claim_id;
   let truncated = false;
   const stopAt = fromBelief?.claim_id;

@@ -9,7 +9,7 @@ import {
 
 const CAP = 100;
 
-describe('budgetState (spec 31 §6 backpressure ladder)', () => {
+describe('budgetState (the ledger design backpressure ladder)', () => {
   it('normal below 0.70·cap', () => {
     expect(budgetState(0, CAP)).toBe('normal');
     expect(budgetState(69.99, CAP)).toBe('normal');

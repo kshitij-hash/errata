@@ -43,7 +43,7 @@ const FIXTURE: LedgerLine[] = [
   line({ role: 'extractor', model: GEMINI, status: 'error', http_status: 400, cost_usd: 0, latency_ms: 5 }),
 ];
 
-describe('rollupLines (spec 31 §6 in-memory rollup)', () => {
+describe('rollupLines (the ledger design in-memory rollup)', () => {
   it('totals match the hand fixture; retry/error lines contribute 0 cost and 0 calls', () => {
     const r = rollupLines(FIXTURE, 50);
     expect(r.spent_usd).toBe(4.5); // 0.5 + 3.0 + 1.0; the retry and error add nothing

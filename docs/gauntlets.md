@@ -18,7 +18,7 @@ laws, now enforced in `packages/graph`:
 **Loader.** History `852ce960` (39 sessions, 396 turns) ingested in **215 ms** (5 node + 6 edge
 batches, ≤1024 rows each, single serialized writer). Traversal reads return stable, correct rows
 after the write, using causal reads pinned to the ingest bookmark. Extrapolates comfortably to the
-full 500 (§ backend sizing ~3 min graph write).
+full 500 (~3 min projected graph write).
 
 **Vertex/edge upsert form — the recognizer is strict.** HydraDB has a fast-path recognizer for
 `UNWIND … MERGE by id … SET`. Verified by probe:
@@ -49,7 +49,7 @@ error appears on a left-directed `(e)<-[:ABOUT]-(c) … LIMIT 5` returning many 
 in place: (1) `GraphClient.verify()` retries the handshake, recreating the driver on failure — the
 full live suite then passes 129/129 across repeated runs; (2) the demo/ask path uses the
 right-directed, id-anchored `MATCH (c:Claim)-[:ABOUT]->(e {id})` form, unaffected by the left-directed
-case. Flagged for a possible upstream report (spec 33 §2.3 anticipated the legacy/manifest handshake risk).
+case. Flagged for a possible upstream report (our pre-build notes anticipated the legacy/manifest handshake risk).
 
 **Verdict: PASS.** Loader usable, traversals stable, every load-bearing read form verified; the one
 rejected primitive (MSpaths list param) was already the first Tier-2 cut.
@@ -66,7 +66,7 @@ retried WITHOUT `response_format`, so the run "worked" — at double the calls a
 output. Worse, free-form mode badly under-extracted: **52 claims, 0 supersessions, and the demo's
 own mortgage facts missed** (only the rule extractor's overlay saved the answer).
 **Fix:** request with the STRICT `ExtractSchema` (server-enforced structure); the per-claim loose
-salvage (P2-13) still runs on the response. Result: **22/22 first-attempt 200s, 149 claims
+salvage still runs on the response. Result: **22/22 first-attempt 200s, 149 claims
 (~2.9×), both mortgage claims extracted, 1 judge call → `SUPERSEDES $350,000 → $400,000`**, and
 `/api/ask` serves `$400,000` with the correct Nov-30 citation. Cost: $0.039 for both runs.
 

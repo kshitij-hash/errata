@@ -1,11 +1,11 @@
 // packages/core/src/evidence.ts — deterministic evidence score + abstention decision.
 //
-// The calibrated refusal is a first-class result (CONTEXT §1). Its confidence must be a number we
-// can defend from the response payload, not an LLM self-report (spec 31 §5). No embeddings, no LLM.
+// The calibrated refusal is a first-class result (CONTEXT the eval protocol). Its confidence must be a number we
+// can defend from the response payload, not an LLM self-report . No embeddings, no LLM.
 
 import type { AnswerDecision, EvidenceScore } from './types.js';
 
-// weights are FIXED a priori (spec 31 §5.2); only tau is fitted on the held-out slice.
+// weights are FIXED a priori (evidence-scoring design); only tau is fitted on the held-out slice.
 const W = { a: 0.3, s: 0.3, c: 0.15, p: 0.15, d: 0.1 } as const;
 
 const STOPWORDS = new Set(
@@ -64,7 +64,7 @@ function clamp01(x: number): number {
   return x < 0 ? 0 : x > 1 ? 1 : x;
 }
 
-/** Compute the five-component evidence score E ∈ [0,1] (spec 31 §5.1). */
+/** Compute the five-component evidence score E ∈ [0,1] (evidence-scoring design). */
 export function scoreEvidence(q: QuestionFeatures, cands: ScoredClaim[], tau: number): EvidenceScore {
   const a = q.contentTokens.length === 0 ? 0 : clamp01(q.anchorsResolved / q.contentTokens.length);
 
@@ -96,7 +96,7 @@ export function decide(score: EvidenceScore, tau: number, disputed = false): Ans
   return 'ABSTAIN';
 }
 
-/** Rank claims by fit for nearest-miss citations on an abstention (spec 31 §5.3).
+/** Rank claims by fit for nearest-miss citations on an abstention .
  *  Stable, returns at most `k`, each item carries its `s` value. */
 export function rankClaimsByFit<T extends { attribute: string; value: string; registryMatched: boolean }>(
   qTokens: string[],

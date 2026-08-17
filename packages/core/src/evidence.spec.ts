@@ -18,7 +18,7 @@ const cand = (p: Partial<ScoredClaim> = {}): ScoredClaim => ({
 });
 const TAU = 0.4;
 
-describe('scoreEvidence (spec 31 §7 tests 34-40)', () => {
+describe('scoreEvidence ', () => {
   it('34: E is monotonically non-decreasing in each of a, s, c, p, d', () => {
     // a — anchor coverage
     expect(scoreEvidence(q({ anchorsResolved: 4 }), [cand()], TAU).E).toBeGreaterThan(
@@ -110,11 +110,11 @@ describe('scoreEvidence (spec 31 §7 tests 34-40)', () => {
   });
 });
 
-// R6 — the flagship answer's "confidence 0.44", pinned so a future weight edit has to be
+// Pinned: the flagship answer's "confidence 0.44", pinned so a future weight edit has to be
 // deliberate. The demo question is "What was the amount I was pre-approved for when I got my
 // mortgage from Wells Fargo?" against a head claim (mortgage_preapproval_amount, $400,000) stated
 // once, later revised, judge_status NONE, head confidence 0.72.
-describe('R6: the flagship evidence score is calibration, not a bug', () => {
+describe('the flagship evidence score is calibration, not a bug', () => {
   const FLAGSHIP_TAU = 0.35;
   const flagshipQ = (): QuestionFeatures => ({
     // the content tokens the answer path derives from the flagship question

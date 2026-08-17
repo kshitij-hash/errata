@@ -1,4 +1,4 @@
-// Self-hosted type (36 §6b): no runtime font request ever leaves the origin, so the CSP can say
+// Self-hosted type: no runtime font request ever leaves the origin, so the CSP can say
 // font-src 'self'. All three families are OFL 1.1 — see apps/web/fonts/LICENSE.md.
 import localFont from 'next/font/local';
 

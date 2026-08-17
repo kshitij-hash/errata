@@ -60,7 +60,7 @@ Incremental spend for the corrected-controls pass: $0.0144 (cache hits are $0 an
 ## Control-set revision log — 2026-08-17
 
 The first measured run of this protocol failed the overall FAR gate at **15.0%**, and the failure
-was escalated rather than papered over. The war-room ruling drew the line this repo now enforces:
+was escalated rather than papered over. The review ruling drew the line this repo now enforces:
 **tuning the JUDGE to pass is forbidden; fixing defects in the CONTROL SET is correct measurement
 practice, done openly.** Nothing about the judge changed — same model, same `JUDGE_PROMPT` (sha
 `07286ad6…`), same temperature 0, same `judge_max_tokens = 64`. Both numbers are published above.
@@ -82,7 +82,7 @@ described the same preference. The transform now performs the complete role swap
 > before — "**The assistant** would prefer responses that build upon **their** previous experimentation with turbinado sugar"
 > after  — "**The assistant** would prefer responses that build upon **the assistant's** previous experimentation with turbinado sugar"
 
-The war room named three of these. There are **six**, and all six were fixed. The three it named
+The review named three of these. There are **six**, and all six were fixed. The three it named
 are exactly the three the judge accepted; the other three it rejected or truncated on. Fixing only
 the accepted ones would have been selecting controls by verdict in the direction that lowers FAR,
 which is the bias this whole exercise exists to avoid. `38146c39`, `afdc33df`, `54026fce`,

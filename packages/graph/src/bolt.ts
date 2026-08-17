@@ -8,7 +8,7 @@
 //   2. Edge writes are a single comma-joined MATCH…,… MERGE-with-relationship-id (see cypher.ts).
 //
 // Connection scheme is bolt:// (never neo4j://) so the driver dials the URI directly and never
-// consults GRAPH_ADVERTISED_BOLT_ADDR (spec 33 §2.3). Reads use causal consistency with the last
+// consults GRAPH_ADVERTISED_BOLT_ADDR (the devops notes the eval protocol). Reads use causal consistency with the last
 // write bookmark, defending against the WAL-overlay read anomaly (bug #69).
 
 import neo4j from 'neo4j-driver-lite';
@@ -83,7 +83,7 @@ export class GraphClient {
   }
 
   /** Connect, retrying the Bolt handshake. The driver's v2 (manifest) handshake intermittently
-   *  mis-negotiates with HydraDB (a RangeError in its varint read, spec 33 §2.3); recreating the
+   *  mis-negotiates with HydraDB (a RangeError in its varint read, the devops notes the eval protocol); recreating the
    *  driver and retrying clears it. */
   async verify(attempts = 5): Promise<void> {
     let lastErr: unknown;

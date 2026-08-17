@@ -2,7 +2,7 @@
 //
 // A LongMemEval question record is one Errata "history" (history_id == question_id). Turns have NO
 // id — turn identity is the POSITIONAL 0-based index within its session; ingest and the eval harness
-// MUST count the same way (spec 34 §0, integration seam #2). haystack_dates is index-aligned with
+// MUST count the same way (shared with the eval reader). haystack_dates is index-aligned with
 // haystack_session_ids and haystack_sessions.
 
 import { parseLmeDate } from './text.js';

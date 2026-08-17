@@ -1,4 +1,4 @@
-// packages/ingest/src/structural.ts — the deterministic structural pass (spec 31 §3.1, S1).
+// packages/ingest/src/structural.ts — the deterministic structural pass .
 //
 // Zero LLM. This pass alone makes a history queryable and citable — it is the Tier-3 floor made
 // structural, and it must run before any budget is spent. Every row carries EVERY property (the

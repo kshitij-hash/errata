@@ -1,5 +1,5 @@
 // apps/api/src/index.ts — the API server. Binds 127.0.0.1 on the pod behind its HTTPS proxy;
-// Bolt is localhost (spec 31 §1.4). Ingest runs as a CLI; every route here is read-only.
+// Bolt is localhost . Ingest runs as a CLI; every route here is read-only.
 import { serve } from '@hono/node-server';
 import { app } from './app.js';
 

@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-/** 36 §6b: light-only, enforced — an auto-darkening browser must not invert the paper. */
+/** light-only, enforced — an auto-darkening browser must not invert the paper. */
 export const viewport: Viewport = {
   themeColor: '#FAF8F4',
   colorScheme: 'only light',

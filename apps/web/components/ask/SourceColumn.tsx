@@ -40,7 +40,7 @@ function clip(text: string): string {
 }
 
 /**
- * The surrounding transcript for one cited span (blocker B2, now unblocked by `GET /api/turns`).
+ * The surrounding transcript for one cited span (roadmap item, now unblocked by `GET /api/turns`).
  * The cited turn itself is already on screen as the highlighted span, so the window renders the
  * NEIGHBOURS around it — who · text, in transcript order, above and below the span.
  */

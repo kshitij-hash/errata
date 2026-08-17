@@ -1,4 +1,4 @@
-"""Pre-run cost estimator (§6.2) — projects per-arm and total USD before any spend.
+"""Pre-run cost estimator — projects per-arm and total USD before any spend.
 
 It consumes the committed sample artifact (``sample-150.json``), the pinned price sheet, and a
 per-arm token model grounded in the cost analysis: the per-call input/output token counts for

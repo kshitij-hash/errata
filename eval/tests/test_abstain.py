@@ -1,4 +1,4 @@
-"""Abstain detection on both arm response shapes (§4.1)."""
+"""Abstain detection on both arm response shapes."""
 
 from __future__ import annotations
 

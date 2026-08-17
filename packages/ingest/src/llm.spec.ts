@@ -44,7 +44,7 @@ describe('LlmExtractor (mocked completer)', () => {
     expect(completer.calls.some((c) => c.role === 'extractor')).toBe(true);
   });
 
-  it('keeps the valid claims when ONE claim in the batch is malformed (per-claim resilience, P2-13)', async () => {
+  it('keeps the valid claims when ONE claim in the batch is malformed (per-claim resilience, the per-claim-salvage hardening)', async () => {
     const completer = new MockCompleter({
       extractor: {
         claims: [
@@ -59,7 +59,7 @@ describe('LlmExtractor (mocked completer)', () => {
   });
 });
 
-describe('makeJudge payload (spec 31 §3.5)', () => {
+describe('makeJudge payload (conflict-judge design)', () => {
   it('sends history_id + per-side claim_id, time_basis, and confidence', async () => {
     const completer = new MockCompleter({ judge: { relation: 'SUPERSEDES', confidence: 0.9, same_attribute: true, temporal_order: 'CANDIDATE_NEWER', rationale: 'r' } });
     const judge = makeJudge(completer, 'hist_x');
@@ -77,7 +77,7 @@ describe('makeJudge payload (spec 31 §3.5)', () => {
   });
 });
 
-describe('verdictToEdge (spec 31 §3.5 mapping)', () => {
+describe('verdictToEdge (conflict-judge mapping)', () => {
   const cand = { claimKey: 'ck', claimId: 2 } as never;
   const head = { claimKey: 'hk', claimId: 1 } as never;
   const v = (p: Partial<JudgeVerdict>): JudgeVerdict => ({ relation: 'SUPERSEDES', confidence: 0.86, same_attribute: true, temporal_order: 'CANDIDATE_NEWER', rationale: 'r', ...p });

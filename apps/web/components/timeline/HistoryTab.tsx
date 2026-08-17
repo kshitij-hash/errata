@@ -28,7 +28,7 @@ function spanOf(chain: Chain): Span {
 const atOf = (s: Span, v: number): number => s.t0 + ((s.t1 - s.t0) * v) / 100;
 
 /**
- * The hybrid Timeline (36 §4.3): a big rewriting belief atop the ledger chain, autoplaying ~5s on
+ * The hybrid Timeline: a big rewriting belief atop the ledger chain, autoplaying ~5s on
  * first entry per visit and then handing the playhead over. Every entry, strike, edge label and
  * citation is real claim data — births are the claims' own event_times.
  */
@@ -89,7 +89,7 @@ export function HistoryTab({ chain }: { chain: Chain }) {
   const at = atOf(span, v);
   const born = chain.claims.filter((c) => c.event_time <= at);
   // struck = the target of a born SUPERSEDES edge, or a claim the fold set aside once something
-  // later than it exists (the head is chosen by the fold, not by the edges alone — blueprint R2)
+  // later than it exists (the head is chosen by the fold, not by the edges alone)
   const foldAside = new Set(chain.supersededIds);
   const struckIds = new Set(
     chain.claims

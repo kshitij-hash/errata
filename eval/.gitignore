@@ -5,10 +5,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
-# Downloaded corpus + index cache live under data/ and are not committed;
-# data/manifest.json is the exception (the re-runnability artifact).
+# Downloaded corpus + index cache live under data/ and are not committed. Provenance
+# (dataset repo, revision, sha256) is pinned in eval.toml and verified by `run --verify`.
 data/*
-!data/manifest.json
 
 # Run outputs are gitignored EXCEPT the committed report directory.
 out/*

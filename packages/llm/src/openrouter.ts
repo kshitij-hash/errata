@@ -1,4 +1,4 @@
-// packages/llm/src/openrouter.ts — the OpenRouter chat client (spec 31 §6).
+// packages/llm/src/openrouter.ts — the OpenRouter chat client (ledger design).
 //
 // The single door to any LLM in Errata. Every completed call writes a ledger line; every call is
 // budget-guarded first; structured output is validated against a caller-supplied zod schema with a

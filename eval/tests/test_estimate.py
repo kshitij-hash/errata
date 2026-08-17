@@ -1,4 +1,4 @@
-"""Pre-run cost estimator (§6.2): the projected total must sit under the $18 eval hard cap.
+"""Pre-run cost estimator: the projected total must sit under the $18 eval hard cap.
 
 The estimate is driven by the committed sample artifact + the pinned price sheet + a per-arm
 token model, and uses the shared answer model price for all three answer arms. This is the gate

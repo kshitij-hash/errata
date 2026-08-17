@@ -1,4 +1,4 @@
-// packages/core/src/lexical.ts — the deterministic question↔claim matcher (spec 31 §4.7 step 1).
+// packages/core/src/lexical.ts — the deterministic question↔claim matcher .
 //
 // The ask path selects which claims become the answer's MATERIAL. Until now it ranked them with
 // `tokenF1(question, attribute + " " + value)`: symmetric F1, exact tokens only, and the evidence

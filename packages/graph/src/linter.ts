@@ -1,4 +1,4 @@
-// packages/graph/src/linter.ts — the subset linter (spec 31 §4.8).
+// packages/graph/src/linter.ts — the subset linter .
 //
 // HydraDB implements a DELIBERATE OpenCypher subset. Every builder's output is fed through this
 // linter (a vitest property test asserts it), and it runs in dev (throws) and prod (warns +

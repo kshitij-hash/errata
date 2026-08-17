@@ -16,7 +16,7 @@ from pathlib import Path
 import orjson
 from pydantic import BaseModel, ConfigDict
 
-# question_type -> reported ability (§2.2). Abstention is orthogonal and handled separately.
+# question_type -> reported ability. Abstention is orthogonal and handled separately.
 _ABILITY_BY_TYPE: dict[str, str] = {
     "single-session-user": "information_extraction",
     "single-session-assistant": "information_extraction",

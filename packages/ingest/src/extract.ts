@@ -1,4 +1,4 @@
-// packages/ingest/src/extract.ts — claim extraction behind one interface (spec 31 §3 S3).
+// packages/ingest/src/extract.ts — claim extraction behind one interface .
 //
 // Three implementations share the `Extractor` interface so the write path is identical regardless
 // of source:
@@ -117,7 +117,7 @@ export class ReplayExtractor implements Extractor {
 }
 
 /** Structural-only ingest: no claims. The S1 pass alone (sessions/turns/speakers + STATED_IN) makes
- *  a history queryable and citable at zero token cost — the full-corpus unlock (wrap-up Block A). */
+ *  a history queryable and citable at zero token cost — the full-corpus unlock . */
 export class NullExtractor implements Extractor {
   readonly model = 'structural-only@1';
   async extract(): Promise<ExtractedClaim[]> {

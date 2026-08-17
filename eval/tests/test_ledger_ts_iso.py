@@ -1,4 +1,4 @@
-"""Ledger timestamp format — integration seam #4 (one costs ledger, two writers).
+"""Ledger timestamp format — integration seam (one costs ledger, two writers).
 
 The TS ledger (packages/llm/src/ledger.ts) documents `ts` as ISO-8601 UTC and its reader parses it
 as ISO; the eval's OpenRouterClient stamps every row with the same shape. This pins the eval side:

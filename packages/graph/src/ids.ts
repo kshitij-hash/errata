@@ -1,7 +1,7 @@
 // packages/graph/src/ids.ts
 //
 // THE single place Errata computes vertex and edge ids (CLAUDE.md hard rule 5).
-// 53-bit, non-negative, JS-safe, and byte-identical across TS and Python (spec 31 §2.3, ADR-10).
+// 53-bit, non-negative, JS-safe, and byte-identical across TS and Python (the id design, design decision).
 //
 //   vid(key) = be_uint64(blake2b(utf8(key), dkLen=8)) >> 11
 //
@@ -28,7 +28,7 @@ export function vid(key: string): number {
   return Number(n >> 11n); // 64 - 11 = 53 bits → exact in a JS number, JSON, and Python int
 }
 
-/** 16-hex (8-byte) blake2b digest used *inside* the Claim natural key (spec 31 §2.2). */
+/** 16-hex (8-byte) blake2b digest used *inside* the Claim natural key . */
 function b16(s: string): string {
   const d = digest8(s);
   let hex = '';

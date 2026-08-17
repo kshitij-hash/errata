@@ -13,4 +13,4 @@ var/
 data-raw/
 hydradb-data/
 s3cache/
-.claude/specs.local.md
+.claude/

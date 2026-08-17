@@ -2,7 +2,7 @@ import { DEMO_SESSIONS } from '../../config/demo';
 import { sessionOrdinal } from '../../lib/format';
 
 /**
- * Add-on №2 (36 §4.2): one tick per session of the pinned history. Cited sessions hold teal;
+ * Add-on №2: one tick per session of the pinned history. Cited sessions hold teal;
  * sessions that only carry a superseded claim hold red. Static ordering from the corpus config,
  * live hits from the answer's citations.
  */

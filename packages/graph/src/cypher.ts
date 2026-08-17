@@ -1,5 +1,5 @@
 // packages/graph/src/cypher.ts — hand-written Cypher against HydraDB's deliberate OpenCypher
-// subset (spec 31 §4, checked line-by-line against the rejected list in §4.8 / 11 §4).
+// subset .
 //
 // These are PURE {text, params} producers — DB-agnostic and unit-testable without a driver.
 // Integer params/fields are left as plain JS numbers here and wrapped with neo4j.int() at the
@@ -35,7 +35,7 @@ export const INTEGER_KEYS: ReadonlySet<string> = new Set([
   'event_time', 'ingest_time', 'turn_idx', 'turn_index', 'token_count', 'ordinal', 'turn_count', 'mention_count',
 ]);
 
-// property lists per label (universal props + label-specific), spec 31 §2.2 / §4.1.
+// property lists per label (universal props + label-specific), the storage design.
 const NODE_PROPS: Record<NodeLabel, readonly string[]> = {
   Session: ['key', 'history_id', 'session_id', 'session_date_iso', 'turn_count', 'ordinal', 'event_time', 'event_time_iso', 'ingest_time', 'confidence', 'provenance', 'run_id'],
   Turn: ['key', 'history_id', 'session_id', 'turn_id', 'turn_idx', 'role', 'text', 'token_count', 'salient', 'event_time', 'event_time_iso', 'ingest_time', 'confidence', 'provenance', 'run_id'],
@@ -58,7 +58,7 @@ function setClause(alias: string, props: readonly string[]): string {
   return props.map((p) => `${alias}.${p} = row.${p}`).join(', ');
 }
 
-// ---------- write path (spec 31 §4.1, §4.2) ----------
+// ---------- write path  ----------
 
 /** Phase A — upsert one label's nodes. MERGE on id alone, then SET (never fold props into MERGE). */
 export function upsertNodes(label: NodeLabel, rows: Record<string, unknown>[]): Stmt {
@@ -84,7 +84,7 @@ export function upsertEdges(
   return { text, params: { rows } };
 }
 
-// ---------- read path: current belief (spec 31 §4.3) ----------
+// ---------- read path: current belief  ----------
 
 /** Statement 1 — the candidate claims for (entity, attribute). */
 export function claimsForEntityAttribute(entityVid: number, historyId: string, attribute: string): Stmt {
@@ -122,7 +122,7 @@ export function revisionEdgesForEntity(
   return { text, params: { entity_vid: entityVid, history_id: historyId, attribute } };
 }
 
-// ---------- read path: as-of (spec 31 §4.4) ----------
+// ---------- read path: as-of  ----------
 
 /** As-of candidate claims, filtered server-side by the time axis (the same fold runs in core). */
 export function asOfClaims(
@@ -152,7 +152,7 @@ export function asOfClaims(
   return { text, params: { entity_vid: entityVid, history_id: historyId, attribute, at } };
 }
 
-// ---------- read path: diff (spec 31 §4.5, §4.6) ----------
+// ---------- read path: diff  ----------
 
 /** algo.SPpaths over SUPERSEDES between two claim heads. maxLen/pathCount are explicit literals. */
 export function spPaths(newerVid: number, olderVid: number): Stmt {
@@ -165,7 +165,7 @@ export function spPaths(newerVid: number, olderVid: number): Stmt {
   return { text, params: { newer_vid: newerVid, older_vid: olderVid } };
 }
 
-/** The mandatory cross-validation counterpart: bounded, directed enumeration (spec 31 §4.6). */
+/** The mandatory cross-validation counterpart: bounded, directed enumeration . */
 export function enumerateChain(newerVid: number, historyId: string): Stmt {
   const text =
     `MATCH (newer:Claim {id: $newer_vid})-[:SUPERSEDES*1..8]->(older:Claim)\n` +
@@ -176,7 +176,7 @@ export function enumerateChain(newerVid: number, historyId: string): Stmt {
   return { text, params: { newer_vid: newerVid, history_id: historyId } };
 }
 
-// ---------- read path: ask (spec 31 §4.7) ----------
+// ---------- read path: ask  ----------
 
 /** Claims at up to 8 entity anchors, as a UNION of id-pinned arms (no IN, so this is the only way). */
 export function claimsForEntities(anchorVids: number[], historyId: string): Stmt {
@@ -235,7 +235,7 @@ export function turnForClaim(claimVid: number): Stmt {
 
 /** Transcript context — the turns at a bounded set of ids, as id-pinned UNION arms.
  *
- *  This is the neighbours-by-turn_idx read (blocker B2). It is deliberately NOT a property filter
+ *  This is the neighbours-by-turn_idx read. It is deliberately NOT a property filter
  *  on `turn_idx`: HydraDB's subset has no `IN`, and a range predicate over `t.turn_idx` would be a
  *  label scan of every Turn in the store (246K on the full corpus — see G3's `countLabel` note).
  *  Turn ids are pure functions of (history_id, session ordinal, turn_idx), so the caller mints the

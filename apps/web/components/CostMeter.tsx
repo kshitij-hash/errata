@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { api, usd } from '../lib/api';
 import { DEMO_HISTORY_ID } from '../config/demo';
 
-/** Masthead cost meter (36 §4.1): the ledger rollup, polled every 30s, in mono tabular figures. */
+/** Masthead cost meter: the ledger rollup, polled every 30s, in mono tabular figures. */
 export function CostMeter() {
   const [spend, setSpend] = useState<number | null>(null);
 

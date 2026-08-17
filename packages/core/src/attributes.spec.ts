@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { attributeSynonyms, resolveAttribute, isRegistered, normalizeAttributeToken } from './attributes.js';
 
-describe('attribute registry (spec 31 §7 tests 8-10)', () => {
+describe('attribute registry ', () => {
   it('8: normalizes case / whitespace / punctuation / synonyms to the canonical name', () => {
     expect(resolveAttribute('Company').name).toBe('employer');
     expect(resolveAttribute('  Works At ').name).toBe('employer');

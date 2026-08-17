@@ -1,4 +1,4 @@
-// packages/llm/src/budget.ts — the budget guard (spec 31 §6).
+// packages/llm/src/budget.ts — the budget guard (ledger design).
 //
 // A hard money ceiling with graded backpressure computed off the running spent total:
 //   spent < 0.70·cap  → normal    (spend freely)

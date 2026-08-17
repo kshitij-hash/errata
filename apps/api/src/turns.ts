@@ -1,4 +1,4 @@
-// apps/api/src/turns.ts — transcript context for a citation (blocker B2). READ-ONLY.
+// apps/api/src/turns.ts — transcript context for a citation. READ-ONLY.
 //
 // `/api/belief`, `/api/diff` and `/api/ask` hand back a positional citation and the evidence span,
 // but never the transcript around it. This returns the cited turn ± `radius` neighbours so the

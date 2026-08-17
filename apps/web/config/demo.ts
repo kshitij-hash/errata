@@ -1,4 +1,4 @@
-// The pinned demo history's front-of-house configuration (36 §4.2: "seed chips from a config file").
+// The pinned demo history's front-of-house configuration (seed chips from a config file").
 // Everything here is either derived from the ingested corpus or a disclosed price constant — no
 // answer text is hard-coded; every answer on screen comes from /api/ask at request time.
 import sessions from './demo-sessions.json';

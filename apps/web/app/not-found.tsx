@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-/** In-theme 404 (36 §6b): the author's-query card, gold — the same voice used for abstention. */
+/** In-theme 404: the author's-query card, gold — the same voice used for abstention. */
 export default function NotFound() {
   return (
     <main className="nf">

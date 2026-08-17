@@ -11,7 +11,7 @@ const T_2025 = 1735689600;
 const T_2026 = 1767225600;
 const T_2027 = 1798761600;
 
-describe('resolveAsOf — boundaries (spec 31 §7 tests 23-29)', () => {
+describe('resolveAsOf — boundaries ', () => {
   it('23: at == a claim event_time includes it (inclusive <=), both axes', () => {
     const c = makeClaim({ claim_id: 1, value: 'V', event_time: T_2020, ingest_time: T_2021 });
     expect(resolveAsOf([c], [], T_2020, 'event').head?.claim_id).toBe(1);

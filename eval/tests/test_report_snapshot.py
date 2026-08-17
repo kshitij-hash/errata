@@ -1,4 +1,4 @@
-"""Snapshot test for the ONE results-table generator (§5.3).
+"""Snapshot test for the ONE results-table generator.
 
 A hand-authored, committed fixture of enriched judged rows (all three arms, three seeds,
 abstention rows, and Errata citation rows) is fed through the exact production aggregation path
@@ -25,7 +25,7 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 FIXTURE = FIXTURES / "judged_rows.jsonl"
 SNAPSHOT = FIXTURES / "results_table.md"
 
-# The exact §5.3 header — its column set and order are contractual.
+# The exact the eval protocol header — its column set and order are contractual.
 EXPECTED_HEADER = (
     "| Arm | Overall | Info. extraction | Multi-session | Temporal | "
     "Knowledge update | Abstention P / R | Ctx tok/Q | $/Q | p50 / p95 (s) |"

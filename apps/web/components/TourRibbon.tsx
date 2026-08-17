@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 const KEY = 'errata.tour.dismissed';
 
-/** Add-on №4 (36 §4.7): one dismissible mono ribbon, on Ask only. */
+/** Add-on №4: one dismissible mono ribbon, on Ask only. */
 export function TourRibbon() {
   const [show, setShow] = useState(false);
 

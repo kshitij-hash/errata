@@ -28,7 +28,7 @@ export interface Chain {
   revisions: ChainRevision[];
   headId: number | null;
   /** claims the fold does not consider current — a superset of the SUPERSEDES edge targets, because
-   *  the head is chosen by a deterministic fold in code, not by the edges alone (blueprint R2). */
+   *  the head is chosen by a deterministic fold in code, not by the edges alone. */
   supersededIds: number[];
 }
 

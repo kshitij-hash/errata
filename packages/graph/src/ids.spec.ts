@@ -29,7 +29,7 @@ describe('vid — golden vectors (cross-language parity, R1)', () => {
   });
 });
 
-describe('vid — range and safety (spec 31 §7 tests 3)', () => {
+describe('vid — range and safety ', () => {
   it('every golden vid is a non-negative safe integer below 2^53', () => {
     for (const v of fixture.vectors) {
       expect(Number.isSafeInteger(v.vid)).toBe(true);
@@ -51,7 +51,7 @@ describe('vid — range and safety (spec 31 §7 tests 3)', () => {
   });
 });
 
-describe('key builders (spec 31 §7 tests 5, 6)', () => {
+describe('key builders ', () => {
   it('is history-scoped: same entity in two histories → different vids', () => {
     const a = keys.entity('example_001', 'acme corp');
     const b = keys.entity('example_042', 'acme corp');

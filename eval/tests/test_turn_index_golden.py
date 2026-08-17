@@ -1,4 +1,4 @@
-"""Turn-index golden — the pytest half of integration seam #2 (positional turn identity).
+"""Turn-index golden — the pytest half of integration seam (positional turn identity).
 
 Shares ONE fixture with the ingest vitest suite (packages/ingest/fixtures/turn-index-vectors.json)
 so TS and Python count turns identically: turn_index is the 0-based position WITHIN its session, and

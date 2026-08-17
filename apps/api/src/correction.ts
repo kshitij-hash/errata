@@ -1,4 +1,4 @@
-// apps/api/src/correction.ts — the ONE mutating code path behind an HTTP route (blocker B1).
+// apps/api/src/correction.ts — the ONE mutating code path behind an HTTP route.
 //
 // APPEND-ONLY INVARIANT. This module writes exactly two rows: a new Claim vertex, and one
 // SUPERSEDES edge from it to the claim it displaces. It never updates a property of an existing

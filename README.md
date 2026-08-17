@@ -14,24 +14,28 @@ value now?"* and you get the current belief with its citation; ask *"what did we
 and when did it change?"* and you get the history; ask something the transcript never said and you
 get a calibrated **abstention** with the nearest misses. Nothing is ever mutated or deleted.
 
-## Status
+## Status & results
 
-**Backend, evaluation harness and web app complete.** Deployment and funded LLM runs are pending
-(the later days of the plan). Concretely:
+**Complete: write path, read surface, web app, and a judged three-arm evaluation.** On a
+150-question LongMemEval comparison (3 seeds, judge validated at FAR 8.3%), **Errata leads
+overall — 53.3 vs 47.5 (full-context) vs 45.8 (naive top-k RAG)** with **knowledge-update at
+100.0** and multi-session 61.3, at **1/52nd the context tokens, ~1/500th the $/question and 31×
+lower p50 latency** than reading the full history — with a citation on every answer and abstention
+recall 0.93. Full table, caption, and the honest gaps: [`eval/RESULTS.md`](eval/RESULTS.md);
+failure analysis in [`eval/out/failure-taxonomy.md`](eval/out/failure-taxonomy.md).
 
-- **Write path** — deterministic ingest (sessions/turns/speakers + `STATED_IN`, then rule-based claim
-  extraction + temporal conflict resolution → `SUPERSEDES`/`CONTRADICTS`/`SUPPORTS` revision edges),
-  running on the real 500-history LongMemEval corpus in HydraDB + MinIO.
+- **Write path** — LLM claim extraction (structured-output, per-claim salvage) + an LLM conflict
+  judge → `SUPERSEDES`/`CONTRADICTS`/`SUPPORTS` revision edges, run over the real LongMemEval
+  corpus in HydraDB + MinIO (all 500 histories structurally; the comparison-150 with full claims).
 - **Read surface** — `GET /api/belief` (current + as-of), `GET /api/diff` (revision chain with
-  `algo.SPpaths` cross-validation), `POST /api/ask` (cited answer or calibrated abstention),
-  `GET /api/meta{,/health,/costs}`. Every answer carries a `{session_id, turn_index, span}` citation.
-- **Eval harness** (`eval/`, Python/uv) — dataset invariants (the 30-abstention rule), a `/api/meta`
-  parity gate, deterministic sampler + judge-control set, metrics + the one results table. Its parity
-  gate passes against the live API.
-- **Credit-gated, wired but not run** — the LLM extractor and conflict judge (behind the same
-  interfaces as the deterministic path) and the eval's full-context / naive-topk baselines. They run
-  the moment an OpenRouter key is funded; the append-only model makes a later LLM pass safe (a new
-  `run_id`, nothing mutated).
+  `algo.SPpaths` cross-validation), `POST /api/ask` (graph-retrieved material composed by the
+  shared answer model, or a calibrated abstention), `GET /api/meta{,/health,/costs}`. Every answer
+  carries a `{session_id, turn_index, span}` citation.
+- **Eval harness** (`eval/`, Python/uv) — dataset invariants, a `/api/meta` parity gate asserting
+  the deployed prompt/model before any spend, deterministic sampling, a validated judge (published
+  control sets + FAR/FRR), cost estimator with a hard cap, and the one results table.
+- **Substrate findings** — every HydraDB limit we hit, measured and worked around, is in
+  [`docs/gauntlets.md`](docs/gauntlets.md) (and on the demo's `/limits` page).
 
 ## The web app
 

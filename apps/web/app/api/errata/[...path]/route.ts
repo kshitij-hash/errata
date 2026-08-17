@@ -1,10 +1,10 @@
-// The origin-only proxy (36 §3.5). The browser never learns the API's address: it talks to this
+// The origin-only proxy. The browser never learns the API's address: it talks to this
 // route handler on the Vercel origin, which forwards to the pod over the server-side network.
 // Cross-origin callers are refused so the handler can't be used as an open relay.
 
 const UPSTREAM = process.env.ERRATA_API_URL ?? 'http://127.0.0.1:8787';
 
-/** The read surface the UI is allowed to reach, plus the correction write path (blocker B1). */
+/** The read surface the UI is allowed to reach, plus the correction write path. */
 const ALLOW_GET = new Set(['meta', 'meta/costs', 'meta/health', 'belief', 'diff', 'turns']);
 const ALLOW_POST = new Set(['ask', 'correction']);
 

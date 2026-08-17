@@ -94,7 +94,7 @@ def cmd_sample(args: argparse.Namespace) -> int:
     ids = [q.question_id for q in chosen]
     if args.out:
         # The ingest-coupling artifact: a plain JSON array of question_ids, sorted, so the
-        # ingest job and every arm answer exactly this seeded comparison set (spec §8, seam #3).
+        # ingest job and every arm answer exactly this seeded comparison set.
         out_path = Path(args.out)
         out_path.write_bytes(orjson.dumps(ids, option=orjson.OPT_INDENT_2) + b"\n")
         n_abs = sum(1 for q in chosen if q.abstention)
@@ -257,7 +257,7 @@ def _build_arm(arm_name: str, config: cfg.EvalConfig) -> Any:
 
 
 # --------------------------------------------------------------------------------------------
-# estimate — pre-run cost projection (§6.2)
+# estimate — pre-run cost projection
 # --------------------------------------------------------------------------------------------
 EXIT_OVER_CAP = 3
 
@@ -324,7 +324,7 @@ def cmd_controls(args: argparse.Namespace) -> int:
 
 
 def cmd_controls_positive(args: argparse.Namespace) -> int:
-    """Generate the paraphrased-gold POSITIVE controls. The one paid pass in §4.3, and cached."""
+    """Generate the paraphrased-gold POSITIVE controls. The one paid pass in the eval protocol, and cached."""
     from .judge_validation import build_positive_controls
     from .openrouter import Ledger, OpenRouterClient
 
@@ -662,7 +662,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--verify", action="store_true", help="sha256-gate the corpus first")
     r.set_defaults(func=cmd_run)
 
-    es = sub.add_parser("estimate", help="project per-arm + total USD before any spend (§6.2)")
+    es = sub.add_parser("estimate", help="project per-arm + total USD before any spend")
     es.add_argument("--sample", type=Path, default=None, help="path to sample-150.json")
     es.add_argument("--prices", type=Path, default=None, help="path to prices.toml")
     es.add_argument("--already-spent", type=float, default=0.0)

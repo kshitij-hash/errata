@@ -14,7 +14,7 @@ from errata_eval.dataset import (
 
 EXPECTED_SHA256 = "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442"
 
-# The load-bearing assertion: 30 abstentions with this exact per-type breakdown (§0/C1, C2).
+# The load-bearing assertion: 30 abstentions with this exact per-type breakdown (the eval protocol/C1, C2).
 EXPECTED_ABSTENTION_BREAKDOWN = {
     "multi-session": 12,
     "temporal-reasoning": 6,

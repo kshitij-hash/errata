@@ -1,7 +1,7 @@
 """OpenRouter client: httpx, retry/backoff, ledger append, price accounting.
 
 Credit-gated. Never exercised by the offline test bar and never called inside pytest.
-Every call writes one append-only ledger row (§6.3 schema); ``usd`` is computed from the
+Every call writes one append-only ledger row (the eval protocol schema); ``usd`` is computed from the
 PINNED price sheet, not from the provider's self-reported figure (stored as ``usd_reported``).
 
 An optional on-disk cache (``cache_dir``) mirrors packages/llm's: temperature-0 calls are

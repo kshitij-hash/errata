@@ -1,4 +1,4 @@
-// packages/core/src/attributes.ts — the attribute registry (spec 31 §2.5).
+// packages/core/src/attributes.ts — the attribute registry .
 //
 // Arity drives revision behaviour:
 //   FUNCTIONAL — single-valued; a differing value triggers the conflict judge.

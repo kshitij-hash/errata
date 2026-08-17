@@ -1,4 +1,4 @@
-// packages/llm/src/ledger.ts — the append-only cost ledger (spec 31 §6). TS owns it; eval reads it.
+// packages/llm/src/ledger.ts — the append-only cost ledger (ledger design). TS owns it; eval reads it.
 //
 // One JSONL line per COMPLETED call at var/ledger/costs-YYYYMMDD.jsonl (var/ is gitignored).
 // Real cost is OpenRouter's reported `usage` when present, else computed from the price table and
@@ -29,7 +29,7 @@ export type CostSource = (typeof COST_SOURCES)[number];
 
 /** One completed-or-attempted LLM call. Append-only; never mutated in place. */
 export interface LedgerLine {
-  ts: string; // ISO-8601 UTC — the ledger timestamp is ISO everywhere (review item 11 decision); the eval reader parses it as ISO too (spec 31 §6.5)
+  ts: string; // ISO-8601 UTC — the ledger timestamp is ISO everywhere (design decision); the eval reader parses it as ISO too (ledger design)
   run_id: string;
   role: string;
   model: string;

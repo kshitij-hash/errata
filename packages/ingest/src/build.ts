@@ -1,10 +1,10 @@
-// packages/ingest/src/build.ts — claims, entities, and revision edges (spec 31 §3 S4-S6, §3.5).
+// packages/ingest/src/build.ts — claims, entities, and revision edges .
 //
 // The extractor produces (subject, attribute, value, citation) tuples; here we normalize them,
 // mint ids, build Claim/Entity nodes with ABOUT + STATED_IN edges, and derive revision edges via
 // the conflict step. Without OpenRouter credits the conflict step uses a DETERMINISTIC temporal
 // rule (later event supersedes earlier); the LLM judge replaces exactly this function when funded.
-// Nothing is ever dropped — an unresolved conflict becomes a low-confidence CONTRADICTS (ADR-11).
+// Nothing is ever dropped — an unresolved conflict becomes a low-confidence CONTRADICTS.
 
 import { keys, vid } from '@errata/graph';
 import type { EdgeBatch, NodeBatch } from '@errata/graph';
@@ -113,7 +113,7 @@ export function prepareClaims(history: History, extracted: ExtractedClaim[]): Pr
   return out;
 }
 
-/** Deterministic conflict resolution → revision edges (spec 31 §3.5, no-LLM path). */
+/** Deterministic conflict resolution → revision edges (the conflict-judge design, no-LLM path). */
 export function resolveConflicts(prepared: PreparedClaim[]): RevisionEdgeSpec[] {
   const edges: RevisionEdgeSpec[] = [];
   const groups = new Map<string, PreparedClaim[]>();

@@ -81,7 +81,7 @@ const stmts = (): cy.Stmt[] => [
   cy.claimIdsForEntities([1, 2, 3], 'h'),
 ];
 
-describe('cypher builders (spec 31 §7 tests 42-44)', () => {
+describe('cypher builders ', () => {
   it('42: every builder produces subset-clean text and ≤1024-row batches', () => {
     for (const s of stmts()) {
       expect(lintCypher(s.text), s.text).toEqual([]);

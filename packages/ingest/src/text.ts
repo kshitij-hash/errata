@@ -87,7 +87,7 @@ const STOPWORDS = new Set(
   ),
 );
 
-// attribute cues that make a turn salient (spec 31 §3.2 rule 1)
+// attribute cues that make a turn salient 
 const CUE = /\b(i am|i'm|my|we|now|used to|no longer|actually|correction|instead|changed|moved|started|stopped|prefer|switched|got a|got my|bought|pre-approved|approved for)\b/i;
 // a date, time expression, or a number with a unit / currency
 const NUMERIC = /\b(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}:\d{2}|\$\s?\d|\d+\s?(am|pm|kg|km|lbs|miles|dollars|percent|%|k|years?|months?|days?))\b/i;
@@ -123,7 +123,7 @@ export const ASSISTANT_MIN_TOKENS = 40;
 export const ASSISTANT_MAX_PER_SESSION = 1;
 
 /**
- * Deterministic salience gate (spec 31 §3.2). Target retention 35-45% (measured in G2).
+ * Deterministic salience gate . Target retention 35-45% (measured in G2).
  *
  * G5 — the assistant rule used to be "keep only if it restates a user fact (a CUE)". The failure
  * taxonomy priced that: all 14 `single-session-assistant` questions in the comparison-150 scored

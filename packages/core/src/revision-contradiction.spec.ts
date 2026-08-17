@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { resolveBelief } from './revision.js';
 import { makeClaim, makeEdge, seededShuffle } from './testkit.js';
 
-describe('resolveBelief — simultaneous contradictions (spec 31 §7 tests 19-22)', () => {
+describe('resolveBelief — simultaneous contradictions ', () => {
   it('19: two claims both CONTRADICTS the head → disputed, both returned with citations', () => {
     const H = makeClaim({ claim_id: 1, value: 'H', event_time: 300, confidence: 0.8, session_id: 's1', turn_id: 's1:t0' });
     const X = makeClaim({ claim_id: 2, value: 'X', event_time: 100, confidence: 0.8, session_id: 's2', turn_id: 's2:t3' });

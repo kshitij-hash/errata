@@ -44,7 +44,7 @@ const el = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, 
 const trunc = (s: string, n = 26) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /**
- * The Constellation tab (36 §4.3): the prototype's ~40 lines of physics, unchanged in spirit,
+ * The Constellation tab: the prototype's ~40 lines of physics, unchanged in spirit,
  * driven by real claims — subject-scoped to the attributes in the demo config, never the whole
  * graph. SVG, no graph library. Added over the prototype: a label collision nudge, because two red
  * SUPERSEDES labels converging on one node overlapped in the browser review.
@@ -73,7 +73,7 @@ export function Constellation({ attribute }: { attribute: string }) {
         if (!alive) return;
         const claims: ChainClaim[] = [];
         const revs: { newerId: number; olderId: number; at: number }[] = [];
-        // claims the fold sets aside without an explicit edge (blueprint R2) — they must still go
+        // claims the fold sets aside without an explicit edge — they must still go
         // dim once something later exists, or two "current" cards contradict each other on screen
         const foldAside = new Set<string>();
         for (const c of chains) {

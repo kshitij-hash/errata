@@ -1,7 +1,7 @@
 // packages/core/src/types.ts — the schema types shared across Errata. Pure data; no I/O.
 //
 // Every property is always present (the graph is null-free; unknowns use typed sentinels:
-// -1 int, "" string, -1.0 float). See spec 31 §2.2, C8.
+// -1 int, "" string, -1.0 float). Null-free by design: every declared property gets a sentinel.
 
 export const PROVENANCE = ['EXTRACTED', 'INFERRED'] as const;
 export type Provenance = (typeof PROVENANCE)[number];
@@ -25,7 +25,7 @@ export type TimeBasis = (typeof TIME_BASIS)[number];
 export const TIME_UNKNOWN = -1;
 
 /** (session_id, positional turn_index) into the transcript. Every answer carries one.
- *  turn_index is the 0-based positional index — never derived by string-splitting turn_id (seam #2). */
+ *  turn_index is the 0-based positional index — never derived by string-splitting turn_id (integration seam). */
 export interface Citation {
   session_id: string;
   turn_index: number;
@@ -90,7 +90,7 @@ export interface BeliefResult {
   heads: BeliefValue[];
   /** Displaced claims, still retrievable (the supersession edge is the history). */
   superseded: BeliefValue[];
-  /** NEGATE-polarity claims ("no longer X") — surfaced as evidence, not dropped (review P2-21). */
+  /** NEGATE-polarity claims ("no longer X") — surfaced as evidence, not dropped (review a hardening item). */
   negations: BeliefValue[];
   disputed: boolean;
   /** the head is touched by an unresolved CONTRADICTS edge (caps answer confidence downstream). */
@@ -122,7 +122,7 @@ export interface DiffResult {
 
 export type TimeAxis = 'event' | 'ingest';
 
-/** Deterministic evidence score (spec 31 §5.1). Each component in [0,1]. */
+/** Deterministic evidence score (evidence-scoring design). Each component in [0,1]. */
 export interface EvidenceScore {
   a: number; // anchor coverage
   s: number; // best claim fit

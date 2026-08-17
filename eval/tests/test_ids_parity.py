@@ -1,4 +1,4 @@
-"""Cross-language parity for vertex ids (R1 / spec 31 §2.3): the Python `vid` MUST reproduce every
+"""Cross-language parity for vertex ids (cross-language id parity): the Python `vid` MUST reproduce every
 entry in packages/graph/fixtures/id-vectors.json, which the TS vitest suite also asserts. A drift
 fails CI in both languages. This is the pytest half; it lives in eval/tests/.
 

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { diffChain } from './revision.js';
 import { makeClaim, makeEdge } from './testkit.js';
 
-describe('diffChain (spec 31 §7 tests 30-31)', () => {
+describe('diffChain ', () => {
   const A = makeClaim({ claim_id: 1, value: 'A', event_time: 100, session_id: 's1', turn_id: 's1:t0' });
   const B = makeClaim({ claim_id: 2, value: 'B', event_time: 200, session_id: 's2', turn_id: 's2:t1' });
   const C = makeClaim({ claim_id: 3, value: 'C', event_time: 300, session_id: 's3', turn_id: 's3:t2' });
