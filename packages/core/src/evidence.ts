@@ -79,6 +79,20 @@ export function scoreEvidence(q: QuestionFeatures, cands: ScoredClaim[], tau: nu
       cand.fit ??
       tokenF1(q.contentTokens, contentTokens(`${cand.attribute} ${cand.value}`)) *
         (cand.registryMatched ? 1.0 : 0.7);
+    // `>=`, NOT `>`, and deliberately so — but read what it actually does, because it is two
+    // things at once and only one of them is intentional:
+    //   1. FLOOR (load-bearing): s starts at 0 and `best` at null, so `>=` is what guarantees a
+    //      non-empty candidate list always yields a `best`. Every candidate can score fit 0 —
+    //      tokenF1 is 0 whenever the question and the claim share no content token — and under
+    //      strict `>` those cases would leave best null, collapsing c and p to 0 and pushing E
+    //      below tau. Spec 34's monotonicity in c and p fails immediately under `>`.
+    //   2. TIE-BREAK (unintentional): as a side effect, an exact tie resolves to the LAST
+    //      candidate, the opposite of the first-wins stable-tie discipline used elsewhere in
+    //      core. Nothing depends on this and it is not the behaviour we would choose.
+    // Splitting the two (`if (best === null || fit > s)`) fixes (2) while keeping (1), but it
+    // changes which claim is selected wherever a genuine tie occurs, and that shifts c/p and so
+    // the abstain decision. That is a re-run of the committed 150, not a comment change, so the
+    // behaviour is documented here rather than altered blind.
     if (fit >= s) {
       s = fit;
       best = cand;
