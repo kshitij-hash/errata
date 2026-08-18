@@ -5,6 +5,7 @@
     { "path": "packages/graph" },
     { "path": "packages/llm" },
     { "path": "packages/ingest" },
+    { "path": "packages/mcp" },
     { "path": "apps/api" }
   ]
 }
