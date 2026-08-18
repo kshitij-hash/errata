@@ -1,9 +1,13 @@
 """The three arms behind one Protocol.
 
-- ``ErrataArm``  — POST /api/ask, reads the contract v1.1 response. Needs NO OpenRouter (the
-  Errata answer path has no LLM), so its integration is creditless.
+- ``ErrataArm``  — POST /api/ask, reads the contract v1.1 response. THIS PROCESS spends no
+  OpenRouter credit for it, which is not the same as "no LLM": retrieval is a deterministic
+  graph fold, and the one call that composes the prose (v2 synthesis,
+  ``errata-graph-synthesis@2``) is made by the API process against ITS key and lands in the
+  API's ledger, not this harness's. A keyless API serves the fold verbatim instead;
+  /api/meta.answer_mechanism reports which of the two ran.
 - ``FullContextArm`` / ``NaiveTopKArm`` — stuff a context into the shared answer prompt and call
-  the answer model via OpenRouter. Credit-gated.
+  the answer model via OpenRouter from this process. Credit-gated.
 
 ``predicted_abstain`` is a pure function importable without any network/LLM/torch import.
 """
