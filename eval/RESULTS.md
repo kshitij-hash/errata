@@ -55,6 +55,12 @@ Information-extraction stays at **44.7** and single-session-assistant at **7.1**
 answer-path problem and neither was expected to move here. `d851d5ba` (gold `$3,750`) was fixed
 alongside the flagship, and **zero questions regressed**.
 
+## τ, re-swept
+
+The plateau survives this change too (`uv run python tau_sweep.py --run rerunJ-arith`): overall is
+flat at **66.7 across τ ∈ [0.20, 0.35]** and falls only from 0.40. τ itself stays at its a-priori
+0.35, unfitted, for the reason given under the prior runs.
+
 ## Spend, and a note on latency
 
 Judging cost **$0.0023** — the run changed three answers and the judge cache replayed the other 447
