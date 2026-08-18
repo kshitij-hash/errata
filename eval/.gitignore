@@ -21,6 +21,11 @@ out/*
 !out/tau-sweep-arith.md
 !out/stats.md
 
+# The canary holdout is the evidence behind the out-of-sample number in out/stats.md — 20 rows,
+# committed for the same reason the scored controls below are.
+!out/holdout-canary/
+!out/holdout-canary/*.jsonl
+
 # The scored control set is the evidence behind the published FAR/FRR, and kappa.py joins the
 # human labels against it — so it is committed, unlike the run outputs beside it. `-v1` is the
 # ORIGINAL control set's run: judge-validation.md publishes its numbers beside the corrected ones,

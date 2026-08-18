@@ -251,6 +251,36 @@ def post_stratified(bundle: Bundle, arm: str, mix: dict[str, int] | None = None)
 
 
 # --------------------------------------------------------------------------------------------
+# out-of-sample canary holdout (eval/holdout.py)
+# --------------------------------------------------------------------------------------------
+HOLDOUT_DIR = _EVAL / "out" / "holdout-canary"
+
+
+def holdout_summary(path: Path = HOLDOUT_DIR) -> dict | None:
+    """(correct, unparseable, abstained, n) over the 20 ingested canary histories, or None.
+
+    `correct` follows the repo's convention that an UNPARSEABLE judge reply is a REJECTION, never
+    an accept — so it is the LOW end of an envelope whose high end is correct + unparseable.
+    Both ends are published; judge-validation.md requires it whenever the count is non-zero.
+    """
+    jpath, apath = path / "judgments.jsonl", path / "answers.jsonl"
+    if not jpath.exists():
+        return None
+    judgments = [json.loads(x) for x in jpath.read_text().splitlines() if x.strip()]
+    answers = {}
+    if apath.exists():
+        answers = {r["question_id"]: r for r in (json.loads(x) for x in apath.read_text().splitlines() if x.strip())}
+    verdicts = Counter(j["verdict"] for j in judgments)
+    return {
+        "n": len(judgments),
+        "correct": verdicts["CORRECT"],
+        "unparseable": verdicts["UNPARSEABLE"],
+        "abstained": sum(1 for r in answers.values() if r.get("abstained")),
+        "judge_usd": sum(float(j.get("usd") or 0.0) for j in judgments),
+    }
+
+
+# --------------------------------------------------------------------------------------------
 # rerunD taxonomy (optional)
 # --------------------------------------------------------------------------------------------
 def taxonomy_buckets(path: Path = TAXONOMY_PATH) -> Counter | None:
@@ -443,6 +473,65 @@ def render(bundle: Bundle, resamples: int = RESAMPLES) -> str:
         "reading of the headline is therefore **64.6, not 66.7** — a real deduction from the "
         "published number, and the baselines do not pay it.\n"
     )
+
+    # ---- holdout
+    h = holdout_summary()
+    w("## Out-of-sample sanity holdout\n")
+    if h is None:
+        w("`eval/out/holdout-canary/` is absent. Regenerate with `uv run python holdout.py`.\n")
+    else:
+        in_sample = [q for q in bundle.questions if q["type"] == "single-session-user"]
+        w(
+            f"**out-of-sample sanity holdout: {h['correct']}/{h['n']} (all single-session-user — a "
+            "confirm-only draw, disclosed).**\n"
+        )
+        w(
+            "Twenty histories beyond the comparison draw were ingested as canaries and never "
+            "scored. Their questions are genuinely out of sample — in the graph, never tuned on, "
+            "never published. `eval/holdout.py` runs the Errata arm over exactly those and judges "
+            "with the pinned judge.\n"
+        )
+        w(
+            "**The disclosure matters more than the number.** The canary draw was the first "
+            "twenty histories in corpus order and the corpus is ordered by type, so all twenty "
+            "are `single-session-user` — the easiest stratum — and none is a gold-abstention "
+            "question. It can catch a gross regression; it cannot support a claim about the "
+            f"corpus. Judge spend ${h['judge_usd']:.4f}.\n"
+        )
+        hi = h["correct"] + h["unparseable"]
+        w("| | |")
+        w("|---|---:|")
+        w(f"| judged | {h['n']} |")
+        w(f"| CORRECT | {h['correct']} |")
+        w(f"| over-abstained (gold has an answer) | {h['abstained']} |")
+        w(f"| UNPARSEABLE judge reply | {h['unparseable']} |")
+        if h["unparseable"]:
+            w(f"| envelope, counting unparseable as accepts | {hi}/{h['n']} |")
+        w("")
+        if h["unparseable"]:
+            w(
+                f"An unparseable verdict counts as a REJECTION here, so {h['correct']}/{h['n']} is "
+                f"the low end and {hi}/{h['n']} the high end — judge-validation.md requires both "
+                "whenever that count is non-zero. The one unparseable row answered 'University of "
+                "Melbourne' against a gold of 'University of Melbourne in Australia'; the judge "
+                "reply, not the answer, is what failed.\n"
+            )
+        w(
+            f"**Read this next to the in-sample number for the same stratum.** Errata scores "
+            f"{accuracy(bundle, 'errata', in_sample):.1f} on the {len(in_sample)} "
+            "single-session-user questions inside the comparison set, against "
+            f"{100 * h['correct'] / h['n']:.0f}-{100 * hi / h['n']:.0f} here. The gap is one "
+            "small sample against another and nothing is fitted to the comparison set, so this is "
+            "not evidence of overfitting — but it is a concrete reason not to read a per-type "
+            "100.0 as the stratum's true accuracy, and the strongest argument in this document "
+            "for buying a real held-out set before quoting per-type numbers.\n"
+        )
+        w(
+            f"The {h['abstained']} misses that were over-abstentions are the same failure mode the "
+            "taxonomy names `A3_material_lacked_it` — the calibrated abstention firing where the "
+            "history does hold the answer. That is the honest direction to fail in, and it is "
+            "already the largest bucket below.\n"
+        )
 
     # ---- rerunD
     buckets = taxonomy_buckets()

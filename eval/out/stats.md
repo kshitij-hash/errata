@@ -106,6 +106,28 @@ The comparison sample is allocated proportionally by question type but carries a
 
 Errata is the only arm the re-weighting costs anything (-2.1); the baselines are flat to within a rounding step. The driver is visible in the per-type row: Errata is at 7.1 on single-session-assistant and 0.0 on single-session-preference, and the sample carries *less* of both than the corpus does, while over-weighting multi-session and single-session-user where Errata is strongest. Both tilts push the same way. A fair reading of the headline is therefore **64.6, not 66.7** — a real deduction from the published number, and the baselines do not pay it.
 
+## Out-of-sample sanity holdout
+
+**out-of-sample sanity holdout: 14/20 (all single-session-user — a confirm-only draw, disclosed).**
+
+Twenty histories beyond the comparison draw were ingested as canaries and never scored. Their questions are genuinely out of sample — in the graph, never tuned on, never published. `eval/holdout.py` runs the Errata arm over exactly those and judges with the pinned judge.
+
+**The disclosure matters more than the number.** The canary draw was the first twenty histories in corpus order and the corpus is ordered by type, so all twenty are `single-session-user` — the easiest stratum — and none is a gold-abstention question. It can catch a gross regression; it cannot support a claim about the corpus. Judge spend $0.0231.
+
+| | |
+|---|---:|
+| judged | 20 |
+| CORRECT | 14 |
+| over-abstained (gold has an answer) | 4 |
+| UNPARSEABLE judge reply | 1 |
+| envelope, counting unparseable as accepts | 15/20 |
+
+An unparseable verdict counts as a REJECTION here, so 14/20 is the low end and 15/20 the high end — judge-validation.md requires both whenever that count is non-zero. The one unparseable row answered 'University of Melbourne' against a gold of 'University of Melbourne in Australia'; the judge reply, not the answer, is what failed.
+
+**Read this next to the in-sample number for the same stratum.** Errata scores 100.0 on the 22 single-session-user questions inside the comparison set, against 70-75 here. The gap is one small sample against another and nothing is fitted to the comparison set, so this is not evidence of overfitting — but it is a concrete reason not to read a per-type 100.0 as the stratum's true accuracy, and the strongest argument in this document for buying a real held-out set before quoting per-type numbers.
+
+The 4 misses that were over-abstentions are the same failure mode the taxonomy names `A3_material_lacked_it` — the calibrated abstention firing where the history does hold the answer. That is the honest direction to fail in, and it is already the largest bucket below.
+
 ## Failure taxonomy (rerunD-g5)
 
 150 questions, one row each.
