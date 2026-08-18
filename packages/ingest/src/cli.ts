@@ -6,6 +6,10 @@
 //        --mem-guard-gb <n> (default 4.5; 0 disables) drain-and-restart the local HydraDB container
 //        at a HISTORY BOUNDARY when its RSS crosses n GiB, instead of letting the kernel SIGKILL it
 //        --aliases  one extractor-model call per history bakes entity/attribute aliases into the lexicon
+//        --typed    ADD the deterministic typed-fact pass (money/durations/dates/enumerations) as a
+//        second extractor alongside the selected one. Zero LLM, reads every turn (not just salient
+//        ones). Off by default: it multiplies claim volume, so it is an explicit, measured choice.
+//        Volume can be inspected first, without touching the graph: `errata-typed-dryrun <ids…>`.
 //        --history-suffix <s> ingest into a FRESH history-id namespace (`<question_id><s>`). Every
 //        vertex key is history-scoped, so this is a disjoint subgraph: a clean re-ingest that
 //        leaves existing (funded) data for the same question_id completely intact.
@@ -21,6 +25,7 @@ import { LlmExtractor, makeJudge } from './llm.js';
 import type { ConflictJudge } from './llm.js';
 import { LlmAliasGenerator } from './aliases.js';
 import type { AliasGenerator } from './aliases.js';
+import { TypedExtractor, UnionExtractor } from './typed.js';
 import { ingestHistory } from './pipeline.js';
 
 function arg(name: string, fallback = ''): string {
@@ -126,6 +131,13 @@ async function main(): Promise<void> {
     if (useAliases) aliases = new LlmAliasGenerator(or);
   } else {
     extractor = extractorName === 'replay' ? new ReplayExtractor(arg('replay-dir', 'fixtures/replay')) : new RuleExtractor();
+  }
+  // --typed is purely ADDITIVE: the selected extractor is untouched and the typed pass runs beside
+  // it. Every typed attribute is namespaced `typed_*` → unregistered → MULTI, so nothing it writes
+  // can supersede (or be superseded by) a claim from the pass it joins.
+  if (has('typed')) {
+    if (structuralOnly) console.error('--typed ignored: --structural-only means no claims at all');
+    else extractor = new UnionExtractor([extractor, new TypedExtractor()]);
   }
 
   console.log(`ingesting ${records.length} histor${records.length === 1 ? 'y' : 'ies'} with ${extractor.model}${structuralOnly ? ' (structural only)' : ''}`);

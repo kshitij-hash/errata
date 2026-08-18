@@ -9,6 +9,7 @@
 // The extractor NEVER decides revision edges — that is the conflict step (build.ts / core).
 
 import { readFileSync } from 'node:fs';
+import type { TimeBasis } from '@errata/core';
 import type { History, Turn } from './reader.js';
 import { sessionSalience } from './text.js';
 
@@ -23,6 +24,14 @@ export interface ExtractedClaim {
   turnIdx: number; // positional citation half
   evidenceSpan: string; // ≤160 chars, verbatim
   confidence: number;
+  /** Which pass produced this claim, when several run as a union (see typed.ts UnionExtractor).
+   *  Absent → the run's single extractor model. Lands on `Claim.extractor_model`, which is what
+   *  makes one pass filterable — in or out — at read time without touching any other field. */
+  extractorModel?: string;
+  /** How `eventTimeIso` was arrived at, when it is set. Absent → EXPLICIT (the claim quoted a date).
+   *  RELATIVE means it was COMPUTED from a phrase plus the session anchor. Ignored when
+   *  `eventTimeIso` is '' — the session-date fallback owns that case. */
+  timeBasisHint?: TimeBasis;
 }
 
 export interface Extractor {
