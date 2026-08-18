@@ -71,6 +71,22 @@ pairs at $0. Answer synthesis added $0.0004.
 concurrent write load would flatter or penalise the arm for reasons that have nothing to do with
 it. Accuracy does not depend on wall-clock and is unaffected.
 
+## The full-500 run, priced and declined
+
+Extending the errata arm from the comparison-150 to the full 500-question corpus was planned,
+approved, and stopped by its own cost gate. A 20-history canary ingest, run with the **exact
+shipped extraction configuration**, cost **$1.1489 → $0.0574/history → $20.11 projected** for the
+350 histories not in the sample, against an $11 abort threshold. The published "$4.19 for 150
+histories" turns out to have been **cache-subsidized, not cold**: the prior ingest ledger shows
+16,657 of 25,496 extractor calls (65%) were cache hits, while the canary had zero. Nothing was
+misconfigured — canary output averaged 912 tokens/call against the documented 915, and the canary
+histories' turn counts match the remaining 350 within 2%. One flaw in the canary itself, disclosed:
+the first-20 draw was all `single-session-user` (the corpus is ordered by type); extraction reads
+turns, not questions, so the projection stands, but a stratified draw would have been the better
+experiment. The 20 ingested histories are retained (disjoint `h:<history_id>|` namespaces; the
+comparison-150 were fingerprint-verified unchanged), the spend cap was reverted to $15.00, and
+**every published number remains the 150-question comparison, all arms on the same questions**.
+
 ## Reproducing
 
     uv run errata-eval parity
