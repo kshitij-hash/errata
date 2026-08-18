@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { QUESTIONS, cell, citedAnswers, ctxTokens, cut, pct } from '../../lib/results';
+import { ChainStrip } from '../ChainStrip';
 
 /**
  * Three claims above the fold, each linking to the thing that proves it rather than to a
@@ -28,9 +29,7 @@ export function EvidenceStrip() {
         </span>
       </Link>
       <Link href="/timeline">
-        <b>
-          $350,000 <i>→</i> $400,000
-        </b>
+        <ChainStrip />
         <span>the correction and the thing it corrected are both still queryable — the revision chain, replayed</span>
       </Link>
     </div>

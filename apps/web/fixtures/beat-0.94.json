@@ -1,12 +1,12 @@
 {
   "query": "What was the amount I was pre-approved for when I got my mortgage from Wells Fargo?",
   "embedder": "BAAI/bge-small-en-v1.5",
-  "measured_at": "2026-08-16",
+  "measured_at": "2026-08-18",
   "measured_by": "eval/embed_beat.py",
   "history_id": "852ce960-clean",
   "corpus_question_id": "852ce960",
   "pair": {
-    "cosine": 0.9109,
+    "cosine": 0.683,
     "attribute": "mortgage_preapproval_amount",
     "basis": "cosine between the two claims' evidence spans (bge-small, no query prefix); highest of every superseded↔current pair in this history",
     "superseded": {
@@ -20,13 +20,13 @@
       }
     },
     "current": {
-      "text": "pre-approved for $400,000 from Wells Fargo?",
-      "value": "$400,000",
+      "text": "corrected by the user to $425,000",
+      "value": "$425,000",
       "citation": {
-        "session_id": "answer_3a6f1e82_2",
-        "turn_index": 0,
-        "session_date": "2023-11-30",
-        "claim_id": 6423372368317097
+        "session_id": "user-correction",
+        "turn_index": -1,
+        "session_date": "",
+        "claim_id": 1675875085541886
       }
     }
   },
@@ -47,13 +47,7 @@
       "session_ordinal": 2,
       "superseded": true
     },
-    "current_session": {
-      "cosine": 0.6492,
-      "session_id": "answer_3a6f1e82_2",
-      "session_date": "2023-11-30",
-      "session_ordinal": 36,
-      "superseded": false
-    }
+    "current_session": null
   },
   "candidates": [
     {
@@ -68,14 +62,14 @@
       }
     },
     {
-      "text": "pre-approved for $400,000 from Wells Fargo?",
-      "cosine": 0.6492,
+      "text": "corrected by the user to $425,000",
+      "cosine": 0.0,
       "superseded": false,
       "citation": {
-        "session_id": "answer_3a6f1e82_2",
-        "turn_index": 0,
-        "session_date": "2023-11-30",
-        "claim_id": 6423372368317097
+        "session_id": "user-correction",
+        "turn_index": -1,
+        "session_date": "",
+        "claim_id": 1675875085541886
       }
     }
   ]
