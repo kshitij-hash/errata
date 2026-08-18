@@ -13,8 +13,19 @@ import type { CountValue } from './health.js';
 import { CorrectionBody, CorrectionError, correctionWrite } from './correction.js';
 import { askQuery, beliefQuery, diffQuery } from './query.js';
 import { turnsQuery } from './turns.js';
+import { writeKeyGuard } from './auth.js';
+import { rateLimit } from './ratelimit.js';
 
 export const app = new Hono();
+
+// Both middlewares are registered BEFORE any route below: Hono runs middleware in registration
+// order, and only for the handlers declared after it.
+//
+// Every route, read and write alike, sits behind a generous per-caller cap (ratelimit.ts).
+// Loopback callers are exempt, so the eval harness and the ingest CLI are unaffected by it.
+app.use('*', rateLimit());
+// The one mutating route sits behind a shared secret as well, whenever one is configured (auth.ts).
+app.use('/api/correction', writeKeyGuard());
 
 const ANSWER_PROMPT_SHA256 = createHash('sha256').update(ANSWER_PROMPT).digest('hex');
 
@@ -86,8 +97,14 @@ app.post('/api/ask', async (c) => {
   const out = await askQuery(db(), historyId, body.question, lexicon(historyId), {
     completer: answerCompleter() ?? undefined,
     questionDate: body.question_date,
-    // opt-in diagnostic trace (eval/failure_review.py). Costs two extra reads; never set by the UI.
-    debug: body.debug === true,
+    // Opt-in diagnostic trace (eval/failure_review.py). Costs two extra reads; never set by the UI.
+    //
+    // HONOURED ONLY WHERE ERRATA_DEBUG_OK=1. The trace dumps the verbatim evidence spans of every
+    // ranked claim plus a bounded scan of the whole history's claims — a transcript exfiltration
+    // channel that any caller could open just by setting a body field. It is set on a dev box and
+    // for eval replays; the deployed pod must never set it (deploy/README.md). Where it is not set,
+    // `debug: true` is silently ignored rather than rejected, so an older client keeps working.
+    debug: body.debug === true && process.env.ERRATA_DEBUG_OK === '1',
   });
   return c.json(out);
 });
