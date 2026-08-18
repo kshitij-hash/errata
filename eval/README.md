@@ -73,7 +73,7 @@ design, so this corpus has no held-out slice on which τ could honestly be fitte
 | Overhead @25% | | | | $2.1163 |
 | **Projected total** | | | | **$10.58** |
 
-Projected **$10.58** sits under the **$18.00** hard cap (`spend.hard_cap_usd`). The estimator runs
+Projected **$10.58** sits under the **$15.00** hard cap (`spend.hard_cap_usd`). The estimator runs
 first in every real run and exits non-zero if `projected + already_spent` would breach the cap.
 A judge escalation to `judge_escalation` is a separate contingency (worst case ≈ $22.52), handled
 by the recovery ladder, not folded into the gated projected total. Embedding is $0 (local bge).

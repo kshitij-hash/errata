@@ -351,7 +351,8 @@ run of record because `rerunE-g5` answered from a warm cache and its latency is 
 Sprint incremental **$5.59**: $0.53 exploratory (including the $20.72-projected prompt and the two
 rejected extractors), $4.19 re-extraction + alias pass over 150 histories, $0.01 for 450 answers
 (**$0.000021/question**), $0.87 judge across the two runs. Ingest ledger $8.18 of a $50 cap; eval
-ledger $12.10 of a $13.00 cap. Six disposable probe namespaces (`-g5probe`, `-g5b`, `-g5q`, `-g5q2`, `-g5ds`, `-g5f`)
+ledger $12.10 of the then-$13.00 cap (raised to $15.00 the same day to fund the 120-item
+judge-validation pass — `eval/eval.toml`, `spend.hard_cap_usd`). Six disposable probe namespaces (`-g5probe`, `-g5b`, `-g5q`, `-g5q2`, `-g5ds`, `-g5f`)
 are left in the store: nothing points at them, and there is no deletion path.
 
 The re-extraction was an **append into the same history namespaces**, not a wipe — every old claim
