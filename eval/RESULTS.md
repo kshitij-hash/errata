@@ -1,6 +1,79 @@
 # Results — LongMemEval comparison-150
 
-# CURRENT RUN — `rerunF-wave` (Errata, v4 — computed timeline + span-grouped material), 2026-08-18
+# CURRENT RUN — `rerunJ-arith` (Errata, v5 — computed arithmetic), 2026-08-18
+
+**The all-450 count goes 65.3 → 66.7 and the headline overall-120 goes 58.3 → 60.0, on three
+changed answers and zero regressions.** Multi-session carries it (67.4 → 72.1); every other cell is
+unchanged, including knowledge-update, which was watched specifically and did **not** move (95.8).
+
+| | ALL-450 | Overall-120 | Info. ext. | Multi-session | Temporal | Knowledge upd. | Abst. P / R | answered | answered-prec. | Ctx tok/Q |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Errata — `rerunF-wave` | 65.3 | 58.3 | 44.7 | 61.3 | 51.5 | 94.4 | 0.49 / 0.93 | 279 | 75.3% | 2,521 |
+| **Errata — `rerunJ-arith`** | **66.7** | **60.0** | 44.7 | **67.7** | 51.5 | 94.4 | 0.49 / 0.93 | 279 | **77.4%** | 2,532 |
+
+By the corpus's own `question_type`, over all 450 rows: multi-session **67.4 → 72.1**;
+temporal-reasoning 59.0, knowledge-update 95.8, single-session-user 100.0,
+single-session-assistant 7.1, single-session-preference 0.0 — all unchanged.
+
+Same 150 questions, same seeds, same judge, same answer model, **same answer prompt sha
+`a1ea7ee7…`** (parity-gated before the run). The arm stays bit-identical across seeds. `answered`
+is identical at 279: this bought nothing by answering more, it answered the same questions better.
+
+## What changed
+
+**The graph does the sum, not the prompt** (`packages/core/src/arithmetic.ts`). Same shape as the
+temporal layer, one operation over, and it comes straight out of the typed-pass post-mortem below:
+on `85fa3a3f` all four addends ($15, $5, $10, $20 — gold `$50`) were extracted, retrieved AND
+present in the synthesis window, and the reader answered **$45**. Nothing was missing; four small
+numbers were added wrong. A lexical probe detects a total question, the code reads the currency
+amounts out of the material, and the result is injected as a computed block. No model call.
+
+**The sum is scoped to what the question enumerates, and that is the whole design.** Ordering every
+dated claim is always valid — the ordinals and gaps are true whichever subset the question wanted.
+A SUM is not like that: it asserts a subset. The flagship's window holds seven amounts, including a
+dog bed, a month of kibble and a $1,500 watch, whose blind total is **$1,640**. Relevance does not
+separate them either — the last wanted item scores 0.1958 and the first unwanted one 0.1874, a gap
+of 0.008, which is noise. So the subset is taken from the question's own enumeration, each named
+item is matched to a single claim, and **when the question enumerates nothing, no total is
+published at all** — only the itemised amounts.
+
+Three specifics worth recording, each of which was a bug the tests caught first:
+- **Restatement.** Those four purchases arrive as eight claims. Matching runs over claims, one
+  claim per named item, so a figure restated across several claims is counted once — while two
+  genuinely different items that happen to cost the same are still counted twice (deduplication is
+  a display concern and must never delete an addend).
+- **Multi-word item names.** Splitting the list on every `and` tears "flea **and** tick collar" in
+  half; each half then matched a different restatement of the same $20 claim and the collar was
+  counted twice ($70). Commas delimit the list when present; `and` is only the Oxford conjunction.
+- **The probe excludes a bare "how much was…".** That is the single-value form — it is the flagship
+  demo question ("How much was I pre-approved for by Wells Fargo?"), and injecting a sum there
+  would corrupt the one ask that must stay a single struck-and-superseded figure.
+
+## What did not change
+
+Information-extraction stays at **44.7** and single-session-assistant at **7.1**. Neither is an
+answer-path problem and neither was expected to move here. `d851d5ba` (gold `$3,750`) was fixed
+alongside the flagship, and **zero questions regressed**.
+
+## Spend, and a note on latency
+
+Judging cost **$0.0023** — the run changed three answers and the judge cache replayed the other 447
+pairs at $0. Answer synthesis added $0.0004.
+
+**Latency is deliberately not republished for this run**; the published p50/p95 stays
+`rerunF-wave`'s. Ingest work ran against the same node afterwards, and a latency measured under
+concurrent write load would flatter or penalise the arm for reasons that have nothing to do with
+it. Accuracy does not depend on wall-clock and is unaffected.
+
+## Reproducing
+
+    uv run errata-eval parity
+    uv run errata-eval run --arm errata --seeds 11,22,33 --run-id rerunJ-arith
+    uv run errata-eval judge --run rerunJ-arith
+
+---
+
+# PRIOR RUN — `rerunF-wave` (Errata, v4 — computed timeline + span-grouped material), 2026-08-18
 
 **Headline: the all-450 count goes 61.3 → 65.3 and the headline overall-120 goes 53.3 → 58.3,
 driven almost entirely by temporal reasoning (41.0 → 59.0 by question type, 30.3 → 51.5 on the

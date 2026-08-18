@@ -59,7 +59,7 @@ require_parity = true    # abort if /api/meta disagrees with [models].answer or 
 send_question_date = true
 
 [spend]
-hard_cap_usd   = 15.00   # harness aborts mid-run at this number (raised 2026-08-17 from 13.00 to fund the 120-item judge-validation pass; ledger stood at $12.10)
+hard_cap_usd   = 30.00   # harness aborts mid-run at this number (raised 2026-08-18 from 15.00, approved budget extension, to fund the errata arm's full-500 run — the 350 histories not in the comparison sample must be ingested and their answers judged; ledger stood at $12.55. Previously raised 2026-08-17 from 13.00 for the 120-item judge-validation pass)
 warn_at_usd    = 10.00
 per_arm_cap_usd = { full_context = 8.00, judge = 9.00 }
 ledger_path    = "out/ledger.jsonl"
