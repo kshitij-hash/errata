@@ -7,7 +7,11 @@ import type { Completer, JudgeVerdict } from './llm.js';
 
 class MockCompleter implements Completer {
   calls: { role: string; messages: { role: string; content: string }[] }[] = [];
-  constructor(private readonly byRole: Record<string, unknown>) {}
+  // Field + assignment rather than a parameter property: `erasableSyntaxOnly` forbids the latter.
+  readonly byRole: Record<string, unknown>;
+  constructor(byRole: Record<string, unknown>) {
+    this.byRole = byRole;
+  }
   async complete(args: Parameters<Completer['complete']>[0]): Promise<{ text: string; json?: unknown }> {
     this.calls.push({ role: args.role, messages: args.messages });
     const json = this.byRole[args.role];
@@ -84,20 +88,26 @@ describe('verdictToEdge (conflict-judge mapping)', () => {
 
   it('SUPERSEDES with candidate newer → SUPERSEDES/OK', () => {
     const e = verdictToEdge(v({}), cand, head);
-    expect(e.type).toBe('SUPERSEDES');
-    expect(e.judge_status).toBe('OK');
+    expect(e).not.toBeNull();
+    expect(e!.type).toBe('SUPERSEDES');
+    expect(e!.judge_status).toBe('OK');
   });
   it('SUPERSEDES but incumbent newer → downgraded to CONTRADICTS/LOW_CONF', () => {
-    expect(verdictToEdge(v({ temporal_order: 'INCUMBENT_NEWER' }), cand, head).type).toBe('CONTRADICTS');
+    const e = verdictToEdge(v({ temporal_order: 'INCUMBENT_NEWER' }), cand, head);
+    expect(e).not.toBeNull();
+    expect(e!.type).toBe('CONTRADICTS');
   });
   it('low confidence → CONTRADICTS/LOW_CONF, never dropped', () => {
     const e = verdictToEdge(v({ confidence: 0.3 }), cand, head);
-    expect(e.type).toBe('CONTRADICTS');
-    expect(e.judge_status).toBe('LOW_CONF');
-    expect(e.confidence).toBeGreaterThanOrEqual(0.1);
+    expect(e).not.toBeNull();
+    expect(e!.type).toBe('CONTRADICTS');
+    expect(e!.judge_status).toBe('LOW_CONF');
+    expect(e!.confidence).toBeGreaterThanOrEqual(0.1);
   });
   it('SUPPORTS → SUPPORTS', () => {
-    expect(verdictToEdge(v({ relation: 'SUPPORTS' }), cand, head).type).toBe('SUPPORTS');
+    const e = verdictToEdge(v({ relation: 'SUPPORTS' }), cand, head);
+    expect(e).not.toBeNull();
+    expect(e!.type).toBe('SUPPORTS');
   });
   it('UNRELATED / different attribute → no revision edge (claim appended, edge withheld)', () => {
     expect(verdictToEdge(v({ relation: 'UNRELATED' }), cand, head)).toBeNull();

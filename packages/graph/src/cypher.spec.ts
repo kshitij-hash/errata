@@ -3,10 +3,15 @@ import { lintCypher, lintBatchSize } from './linter.js';
 import * as cy from './cypher.js';
 import { keys, vid } from './ids.js';
 
+// Mirrors packages/ingest NORM_VERSION. Not imported: @errata/ingest depends on @errata/graph, so
+// importing it here would make the package graph circular.
+const NORM_VERSION = 2;
+
 function sampleNodeRow(): Record<string, unknown> {
+  const key = keys.claim('h', 'the user', 'employer', 'globex', 9, 4, NORM_VERSION);
   return {
-    id: vid(keys.claim('h', 'the user', 'employer', 'globex', 9, 4)),
-    key: keys.claim('h', 'the user', 'employer', 'globex', 9, 4),
+    id: vid(key),
+    key,
     history_id: 'h',
     subject: 'the user',
     subject_norm: 'the user',

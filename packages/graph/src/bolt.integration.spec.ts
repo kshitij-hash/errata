@@ -10,6 +10,9 @@ import { GraphClient, keys, vid, claimsForEntityAttribute, revisionEdgesForEntit
 const RUN = process.env.ERRATA_IT === '1';
 const IT = 1_700_000_000;
 const H = 'graph_it';
+// Mirrors packages/ingest NORM_VERSION. Not imported: @errata/ingest depends on @errata/graph, so
+// importing it here would make the package graph circular.
+const NORM_VERSION = 2;
 
 function token(): string {
   return readFileSync('.data/hydra/auth-token', 'utf8').trim();
@@ -21,9 +24,9 @@ describe.skipIf(!RUN)('GraphClient — live round-trip against HydraDB', () => {
   let client: GraphClient;
   const eKey = keys.entity(H, 'the user');
   const eId = vid(eKey);
-  const c1Key = keys.claim(H, 'the user', 'employer', 'acme', 0, 0);
+  const c1Key = keys.claim(H, 'the user', 'employer', 'acme', 0, 0, NORM_VERSION);
   const c1Id = vid(c1Key);
-  const c2Key = keys.claim(H, 'the user', 'employer', 'globex', 1, 0);
+  const c2Key = keys.claim(H, 'the user', 'employer', 'globex', 1, 0, NORM_VERSION);
   const c2Id = vid(c2Key);
 
   beforeAll(async () => {

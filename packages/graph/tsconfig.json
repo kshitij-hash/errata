@@ -6,6 +6,6 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.spec.ts", "dist"],
+  "exclude": ["dist"],
   "references": [{ "path": "../core" }]
 }

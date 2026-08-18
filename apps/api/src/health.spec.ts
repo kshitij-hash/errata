@@ -8,19 +8,23 @@ const HISTORY = 'h1';
 const sessionVid = (ordinal: number): number => vid(keys.session(HISTORY, ordinal));
 
 /** A graph stub that answers by matching the statement's shape, and records everything it ran. */
+interface FakeGraphOpts {
+  sessions?: { ordinal: number; turn_count: number }[];
+  entities?: number[];
+  claims?: number[];
+  speakers?: number;
+  failOn?: RegExp;
+  /** ms each read takes, for budget tests */
+  latencyMs?: number;
+}
+
 class FakeGraph {
   readonly ran: Stmt[] = [];
-  constructor(
-    private readonly opts: {
-      sessions?: { ordinal: number; turn_count: number }[];
-      entities?: number[];
-      claims?: number[];
-      speakers?: number;
-      failOn?: RegExp;
-      /** ms each read takes, for budget tests */
-      latencyMs?: number;
-    } = {},
-  ) {}
+  // Field + assignment rather than a parameter property: `erasableSyntaxOnly` forbids the latter.
+  readonly opts: FakeGraphOpts;
+  constructor(opts: FakeGraphOpts = {}) {
+    this.opts = opts;
+  }
 
   async read(stmt: Stmt): Promise<Record<string, unknown>[]> {
     this.ran.push(stmt);
