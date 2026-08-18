@@ -12,17 +12,21 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Every `uses:` is pinned to a commit sha — tags are mutable and a retagged action is
+# arbitrary code execution with the repo checked out. The trailing comment keeps the
+# human-readable version visible; bump sha and comment together.
+
 jobs:
   verify:
     runs-on: ubuntu-latest # Ubuntu 24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # pnpm/setup@v2 replaces actions/setup-node — it installs pnpm AND Node. The pnpm version
       # comes from the packageManager field, so it is pinned in exactly one place.
       - name: Install pnpm and Node.js
-        uses: pnpm/setup@v2.0.2
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@24
           cache: true
@@ -32,10 +36,32 @@ jobs:
 
       - name: No version ranges # exact-pin enforcement
         run: |
+          fail=0
+
           if grep -rnE '"[^"]+": *"[\^~]' --include=package.json apps packages package.json; then
             echo "::error::caret/tilde range found — every dependency must be pinned exactly"
-            exit 1
+            fail=1
           fi
+
+          # The `catalog:` / `catalogs:` block in pnpm-workspace.yaml holds dependency versions
+          # too, so it gets the same exact-pin bar. Whitelist rather than blacklist: every entry
+          # must be a bare exact semver, which rejects ^ ~ * x, ">=", "1.2.x", "1 || 2", etc.
+          bad=$(
+            awk '/^catalogs?:[[:space:]]*(#.*)?$/{c=1;next} c && /^[^[:space:]#]/{c=0} c' pnpm-workspace.yaml \
+              | sed 's/[[:space:]]*#.*$//' \
+              | tr -d '"\047' \
+              | grep -vE '^[[:space:]]*$' \
+              | grep -vE '^[[:space:]]+[A-Za-z0-9@/._-]+:[[:space:]]*$' \
+              | grep -vE '^[[:space:]]+[A-Za-z0-9@/._-]+:[[:space:]]+[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?[[:space:]]*$' \
+              || true
+          )
+          if [ -n "$bad" ]; then
+            printf '%s\n' "$bad"
+            echo "::error::non-exact version in pnpm-workspace.yaml catalog — every catalog entry must be pinned exactly"
+            fail=1
+          fi
+
+          exit $fail
 
       - name: Lint
         run: pnpm lint
@@ -47,3 +73,25 @@ jobs:
         run: pnpm audit --prod --audit-level high --ignore-registry-errors
       - name: License gate
         run: node scripts/license-gate.mjs
+
+  eval:
+    runs-on: ubuntu-latest # Ubuntu 24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # eval/ is a standalone uv project — no pnpm, no Node. uv reads requires-python
+      # (>=3.13,<3.14) from eval/pyproject.toml and provisions the interpreter itself,
+      # so there is no separate setup-python step.
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: eval/uv.lock
+
+      # Offline and free: no OpenRouter, no network, no torch (the `embed` extra is not
+      # synced; `uv sync` installs deps + the `dev` group only). Tests that need the 277 MB
+      # data-raw/longmemeval_s_cleaned.json corpus — gitignored, absent in CI — skip via the
+      # corpus_path fixture in eval/tests/conftest.py.
+      - name: Eval tests
+        run: cd eval && uv sync && uv run pytest
