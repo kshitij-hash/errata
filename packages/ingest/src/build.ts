@@ -36,6 +36,8 @@ export interface PreparedClaim {
   turnId: string;
   evidenceSpan: string;
   confidence: number;
+  /** per-claim extractor tag; '' → the run's model (see ExtractedClaim.extractorModel) */
+  extractorModel: string;
 }
 
 export interface RevisionEdgeSpec {
@@ -51,8 +53,18 @@ export interface RevisionEdgeSpec {
   provenance: 'EXTRACTED' | 'INFERRED';
 }
 
+/**
+ * A proper-noun VALUE earns its own Entity vertex, so it must actually be a name. The capital-letter
+ * test alone is not enough once a pass emits sentence-shaped values (a list item, a quoted reply):
+ * "Incorporate interval training: Intervals involve alternating…" would mint an Entity per list
+ * item and drown the lexicon in one-off terms. A name is short and carries no sentence punctuation.
+ */
+const MAX_PROPER_NOUN_CHARS = 60;
 function isProperNoun(v: string): boolean {
-  return /^[A-Z][A-Za-z]/.test(v.trim()) && /[A-Za-z]{2}/.test(v) && !/^\$?\d/.test(v.trim());
+  const t = v.trim();
+  if (t.length === 0 || t.length > MAX_PROPER_NOUN_CHARS) return false;
+  if (/[!?;:]|\.\s/.test(t)) return false; // a sentence, not a name ("Inc." keeps its trailing dot)
+  return /^[A-Z][A-Za-z]/.test(t) && /[A-Za-z]{2}/.test(t) && !/^\$?\d/.test(t);
 }
 function etypeOf(norm: string): string {
   if (SELF.has(norm)) return 'SELF';
@@ -67,6 +79,11 @@ export function prepareClaims(history: History, extracted: ExtractedClaim[]): Pr
   for (const s of history.sessions) if (!firstOrdinal.has(s.sessionId)) firstOrdinal.set(s.sessionId, s.ordinal);
 
   const out: PreparedClaim[] = [];
+  // A claim key is a pure function of (history, subject, attribute, value, position), so two passes
+  // that extract the SAME fact from the same turn mint the same vertex. That is the point — but two
+  // identical rows inside ONE batch is an idempotency-key conflict HydraDB rejects, so the union of
+  // extractors is collapsed here, at the one place every pass funnels through.
+  const seenKeys = new Set<string>();
   for (const c of extracted) {
     const subjectNorm = normText(c.subject);
     if (!subjectNorm) continue;
@@ -81,13 +98,15 @@ export function prepareClaims(history: History, extracted: ExtractedClaim[]): Pr
     if (c.eventTimeIso) {
       eventTime = isoToEpoch(c.eventTimeIso);
       eventTimeIso = c.eventTimeIso;
-      timeBasis = 'EXPLICIT';
+      timeBasis = c.timeBasisHint ?? 'EXPLICIT';
     } else {
       eventTime = session?.epoch ?? -1;
       eventTimeIso = session?.dateIso ?? '';
       timeBasis = eventTime > -1 ? 'SESSION_DATE' : 'UNKNOWN';
     }
     const claimKey = keys.claim(history.historyId, subjectNorm, attribute, valueNorm, ordinal, c.turnIdx, NORM_VERSION);
+    if (seenKeys.has(claimKey)) continue;
+    seenKeys.add(claimKey);
     out.push({
       claimId: vid(claimKey),
       claimKey,
@@ -108,6 +127,7 @@ export function prepareClaims(history: History, extracted: ExtractedClaim[]): Pr
       turnId: `${c.sessionId}:${c.turnIdx}`,
       evidenceSpan: c.evidenceSpan,
       confidence: c.confidence,
+      extractorModel: c.extractorModel ?? '',
     });
   }
   return out;
@@ -198,7 +218,8 @@ export function buildClaims(
       attribute: c.attribute, arity: c.arity, attribute_registered: c.registered, value_text: c.value, value_norm: c.valueNorm,
       polarity: c.polarity, event_time: c.eventTime, event_time_iso: c.eventTimeIso, ingest_time: ingestTime,
       time_basis: c.timeBasis, confidence: c.confidence, provenance: 'EXTRACTED', session_id: c.sessionId, turn_id: c.turnId, turn_index: c.turnIdx,
-      evidence_span: c.evidenceSpan, extractor_model: extractorModel, judge_status: 'NONE', run_id: runId,
+      // a claim carrying its OWN extractor tag keeps it (the union pass); otherwise the run's model.
+      evidence_span: c.evidenceSpan, extractor_model: c.extractorModel || extractorModel, judge_status: 'NONE', run_id: runId,
     });
 
     // subject entity + ABOUT(SUBJECT)
