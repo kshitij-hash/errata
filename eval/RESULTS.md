@@ -91,7 +91,8 @@ and the restore verified: `rerunM-restored` differs from `rerunJ-arith` in 0 of 
 
 **Attempt 2 (`rerunN-gated`).** The identified fix — partition the lexicon (typed terms in a
 separate map consulted only when the gate fires) plus an additive quota (30 primary + up to 8 typed
-on gated questions only) — was implemented and is on the `union-extractor` branch with its tests.
+on gated questions only) — was implemented and is retained, with its tests, on the
+`eval/trimmed-wave-temporal-spans` branch.
 Its measurement run never completed: with 271k additional claims live, the serving path became
 unstable under sustained load (intermittent 500s, node restart cycling, host memory pressure), and
 the attempt was **abandoned unmeasured** rather than judged from a degraded system. The graph was
