@@ -71,6 +71,45 @@ pairs at $0. Answer synthesis added $0.0004.
 concurrent write load would flatter or penalise the arm for reasons that have nothing to do with
 it. Accuracy does not depend on wall-clock and is unaffected.
 
+## The gated list-item backfill, attempted twice and abandoned (`rerunL`/`rerunN`)
+
+The last winnable cell — `single-session-assistant`, 7.1% against 92.9% for both baselines — got two
+engineering attempts the same night, and neither was allowed to touch the published number.
+
+**Attempt 1 (`rerunL-gated`).** The typed extractor's `list_item` family (271,544 claims over the
+150 histories, $0 LLM, 0 supersessions) behind two safety mechanisms: an enumeration-intent probe
+(audited: fired on **5 of 150 questions, every one `single-session-assistant`, zero on any other
+type**) and backfill-only admission (typed claims may fill empty window slots, never displace).
+Both worked as specified, and both were beside the point. Backfill-only turned out to be **vacuous**
+— every history's ~450+ primary claims always fill all 30 slots, so `typed_admitted` was 0 on every
+gated question. And the ingest **rewrote the per-history lexicons** (+2,172 terms on one history,
+~400 pre-existing terms resolving to different entity lists), which changed *anchor selection* —
+a step upstream of any claim-level gate. Two non-gated questions were observed as answer-cache
+MISSES, which is proof their material changed. That violated the isolation invariant, so the
+attempt was stopped **before any judging spend**, the graph restored from its pre-apply snapshot,
+and the restore verified: `rerunM-restored` differs from `rerunJ-arith` in 0 of 450 answers.
+
+**Attempt 2 (`rerunN-gated`).** The identified fix — partition the lexicon (typed terms in a
+separate map consulted only when the gate fires) plus an additive quota (30 primary + up to 8 typed
+on gated questions only) — was implemented and is on the `union-extractor` branch with its tests.
+Its measurement run never completed: with 271k additional claims live, the serving path became
+unstable under sustained load (intermittent 500s, node restart cycling, host memory pressure), and
+the attempt was **abandoned unmeasured** rather than judged from a degraded system. The graph was
+restored again; after a full clean restore (object store, lexicons, auth token, and the node's
+local block cache — which is not part of the snapshot and must be cleared or the node serves a
+chimera of old cached blocks over the restored store), the restore was verified over every row:
+**`rerunS-restoreverify` matches `rerunJ-arith` on 450 of 450 answers**, completed via the
+harness's `--resume` in chunks between node restarts.
+
+Total additional spend across both attempts: **$0.00** — the ingest is deterministic, both stops
+happened before judging, and every verification replayed from cache. One incidental find shipped
+regardless: at 316k claims the debug-only history scan tripped HydraDB's 250,000-vertex label-scan
+admission control and failed the whole ask; it now degrades to an empty list (`/api/ask` proper is
+id-anchored and was never affected). The ceiling on this whole line of work is 5 questions
+(~+3.3 points maximum); the other 9 failures in the cell are single-fact recall from assistant
+turns, not enumerations, and a probe loose enough to catch them is the `rerunH` mistake again.
+The published number stays on the build that earned it.
+
 ## The full-500 run, priced and declined
 
 Extending the errata arm from the comparison-150 to the full 500-question corpus was planned,
