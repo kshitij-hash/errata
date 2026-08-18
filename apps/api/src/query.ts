@@ -136,8 +136,13 @@ export async function diffQuery(client: GraphClient, q: DiffQuery): Promise<Reco
   const { claims, edges } = await loadBelief(client, entityVid, q.historyId, normAttr(q.attribute), sink);
   const diff = diffChain(claims, edges, q.from, q.to);
 
-  // cross-validate the in-memory chain against the graph (the pathCount-lie guard):
-  // algo.SPpaths + a bounded enumeration must agree with core.diffChain on the older-claim set.
+  // cross-validate the in-memory chain against the graph (the pathCount-lie guard). Two
+  // independent things must line up, and BOTH are asserted in `agree`:
+  //   1. the bounded enumeration covers every older claim core.diffChain folded into the chain;
+  //   2. algo.SPpaths and that enumeration agree on whether the from-head is reachable from the
+  //      to-head — a procedure reporting paths the enumeration cannot walk (or reporting none
+  //      where the enumeration walks one) is the exact lie this guard exists to catch.
+  // With no from-head SPpaths is not run and (2) is vacuous.
   let validated = { sp_paths: 0, enumerated: 0, agree: true };
   if (diff.to_belief && diff.revisions.length > 0) {
     const toId = diff.to_belief.claim_id;
@@ -148,7 +153,9 @@ export async function diffQuery(client: GraphClient, q: DiffQuery): Promise<Reco
     ]);
     const enumerated = new Set(enumRows.map((r) => Number(r.older_id)));
     const coreOlder = diff.revisions.map((r) => r.older.claim_id);
-    validated = { sp_paths: spRows.length, enumerated: enumerated.size, agree: coreOlder.every((id) => enumerated.has(id)) };
+    const covers = coreOlder.every((id) => enumerated.has(id));
+    const spAgrees = fromId == null || spRows.length > 0 === enumerated.has(fromId);
+    validated = { sp_paths: spRows.length, enumerated: enumerated.size, agree: covers && spAgrees };
   }
 
   return {
