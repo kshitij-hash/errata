@@ -16,9 +16,14 @@ Corpus: `xiaowu0162/longmemeval-cleaned`, 500 questions, 30 abstentions
 ## The four commands
 
     uv run errata-eval sample --n 150 --print-ids        # the seeded comparison set
-    uv run errata-eval parity --config eval.toml         # /api/meta prompt+model parity gate
+    uv run errata-eval parity                            # /api/meta prompt+model parity gate
     uv run errata-eval run --arm errata --seeds 11,22,33 # run an arm over a set
+    uv run errata-eval judge --run <run_id>              # judge it (cached; unchanged rows are $0)
     uv run errata-eval report --runs <run_id>            # emit out/report/table.md + caption
+
+`--config` is a top-level flag (`errata-eval --config eval.toml parity`), not a per-subcommand one.
+`judge` is content-addressed like every other pass: re-judging a run in which only a few answers
+moved charges only for the pairs that actually changed, and `--cache-dir ''` disables that.
 
 ### Judge validation (three commands, two committed artifacts)
 
@@ -62,21 +67,31 @@ design, so this corpus has no held-out slice on which τ could honestly be fitte
 `uv run errata-eval estimate` projects per-arm and total USD from `sample-150.json`, the pinned
 `prices.toml`, and a per-arm token model, before any spend. The answer model
 `qwen/qwen3.7-flash` prices all three answer arms; the judge line prices the configured
-`judge_primary`. Current projection:
+`judge_primary`. Current projection, regenerated from the live estimator:
 
 | Line | Calls | In (M tok) | Out (M tok) | USD |
 |---|---:|---:|---:|---:|
-| Arm A — Errata (500 Q × 3) | 1,500 | 3.00 | 0.30 | $0.1290 |
-| Arm B — full-context (150 Q × 3) | 450 | 54.97 | 0.09 | $1.6608 |
-| Arm C — naive top-k (500 Q × 3) | 1,500 | 9.00 | 0.30 | $0.3090 |
+| Arm A — Errata (500 Q × 3) | 1,500 | 3.00 | 0.30 | $0.4170 |
+| Arm B — full-context (150 Q × 3) | 450 | 54.97 | 0.09 | $5.5321 |
+| Arm C — naive top-k (500 Q × 3) | 1,500 | 9.00 | 0.30 | $1.0170 |
 | Judge (3,180 non-abstention rows) | 3,180 | 2.23 | 0.19 | $6.3664 |
-| Overhead @25% | | | | $2.1163 |
-| **Projected total** | | | | **$10.58** |
+| Overhead @25% | | | | $3.3331 |
+| **Projected total** | | | | **$16.67** |
 
-Projected **$10.58** sits under the **$18.00** hard cap (`spend.hard_cap_usd`). The estimator runs
-first in every real run and exits non-zero if `projected + already_spent` would breach the cap.
-A judge escalation to `judge_escalation` is a separate contingency (worst case ≈ $22.52), handled
-by the recovery ladder, not folded into the gated projected total. Embedding is $0 (local bge).
+**This projection is OVER the $15.00 hard cap (`spend.hard_cap_usd`), so `estimate` exits 3.** That
+is the gate working rather than a defect, and the figure is not what the campaign cost: the
+estimator prices a COLD, cache-empty run of all three arms from nothing, while the published runs
+were produced incrementally against a warm on-disk LLM cache. Actual spend is **$12.53** on the
+eval ledger (`out/ledger.jsonl`), plus $8.21 on Errata's separate ingest ledger.
+
+The two numbers answer different questions — `estimate` answers "what would reproducing all of this
+from scratch cost today", the ledger answers "what has this actually cost" — and the earlier version
+of this table ($10.58 under an $18.00 cap) matched neither, having drifted from both the prices and
+the cap. Reproducing from a cold cache needs `spend.hard_cap_usd` raised to ≈$20 or the arms run one
+at a time; the cap has deliberately NOT been raised here, because a spend ceiling is a budget
+decision rather than a bookkeeping one. A judge escalation to `judge_escalation` is a further
+contingency (worst case ≈ $28.60), handled by the recovery ladder, not folded into the gated
+projected total. Embedding is $0 (local bge).
 
 ## Notes
 

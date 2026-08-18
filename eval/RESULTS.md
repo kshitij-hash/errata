@@ -1,4 +1,169 @@
-# Results — LongMemEval comparison-150 (2026-08-17)
+# Results — LongMemEval comparison-150
+
+# CURRENT RUN — `rerunF-wave` (Errata, v4 — computed timeline + span-grouped material), 2026-08-18
+
+**Headline: the all-450 count goes 61.3 → 65.3 and the headline overall-120 goes 53.3 → 58.3,
+driven almost entirely by temporal reasoning (41.0 → 59.0 by question type, 30.3 → 51.5 on the
+ability cut) — the arm's weakest named category before this run. Answered-precision rose at the
+same time, 70.3% → 75.3%, so the number was not bought by answering more.** Context cost went the
+wrong way, 2,095 → 2,521 tokens/question, and three questions regressed; both are itemised below.
+
+The section below this one (`rerunD-g5`) stays exactly as published — it is the prior, and the
+cross-arm baselines `rerunB-nothink` / `rerunC-nothink` are unchanged and were not re-run.
+
+| | ALL-450 | Overall-120 | Info. ext. | Multi-session | Temporal | Knowledge upd. | Abst. P / R | answered | answered-prec. | Ctx tok/Q |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Errata — `rerunD-g5` | 61.3 | 53.3 | 44.7 | 61.3 | 30.3 | 100.0 | 0.47 / 0.93 | 273 | 70.3% | 2,095 |
+| **Errata — `rerunF-wave`** | **65.3** | **58.3** | 44.7 | 61.3 | **51.5** | 94.4 | **0.49** / 0.93 | 279 | **75.3%** | 2,521 |
+
+By the corpus's own `question_type`, over all 450 rows:
+
+| question_type | n | `rerunD-g5` | `rerunF-wave` | full-context | naive |
+|---|---:|---:|---:|---:|---:|
+| single-session-user | 66 | 100.0% | 100.0% | 100.0% | 77.3% |
+| multi-session | 129 | 67.4% | 67.4% | 46.5% | 47.3% |
+| **temporal-reasoning** | 117 | 41.0% | **59.0%** | 23.9% | 33.3% |
+| knowledge-update | 72 | 100.0% | 95.8% | 62.5% | 87.5% |
+| single-session-assistant | 42 | 7.1% | 7.1% | 92.9% | 92.9% |
+| single-session-preference | 24 | 0.0% | 0.0% | 20.8% | 0.0% |
+
+Same 150 questions, same three seeds (11/22/33), same judge model and judge prompt sha, same answer
+model, and **the same answer prompt — sha `a1ea7ee7…`, verified by the parity gate before the run**.
+Both changes below are changes to the MATERIAL, not to the prompt template, which is what keeps the
+three arms comparable. The arm remains bit-identical across the three seeds: 0 of 150 questions
+changed answer or verdict between seeds, which is what its ±0.0 means.
+
+## What changed
+
+**1. The graph does time, not the prompt** (`packages/core/src/temporal.ts`). Claims already carried
+`event_time`; the material already printed each claim's date. What was missing was the *arithmetic*
+— ordering, gaps, ages, elapsed spans were left for the answer model to do in its head from a column
+of ISO strings. A cheap lexical intent probe (no model call — the answer path stays model-free apart
+from the one synthesis seam) decides whether a question is asking about time, and if it is, the code
+folds the retrieved claims into a timeline and injects it into the material: chronological ordinals,
+whole-day gaps between consecutive events, each event's exact age at the moment the question was
+asked, EARLIEST/LATEST markers, and the elapsed span in days and in calendar units. Synthesis is
+left to phrase a number the code computed.
+
+It degrades rather than invents. Claims whose `event_time` is `-1` are **counted and never placed** —
+the extractor writes `-1` when it could not date a claim, and free-text values like "three months"
+are common — and a window with fewer than two dated claims renders no timeline at all.
+
+**2. Span-grouped material.** The evidence span was *already* in the material and has been since v2
+synthesis; the claim that it was missing would have been wrong. What was actually wrong is that the
+same span was printed once per claim extracted from it: measured over the comparison-150, **148 of
+150 windows repeated at least one span, and 729 of 4,500 window slots (16.2%) were duplicate
+quotes**. The span is now the unit and its claims hang off it — one verbatim quote, every value read
+out of it, `attr: value | attr: value`. No claim is dropped and no value is lost.
+
+**3. `ERRATA_MATERIAL_MAX = 45` was tested and rejected** (`rerunG-max45`, judged in full). Widening
+the window from 30 to 45 claims made things **worse, not better: 65.3 → 60.0 on the all-450 count**,
+below even the 61.3 prior, with answered-precision falling 75.3% → 66.3% while answered rose 279 →
+285 and context rose to 3,670 tokens. The extra claims are distractors, not evidence. The window is
+not too small, and the largest remaining failure bucket ("synthesis saw material that did not
+contain the answer", 27 of 150) is therefore an extraction-recall problem and not a retrieval-width
+one. The shipped value stays 30.
+
+## What got worse, and why
+
+**Context cost rose 20%, 2,095 → 2,521 tokens/question.** Span grouping *saves* tokens; the timeline
+spends more than the grouping saves, on the ~1/3 of questions that trigger it. The timeline's labels
+are truncated to 100 characters precisely because it is an index over material printed in full
+directly above it, not a second copy. Errata is still at 1/44th of the full-context arm's 109,943.
+
+**Three questions regressed (9 rows), against nine that improved (27 rows).** Each was traced:
+
+- `a2f3aa27` (knowledge-update, "How many followers do I have on Instagram now?", gold 1300 → now
+  answers 1250). **No timeline is involved** — bare "now" does not trip the intent probe — so this
+  is span grouping alone. Both candidate claims sit on the *same* date (2023-05-25) in different
+  sessions, so chronology cannot separate them, and the losing claim's verbatim span happens to read
+  "I've got 1250 followers on Instagram now", which lexically mirrors the question. Grouping removed
+  the duplicate lines that had previously acted as an implicit vote for the later value. The honest
+  reading: on same-day supersession the material ordering is doing work the *revision chain* should
+  be doing, and the synthesis path does not consult the resolved belief at all. That is a real
+  architectural gap, now visible instead of accidentally masked.
+- `2788b940` and `2e6d26dc` (multi-session, both counting questions: "how many fitness classes",
+  "how many babies were born" — both gold 5, both now answer 4). Grouping compressed 30 claims into
+  25–26 lines, and a model counting material entries counts fewer of them. Deduplicating evidence
+  and preserving an enumeration cue are in direct tension here.
+
+**knowledge-update fell 100.0% → 95.8%** — that is exactly the one question above, times three
+seeds, in a 24-question cell. It is one question, and it is in the category the table's thesis rests
+on, so it is stated rather than averaged away.
+
+**Information-extraction did not move at all (44.7%).** This is the honest headline of change 2: the
+spans were already there, so making them non-redundant did not add facts that were never extracted.
+An independent hard-subset diagnostic reached the same conclusion from the other direction — a
+reader swap produced 0/5 accuracy flips, and dropped facts are recoverable by plain regex over the
+raw turns. **Extraction recall, not the answer path, is the binding ceiling on this cell**, which is
+what `rerunG-max45` also says.
+
+## τ, unchanged and still not fitted
+
+τ stays at its a-priori **0.35** for the reason the section below gives: all 30 of the corpus's
+abstention questions are inside the comparison set by design, so no held-out slice exists on which
+it could honestly be fitted. The sweep (`uv run python tau_sweep.py --run rerunF-wave`, written to
+`out/tau-sweep-wave.md`) shows the plateau survived the change — overall is flat at 65.3 across
+τ ∈ [0.20, 0.35] and only starts falling at 0.40:
+
+| τ | overall % | answered | answered-precision % | abstention P | abstention R |
+|---:|---:|---:|---:|---:|---:|
+| 0.20 | 65.3 | 279 | 75.3 | 0.49 | 0.93 |
+| 0.30 | 65.3 | 279 | 75.3 | 0.49 | 0.93 |
+| 0.35 ←shipped | 65.3 | 276 | 76.1 | 0.48 | 0.93 |
+| 0.40 | 64.0 | 270 | 75.6 | 0.47 | 0.93 |
+| 0.45 | 62.0 | 255 | 76.5 | 0.43 | 0.93 |
+| 0.50 | 58.0 | 219 | 79.5 | 0.38 | 0.97 |
+
+## Failure taxonomy, before → after
+
+`out/failure-taxonomy-wave.md`, same script and same buckets as the prior run:
+
+| bucket | `rerunD-g5` | `rerunF-wave` |
+|---|---:|---:|
+| answered and CORRECT | 64 | **70** |
+| abstained · material lacked the answer | 27 | 27 |
+| abstained · the answering claim WAS in the material (over-refusal) | 4 | **2** |
+| answered wrong · a gold-supporting claim was in the material | 7 | **5** |
+| answered wrong · no claim in the history supports the gold answer | 15 | 12 |
+| answered a gold-abstention question | 2 | 2 |
+| no anchor resolved / no attribute fit / below τ | 0 / 0 / 0 | 0 / 0 / 0 |
+
+## Two harness defects found and fixed while running this
+
+Both were found because this run needed them, and both are disclosed because they touch published
+numbers:
+
+- **`errata-eval judge` never used the LLM cache.** Alone among the subcommands it built its client
+  without a `cache_dir`, so re-judging a run in which a handful of answers moved paid full price for
+  every unchanged `(question, answer)` pair. It now takes the same `--cache-dir` flag as
+  `judge-validate`. Measured effect on this wave: the first re-judge cost $0.1444 and the second,
+  against a warm cache, cost **$0.0319** for the same 450 rows. Verdicts are unaffected — the judge
+  runs at temperature 0 and the key is the filled judge prompt.
+- **The generated caption claimed the judge's false-accept rate was "not yet measured".** It has been
+  measured at **8.3% (5/60)** and published in `judge-validation.md` since the control-set revision,
+  but the figure only reached `out/report/table.md` if someone remembered to pass `--far`. The
+  caption now defaults to the committed `out/judge-controls-scored.jsonl`, so it cannot drift from
+  the measurement.
+
+## Spend
+
+This wave cost **$0.2047** all-in: $0.1763 judging (two full re-judges, 900 rows) on the eval
+ledger and $0.0284 of synthesis on Errata's own ledger across the three 450-row runs. Eval ledger
+now $12.5256; ingest ledger $8.2126 against its $50 cap.
+
+## Reproducing
+
+    uv run errata-eval parity                                        # prompt+model gate, before spend
+    uv run errata-eval run --arm errata --seeds 11,22,33 --run-id rerunF-wave
+    uv run errata-eval judge --run rerunF-wave
+    uv run errata-eval report --runs rerunF-wave rerunB-nothink rerunC-nothink
+    uv run python tau_sweep.py --run rerunF-wave --out out/tau-sweep-wave.md
+    uv run python failure_review.py --run rerunF-wave --compare naive=rerunC-nothink --out out/failure-taxonomy-wave.md
+
+---
+
+# PRIOR RUN — `rerunD-g5` (2026-08-17)
 
 Runs: `rerunD-g5` (Errata, v3 — span-aware retrieval + broadened extraction) · `rerunB-nothink`
 (full-context) · `rerunC-nothink` (naive top-k). Total eval spend $12.35 reported (judge
