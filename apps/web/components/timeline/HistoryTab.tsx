@@ -6,10 +6,6 @@ import type { Chain } from '../../lib/chain';
 import { citeLabel, monthStamp, prefersReducedMotion, stamp } from '../../lib/format';
 
 const AUTOPLAY_MS = 5000;
-const AUTOPLAY_KEY = 'errata.timeline.autoplayed';
-
-/** decided once per page load — StrictMode double-invokes the effect that consumes the flag */
-let autoplayDecided: boolean | null = null;
 
 interface Span {
   t0: number;
@@ -28,15 +24,19 @@ function spanOf(chain: Chain): Span {
 const atOf = (s: Span, v: number): number => s.t0 + ((s.t1 - s.t0) * v) / 100;
 
 /**
- * The hybrid Timeline: a big rewriting belief atop the ledger chain, autoplaying ~5s on
- * first entry per visit and then handing the playhead over. Every entry, strike, edge label and
- * citation is real claim data — births are the claims' own event_times.
+ * The hybrid Timeline: a big rewriting belief atop the ledger chain. Every entry, strike, edge
+ * label and citation is real claim data — births are the claims' own event_times.
+ *
+ * It OPENS RESOLVED — at today, with the current belief and every strike already on screen — and
+ * the transport button replays the rewrite. It used to autoplay from t=0 on entry, which meant the
+ * first ~5 seconds of the page a judge sees read "— nothing yet —" over an empty ledger. The
+ * animation is the argument, but it is worth nothing if the resting state is blank.
  */
 export function HistoryTab({ chain }: { chain: Chain }) {
   const span = useMemo(() => spanOf(chain), [chain]);
-  const [v, setV] = useState(0);
+  const [v, setV] = useState(100);
   const [playing, setPlaying] = useState(false);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState(true);
   const raf = useRef<number | null>(null);
   const start = useRef<{ t: number; from: number } | null>(null);
 
@@ -56,6 +56,13 @@ export function HistoryTab({ chain }: { chain: Chain }) {
   const play = useCallback(
     (from: number) => {
       if (raf.current) cancelAnimationFrame(raf.current);
+      // reduced motion gets the end state, not a 5s rewrite it did not ask for
+      if (prefersReducedMotion()) {
+        setV(100);
+        setPlaying(false);
+        setDone(true);
+        return;
+      }
       start.current = { t: performance.now(), from };
       setV(from);
       setPlaying(true);
@@ -69,22 +76,16 @@ export function HistoryTab({ chain }: { chain: Chain }) {
     setPlaying(false);
   }, []);
 
-  // autoplay-on-entry, once per visit; reduced motion lands on "today" immediately
+  // opens at today; a switched attribute re-lands there rather than rewinding to an empty ledger
   useEffect(() => {
-    if (autoplayDecided === null) {
-      autoplayDecided = !prefersReducedMotion() && sessionStorage.getItem(AUTOPLAY_KEY) !== '1';
-      sessionStorage.setItem(AUTOPLAY_KEY, '1');
-    }
-    if (!autoplayDecided) {
-      setV(100);
-      setDone(true);
-      return;
-    }
-    play(0);
+    if (raf.current) cancelAnimationFrame(raf.current);
+    setV(100);
+    setPlaying(false);
+    setDone(true);
     return () => {
       if (raf.current) cancelAnimationFrame(raf.current);
     };
-  }, [play]);
+  }, [chain]);
 
   const at = atOf(span, v);
   const born = chain.claims.filter((c) => c.event_time <= at);
