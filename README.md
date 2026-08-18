@@ -22,19 +22,20 @@ repository starts on or after 2026-08-12, per the hackathon rules.
 <!--
   ══ NUMBERS BLOCK — the only place in this README that carries eval constants. ══
   Source of truth: eval/RESULTS.md. Never retype a number from it anywhere else in this file.
-  Runs of record: rerunD-g5 (Errata) · rerunB-nothink (full-context) · rerunC-nothink (naive top-k).
-  τ sweep: rerunE-g5. Judge validation: eval/judge-validation.md (committed 120-item control set).
+  Runs of record: rerunF-wave (Errata) · rerunB-nothink (full-context) · rerunC-nothink (naive top-k).
+  Prior Errata run: rerunD-g5. τ sweep: rerunF-wave. Judge validation: eval/judge-validation.md
+  (committed 120-item control set).
   If a later eval wave changes the table, refresh THIS BLOCK ONLY and nothing else moves.
 -->
 
-**Errata leads overall — 53.3 vs 47.5 (full-context) and 45.8 (naive top-k RAG) — at 1/52nd the
-context tokens, 1/523rd the $/question and 31× lower p50 latency than reading the full history, with
+**Errata leads overall — 58.3 vs 47.5 (full-context) and 45.8 (naive top-k RAG) — at 1/44th the
+context tokens, 1/428th the $/question and 31× lower p50 latency than reading the full history, with
 a citation on every answer.** It gets there while abstaining *more accurately* than full-context
-(P 0.47 / R 0.93 against 0.58 / 0.80) rather than by answering more often.
+(P 0.49 / R 0.93 against 0.58 / 0.80) rather than by answering more often.
 
 | Arm | Overall | Info. extraction | Multi-session | Temporal | Knowledge update | Abstention P / R | Ctx tok/Q | $/Q | p50 / p95 (s) |
 |---|---|---|---|---|---|---|---|---|---|
-| **Errata** | **53.3 ± 0.0** | 44.7 ± 0.0 | **61.3 ± 0.0** | **30.3 ± 0.0** | **100.0 ± 0.0** | 0.47 / 0.93 | **2,095** | **$0.0000** | **0.26 / 1.22** |
+| **Errata** | **58.3 ± 0.0** | 44.7 ± 0.0 | **61.3 ± 0.0** | **51.5 ± 0.0** | **94.4 ± 0.0** | 0.49 / 0.93 | **2,521** | **$0.0000** | **0.26 / 1.28** |
 | Full-context baseline | 47.5 ± 0.8 | **80.7 ± 1.5** | 35.5 ± 3.2 | 13.1 ± 1.7 | 61.1 ± 0.0 | 0.58 / 0.80 | 109,943 | $0.0110 | 8.00 / 8.68 |
 | Naive top-k RAG (k=10) | 45.8 ± 0.0 | 63.2 ± 0.0 | 29.0 ± 0.0 | 21.2 ± 0.0 | 83.3 ± 0.0 | 0.41 / 0.98 | 4,665 | $0.0005 | 0.86 / 1.34 |
 
@@ -43,8 +44,8 @@ a citation on every answer.** It gets there while abstaining *more accurately* t
 (11/22/33) at temperature 0; the **same answer model and the same answer prompt sha across all three
 arms**, verified against the deployed API before any spend. The four ability columns score the 120
 non-abstention questions; abstention is scored deterministically by exact match and never reaches
-the judge. Counting all 450 rows including abstention, the same runs read **Errata 61.3, naive 56.2,
-full-context 54.0**. Errata's `$/Q` is $0.000021, not zero — the column rounds to four decimals.
+the judge. Counting all 450 rows including abstention, the same runs read **Errata 65.3, naive 56.2,
+full-context 54.0**. Errata's `$/Q` is $0.0000257, not zero — the column rounds to four decimals.
 
 **Honest gap, kept next to the headline.** Single-fact **information extraction is 44.7 against
 full-context's 80.7** — the one column Errata loses, and it loses it badly. Cut by the corpus's own
@@ -54,9 +55,11 @@ question types, the entire remaining deficit is 22 of 150 questions:
 the fact is not in the graph to retrieve — and the first one is a **priced** decision, not a
 modelling result: lifting the extraction cap that drops long enumerated assistant answers was
 measured at **$20.72** to re-extract the 150 histories against the **$4.19** the shipped
-configuration cost. Temporal is the one regression against the previously published run — 10 of 33
-non-abstention temporal questions correct, down from 12 — inside the noise of a 33-question cell,
-but a regression, and printed rather than dropped.
+configuration cost — and a $0 deterministic recall pass aimed at the same gap was **built, applied,
+measured at 62.7 (below the shipped 65.3), reverted, and the revert verified answer-for-answer**;
+the account is in `eval/RESULTS.md`. Against the previously published run, knowledge-update
+regressed 100.0 → 94.4 and context cost rose 20% (2,095 → 2,521 tokens/question): three questions
+regressed against nine improved, each one traced, printed rather than dropped.
 
 **The judge was validated before the table was believed.** False-accept rate **8.3%** (5/60) on
 committed perturbed negatives against a ≤10% gate — **15.0%** before a disclosed control-set
@@ -68,8 +71,8 @@ table's thesis rests on, so the judge cannot be fooled by an old value presented
 
 **τ was not fitted.** The abstention gate stays at its a-priori **0.35**; every abstention-positive
 question the corpus owns is inside the reported test set, so a fitted τ would be in-sample and
-saying otherwise would be false. A sensitivity sweep ships instead — overall is flat at 61.3 across
-τ ∈ [0.20, 0.40], a plateau rather than a knife edge.
+saying otherwise would be false. A sensitivity sweep ships instead — overall is flat at 65.3 across
+τ ∈ [0.20, 0.35], a plateau rather than a knife edge.
 
 Full table, caption, before/after, and the failure taxonomy: [`eval/RESULTS.md`](eval/RESULTS.md) ·
 [`eval/judge-validation.md`](eval/judge-validation.md) ·

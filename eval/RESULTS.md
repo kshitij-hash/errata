@@ -98,6 +98,31 @@ reader swap produced 0/5 accuracy flips, and dropped facts are recoverable by pl
 raw turns. **Extraction recall, not the answer path, is the binding ceiling on this cell**, which is
 what `rerunG-max45` also says.
 
+## A $0 recall pass, applied and rejected (`rerunH-typed`)
+
+The obvious next move was tried, in full, the same night. A deterministic typed-fact extractor
+(branch `union-extractor`: regex passes for money, durations, absolute dates, times and
+relative-time phrases over **every** turn — including the ones the salience filter drops — with
+relative phrases resolved to absolute `event_time` against the session date, every claim namespaced
+`typed_*` so it is structurally unable to create or receive a `SUPERSEDES` edge, and every claim
+tagged `extractor_model` so the whole pass is filterable at read time) appended **34,684 claims to
+the 150 histories at $0 LLM cost**, with 0 supersessions minted and the graph snapshotted first.
+
+**It made the score worse: 65.3 → 62.7 on the all-450 count**, answered-precision 75.3% → 68.0%.
+The mechanism is the same one `rerunG-max45` exposed: typed claims took 27% of the 30-claim material
+window and displaced better evidence. Information-extraction did not move (44.7). And on the case
+that motivated the whole pass — the four-addend "how much altogether" question whose addends were
+missing from an earlier build — the current extraction **already had all four in the window**, and
+the answer model summed $15+$5+$10+$20 to $45. The residual failure on that cell is **arithmetic in
+the reader, not recall in the graph**, and more claims cannot fix it.
+
+So it was reverted, and the revert is verified rather than asserted: the graph was restored from the
+pre-apply snapshot, and `rerunI-restored` differs from `rerunF-wave` in **0 of 450 answers**,
+re-scoring an identical 65.3 from a full judge-cache replay at $0. The pass itself is retained on
+its branch with its tests; a future configuration could re-admit it behind a read-time
+`extractor_model` filter with its own retrieval budget, but that is a design change, not tonight's
+patch. The published number stays on the build that earned it.
+
 ## τ, unchanged and still not fitted
 
 τ stays at its a-priori **0.35** for the reason the section below gives: all 30 of the corpus's
