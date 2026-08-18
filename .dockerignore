@@ -1,0 +1,31 @@
+# .dockerignore — keeps the pod build context small and out of stray secrets/state.
+# Mirrors .gitignore; the pod build (deploy/pod/Dockerfile) COPYs only committed source.
+node_modules
+**/node_modules
+dist
+**/dist
+*.tsbuildinfo
+**/*.tsbuildinfo
+**/tsconfig.tsbuildinfo
+.next
+**/.next
+coverage
+*.log
+.data
+backups
+.env
+.env.*
+!.env.example
+var
+data-raw
+hydradb-data
+s3cache
+.claude
+.git
+.github
+eval
+apps/web/.next
+apps/web/app
+apps/web/public
+apps/web/fixtures
+deploy/pod/*.md
