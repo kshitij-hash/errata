@@ -376,13 +376,26 @@ export async function askQuery(client: GraphClient, historyId: string, question:
 
   // diagnostic replay only: the whole history's claims, so the taxonomy can separate a ranking
   // miss (the claim exists but never reached the material) from an extraction gap (it never existed).
-  const historyClaims = opts.debug
-    ? (await run(client, claimsForHistory(historyId))).map((r) => ({
+  //
+  // It is a LABEL SCAN, and a label scan's candidate set is the whole label (gauntlets G5). The
+  // typed backfill added 271,544 Claim vertices and pushed that label past HydraDB's admission
+  // control ceiling -- `cypher_vertex_label_index_candidates ... actual 250001 exceeds limit
+  // 250000` -- which was failing the ENTIRE ask with a 500. A diagnostic must never do that, so it
+  // now degrades to an empty list and the taxonomy's extraction-gap denominator is simply
+  // unavailable at this store size. `/api/ask` proper is id-anchored and never scans, which is why
+  // the eval path (debug off) was never affected.
+  let historyClaims: { attribute: string; value: string; span: string }[] = [];
+  if (opts.debug) {
+    try {
+      historyClaims = (await run(client, claimsForHistory(historyId))).map((r) => ({
         attribute: String(r.attribute),
         value: String(r.value),
         span: String(r.evidence_span ?? ''),
-      }))
-    : [];
+      }));
+    } catch {
+      historyClaims = [];
+    }
+  }
   const dbg = {
     best_attribute: null as string | null,
     best_score: 0,
