@@ -176,8 +176,6 @@ app.get('/api/meta/health', async (c) => {
     node_counts,
     counts_mode: deep ? 'id_anchored_deep' : 'id_anchored',
     counts_complete,
-    id_collisions: 0,
-    full_scan_warnings: 0,
   });
 });
 
