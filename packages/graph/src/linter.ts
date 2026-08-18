@@ -1,9 +1,10 @@
 // packages/graph/src/linter.ts — the subset linter .
 //
 // HydraDB implements a DELIBERATE OpenCypher subset. Every builder's output is fed through this
-// linter (a vitest property test asserts it), and it runs in dev (throws) and prod (warns +
-// counter on /api/meta/health). Messages are the engine's own error strings, so a violation reads
-// the same in a log as it would at the server.
+// linter (a vitest property test asserts it). There is one mode: `assertCypher` throws, in dev and
+// in prod alike — a violation is a build-time bug, not a runtime metric, and nothing counts or
+// reports them. Messages are the engine's own error strings, so a violation reads the same in a
+// log as it would at the server.
 
 export interface LintFinding {
   rule: string;

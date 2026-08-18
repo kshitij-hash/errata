@@ -6,8 +6,10 @@
 // single choke point in bolt.ts (Day-0 law: a plain JS number is sent as a Bolt Float and HydraDB
 // rejects id fields). `INTEGER_KEYS` is the shared list of keys that must be Bolt integers.
 //
-// House rules enforced by the linter: read anchored on {id}; every interior node named; no WITH;
-// vertex upsert = MERGE on id then SET; explicit max hop on all variable-length patterns.
+// House rules enforced by the linter: every interior node named; no WITH; vertex upsert = MERGE on
+// id then SET; explicit max hop on all variable-length patterns.
+// Anchoring reads on {id} is a convention, NOT a linter rule: the diagnostic-only label scans
+// (claimsForHistory, countLabel) are deliberate exceptions, so no such rule exists.
 
 export interface Stmt {
   text: string;
@@ -122,36 +124,6 @@ export function revisionEdgesForEntity(
   return { text, params: { entity_vid: entityVid, history_id: historyId, attribute } };
 }
 
-// ---------- read path: as-of  ----------
-
-/** As-of candidate claims, filtered server-side by the time axis (the same fold runs in core). */
-export function asOfClaims(
-  entityVid: number,
-  historyId: string,
-  attribute: string,
-  at: number,
-  axis: 'event' | 'ingest',
-): Stmt {
-  const timeFilter =
-    axis === 'event'
-      ? `  AND c.event_time <= $at\n  AND c.event_time > -1\n`
-      : `  AND c.ingest_time <= $at\n`;
-  const text =
-    `MATCH (c:Claim)-[:ABOUT]->(e:Entity {id: $entity_vid})\n` +
-    `WHERE c.history_id = $history_id\n` +
-    `  AND c.attribute = $attribute\n` +
-    timeFilter +
-    `RETURN c.id AS claim_id, c.value_text AS value, c.value_norm AS value_norm,\n` +
-    `       c.attribute AS attribute, c.arity AS arity, c.polarity AS polarity,\n` +
-    `       c.event_time AS event_time, c.ingest_time AS ingest_time, c.confidence AS confidence,\n` +
-    `       c.provenance AS provenance, c.judge_status AS judge_status,\n` +
-    `       c.session_id AS session_id, c.turn_id AS turn_id, c.turn_index AS turn_index,\n` +
-    `       c.evidence_span AS evidence_span\n` +
-    `ORDER BY event_time\n` +
-    `LIMIT 500`;
-  return { text, params: { entity_vid: entityVid, history_id: historyId, attribute, at } };
-}
-
 // ---------- read path: diff  ----------
 
 /** algo.SPpaths over SUPERSEDES between two claim heads. maxLen/pathCount are explicit literals. */
@@ -193,32 +165,6 @@ export function claimsForEntities(anchorVids: number[], historyId: string): Stmt
   const params: Record<string, unknown> = { history_id: historyId };
   anchors.forEach((vid, i) => (params[`a${i}`] = vid));
   return { text, params };
-}
-
-/** Entity prefix lookup (fallback when the lexicon misses; never on the demo path). */
-export function entityPrefix(historyId: string, prefix: string): Stmt {
-  const text =
-    `MATCH (e:Entity)\n` +
-    `WHERE e.history_id = $history_id\n` +
-    `  AND e.norm_name STARTS WITH $prefix\n` +
-    `RETURN e.id AS entity_vid, e.name AS name, e.norm_name AS norm_name,\n` +
-    `       e.mention_count AS mention_count\n` +
-    `ORDER BY norm_name\n` +
-    `LIMIT 25`;
-  return { text, params: { history_id: historyId, prefix } };
-}
-
-/** Co-mention expansion across anchors (algo.MSpaths). The one read that is not id-pinned. */
-export function msPaths(anchorKeys: string[]): Stmt {
-  const text =
-    `CALL algo.MSpaths({sourceLabel: 'Entity', sourceProperty: 'key', sourceValues: $anchor_keys,\n` +
-    `                   targetLabel: 'Entity', targetProperty: 'key', targetValues: $anchor_keys,\n` +
-    `                   pairwise: false,\n` +
-    `                   relTypes: ['ABOUT'], relDirection: 'both',\n` +
-    `                   maxLen: 2, pathCount: 8, resultLimit: 200})\n` +
-    `YIELD path\n` +
-    `RETURN path`;
-  return { text, params: { anchor_keys: anchorKeys.slice(0, 16) } };
 }
 
 /** Citation hydration — render the full turn behind a claim (one hop).
