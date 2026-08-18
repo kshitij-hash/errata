@@ -8,8 +8,9 @@ history `852ce960-clean` (the re-ingested, single-threaded version of `852ce960`
 `docs/gauntlets.md` G4) and a funded OpenRouter key, so `/api/ask` answers via the real
 `errata-graph-synthesis@2` LLM path, not the deterministic fallback.
 
-Every JSON block below is pasted verbatim from that run (2026-08-18, `trace_id`s and `claim_id`s are
-real). Command:
+Every JSON block below is trimmed from a real response captured in that run (2026-08-18,
+`trace_id`s and `claim_id`s are real): fields the point does not need are dropped, and nothing is
+added or reworded. Command:
 
 ```
 pnpm typecheck                      # builds packages/mcp/dist

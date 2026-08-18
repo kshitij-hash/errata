@@ -9,10 +9,16 @@ calls of its own; all retrieval, synthesis and calibration happen server-side in
 
 | tool | what it does |
 |---|---|
-| `memory_ask` | Ask the memory a question. Returns the belief with its citation (`session_id` + `turn_index`), confidence/evidence score, and any superseded prior values — or a calibrated abstention with nearest-miss citations. Abstention is a structured result, never an error. |
+| `memory_ask` | Ask the memory a question. Returns the belief with its citation (`session_id` + `turn_index`), confidence/evidence score, any superseded prior values, and the hand-written Cypher `apps/api` executed — or a calibrated abstention with nearest-miss citations. Abstention is a structured result, never an error. |
 | `memory_remember` | Record a new observation as a claim: `(subject, attribute, value)`. Supersedes the current belief if one exists; if this history has never held any claim about that (subject, attribute), the write is rejected with a structured reason instead of silently failing. |
 | `memory_correct` | Record a correction, optionally naming the exact `claim_id` it supersedes. Appends a claim + a SUPERSEDES revision edge; the displaced claim keeps its id, value and citation — nothing is mutated or deleted. Returns the resulting revision chain. |
-| `memory_history` | The revision chain / as-of view for a `(subject, attribute)`: every claim that ever held, with `event_time` and citation, current values unstruck and every superseded value struck alongside what displaced it. |
+| `memory_history` | The revision chain for a `(subject, attribute)`: every claim that ever held, with `event_time` and citation, current values unstruck and every superseded value struck alongside what displaced it. |
+
+**Not implemented here: the as-of view.** `apps/api`'s `GET /api/belief` takes `at` + `axis` and will
+fold the belief as it stood at time *t* (AGENTS.md: "As-of: belief at time t via edge-time filter +
+deterministic fold in app code"). This server never sends either parameter, so `memory_history`
+returns the whole chain and `memory_ask` always answers as of now. `from`/`to` on `memory_history`
+bound the `GET /api/diff` revision window — they do not rewind the belief.
 
 Every result that answers a question carries a citation (Errata hard rule: uncited answers are bugs).
 See [`docs/mcp-demo.md`](../../docs/mcp-demo.md) for a real, captured transcript of all four tools
@@ -77,8 +83,11 @@ both pure reads. That keeps this package small, keeps every LLM call behind `pac
 ## Tests
 
 ```sh
-pnpm --filter @errata/mcp test    # or: pnpm test (repo-wide)
+pnpm vitest run packages/mcp     # or: pnpm test (repo-wide)
 ```
+
+(There is no per-package `test` script — vitest is configured once at the root
+(`vitest.config.ts`), so `pnpm --filter @errata/mcp test` is a silent no-op, not a test run.)
 
 Unit tests cover the pure parts only — input schemas (`src/schemas.spec.ts`), response shaping
 (`src/shape.spec.ts`, using fixtures captured from the real API), and the HTTP client against a

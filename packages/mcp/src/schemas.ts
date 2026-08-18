@@ -34,6 +34,6 @@ export const HistoryInput = {
   subject,
   attribute,
   history_id: historyId,
-  from: z.string().optional().describe('Start of the as-of window: epoch seconds or an ISO date. Defaults to the beginning of the chain.'),
-  to: z.string().optional().describe('End of the as-of window: epoch seconds or an ISO date. Defaults to now.'),
+  from: z.string().optional().describe('Start of the REVISION window: epoch seconds or an ISO date. Bounds which revision edges are returned; it does not rewind the belief. Defaults to the beginning of the chain.'),
+  to: z.string().optional().describe('End of the revision window: epoch seconds or an ISO date. Defaults to now.'),
 };

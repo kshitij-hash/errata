@@ -2,7 +2,7 @@
 // Zero I/O, zero LLM (CLAUDE.md hard rule 6) — this is what packages/mcp/src/shape.spec.ts
 // exercises directly, with fixture JSON, no live server required.
 
-import type { AskApiResponse, ApiBeliefValue, ApiCitation, BeliefApiResponse, CorrectionApiError, CorrectionApiResponse, DiffApiResponse } from './types.js';
+import type { AskApiResponse, ApiBeliefValue, ApiCitation, ApiCypherStmt, BeliefApiResponse, CorrectionApiError, CorrectionApiResponse, DiffApiResponse } from './types.js';
 
 // ---- memory_ask ---------------------------------------------------------------------------------
 
@@ -17,6 +17,8 @@ export interface AskAnswered {
   attribute?: string;
   citations: ApiCitation[];
   superseded: ApiBeliefValue[];
+  /** the Cypher apps/api executed. Present whenever the API sent it. */
+  cypher?: ApiCypherStmt[];
 }
 
 export interface AskAbstained {
@@ -24,6 +26,7 @@ export interface AskAbstained {
   reason: 'not_in_history';
   confidence: number;
   nearest_miss: NonNullable<AskApiResponse['nearest_miss']>;
+  cypher?: ApiCypherStmt[];
 }
 
 export type AskResult = AskAnswered | AskAbstained;
@@ -32,8 +35,13 @@ export type AskResult = AskAnswered | AskAbstained;
  *  a normal result. Hard rule 3 (every answer carries a citation) is enforced right here — an
  *  "answered" result with no citations is reshaped into an abstention rather than shipped uncited. */
 export function shapeAsk(raw: AskApiResponse): AskResult {
+  // The executed Cypher was being dropped on the floor here. apps/api surfaces it on every ask
+  // precisely so the traversal is inspectable, and a mounted agent had no way to see the
+  // SUPERSEDES hop that decided which value it was handed. Passed straight through, omitted
+  // entirely when the API sent none so the result shape is unchanged for callers that never had it.
+  const cypher = raw.cypher && raw.cypher.length > 0 ? { cypher: raw.cypher } : {};
   if (raw.abstained || raw.answer == null || raw.citations.length === 0) {
-    return { abstained: true, reason: 'not_in_history', confidence: raw.confidence, nearest_miss: raw.nearest_miss ?? [] };
+    return { abstained: true, reason: 'not_in_history', confidence: raw.confidence, nearest_miss: raw.nearest_miss ?? [], ...cypher };
   }
   return {
     abstained: false,
@@ -46,6 +54,7 @@ export function shapeAsk(raw: AskApiResponse): AskResult {
     attribute: raw.attribute,
     citations: raw.citations,
     superseded: raw.superseded ?? [],
+    ...cypher,
   };
 }
 

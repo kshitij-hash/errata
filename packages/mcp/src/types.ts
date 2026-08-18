@@ -38,6 +38,15 @@ export interface AskApiResponse {
   claim_confidence?: number;
   corroboration?: number;
   nearest_miss?: { attribute: string; value: string; s: number; citation: { session_id: string; turn_index: number }; span: string }[];
+  /** the hand-written Cypher apps/api actually executed for this ask, surfaced on every response.
+   *  A mounted agent should be able to see the SUPERSEDES traversal that produced its memory. */
+  cypher?: ApiCypherStmt[];
+}
+
+/** One executed statement as apps/api surfaces it (query.ts `Cypher`). */
+export interface ApiCypherStmt {
+  text: string;
+  params: Record<string, unknown>;
 }
 
 /** GET /api/belief response (apps/api/src/query.ts shapeBelief). */

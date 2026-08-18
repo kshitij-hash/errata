@@ -53,6 +53,19 @@ describe('shapeAsk', () => {
     const out = shapeAsk(raw);
     expect(out.abstained).toBe(true);
   });
+
+  it('passes the executed Cypher through, so a mounted agent can see the SUPERSEDES traversal', () => {
+    const cypher = [{ text: 'MATCH (newer:Claim)-[r:SUPERSEDES]->(older:Claim) RETURN newer.id', params: { entity_vid: 1 } }];
+    const answered = shapeAsk({ answer: '$425,000', abstained: false, confidence: 0.56, citations: [CITE('user-correction', -1, 'corrected by the user to $425,000', 1675875085541886)], cypher });
+    expect(answered.cypher).toEqual(cypher);
+    const abstained = shapeAsk({ answer: null, abstained: true, confidence: 0.29, citations: [], cypher });
+    expect(abstained.cypher).toEqual(cypher);
+  });
+
+  it('omits cypher entirely when the API sent none — the result shape is unchanged for callers that never had it', () => {
+    const out = shapeAsk({ answer: null, abstained: true, confidence: 0, citations: [] });
+    expect('cypher' in out).toBe(false);
+  });
 });
 
 describe('correction shaping', () => {
