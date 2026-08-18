@@ -1,9 +1,11 @@
 {
-  "name": "@errata/core",
+  "name": "@errata/mcp",
   "version": "0.0.0",
   "private": true,
-  "license": "Apache-2.0",
   "type": "module",
+  "bin": {
+    "errata-mcp": "./dist/index.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -12,7 +14,12 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "scripts": {
+    "dev": "node --watch dist/index.js"
+  },
   "dependencies": {
+    "@errata/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "zod": "catalog:"
   }
 }
