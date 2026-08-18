@@ -298,6 +298,67 @@ export function ctxTokens(arm: ArmKey): number {
   return mean(QUESTIONS.map((q) => row(arm, q.id).tok));
 }
 
+/* ---------------------------------------------------------------- the τ sweep ---------- */
+
+export const TAU_GRID = [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55];
+export const TAU_SHIPPED = 0.35;
+
+export interface TauRow {
+  tau: number;
+  overall: number;
+  answered: number;
+  answeredPrec: number;
+  p: number;
+  r: number;
+  shipped: boolean;
+}
+
+/**
+ * τ treated as a veto on the recorded synthesis answers — an answered row whose evidence score E
+ * falls below τ becomes an abstention. Deterministic and model-free, which is why the sweep can be
+ * recomputed here from the same rows the table is counted from; it reproduces
+ * `eval/out/tau-sweep-arith.md` line for line, and the spec asserts that it does.
+ */
+export function tauSweep(): TauRow[] {
+  return TAU_GRID.map((tau) => {
+    let right = 0;
+    let answered = 0;
+    let correctAnswered = 0;
+    let tp = 0;
+    let fp = 0;
+    let fn = 0;
+    for (const q of QUESTIONS) {
+      const r = row('errata', q.id);
+      for (let i = 0; i < SEEDS.length; i += 1) {
+        const vetoed = r.conf !== undefined && r.conf < tau;
+        const abstain = r.abstained[i] === true || vetoed;
+        if (!abstain) {
+          answered += 1;
+          if (r.verdicts[i] === 'CORRECT') correctAnswered += 1;
+        }
+        if (q.abstention) {
+          if (abstain) {
+            right += 1;
+            tp += 1;
+          } else fn += 1;
+        } else {
+          if (abstain) fp += 1;
+          else if (r.verdicts[i] === 'CORRECT') right += 1;
+        }
+      }
+    }
+    return {
+      tau,
+      overall: (100 * right) / (QUESTIONS.length * SEEDS.length),
+      answered,
+      answeredPrec: (100 * correctAnswered) / answered,
+      p: tp / (tp + fp),
+      r: tp / (tp + fn),
+      shipped: tau === TAU_SHIPPED,
+    };
+  });
+}
+
 /* ------------------------------------------------- judge control-set arithmetic -------- */
 
 export const JUDGE_FAMILIES = ['entity-swap', 'value-shift', 'attribution-flip', 'superseded-value', 'topical-filler'];

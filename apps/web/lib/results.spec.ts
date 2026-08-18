@@ -18,6 +18,7 @@ import {
   judgeFamily,
   questionsIn,
   row,
+  tauSweep,
   type ArmKey,
 } from './results';
 
@@ -131,6 +132,40 @@ describe('the rejected experiments (eval/RESULTS.md)', () => {
     expect(ARITH_DIFF).toHaveLength(3);
     expect(ARITH_DIFF.filter((d) => d.verdict_before === 'CORRECT' && d.verdict_after !== 'CORRECT')).toHaveLength(0);
     expect(ARITH_DIFF.filter((d) => d.verdict_before !== 'CORRECT' && d.verdict_after === 'CORRECT')).toHaveLength(2);
+  });
+});
+
+describe('the τ sweep (eval/out/tau-sweep-arith.md)', () => {
+  /** τ · overall · answered · answered-precision · abstention P · abstention R, as published. */
+  const published: [number, number, number, number, number, number][] = [
+    [0.2, 66.7, 279, 77.4, 0.49, 0.93],
+    [0.25, 66.7, 279, 77.4, 0.49, 0.93],
+    [0.3, 66.7, 279, 77.4, 0.49, 0.93],
+    [0.35, 66.7, 276, 78.3, 0.48, 0.93],
+    [0.4, 65.3, 270, 77.8, 0.47, 0.93],
+    [0.45, 63.3, 255, 78.8, 0.43, 0.93],
+    [0.5, 59.3, 219, 82.2, 0.38, 0.97],
+    [0.55, 48.0, 147, 87.8, 0.29, 0.97],
+  ];
+
+  it('reproduces the committed sweep line for line', () => {
+    const got = tauSweep();
+    expect(got).toHaveLength(published.length);
+    published.forEach(([tau, overall, answered, prec, p, r], i) => {
+      const row = got[i]!;
+      expect(row.tau).toBe(tau);
+      expect(Number(row.overall.toFixed(1))).toBe(overall);
+      expect(row.answered).toBe(answered);
+      expect(Number(row.answeredPrec.toFixed(1))).toBe(prec);
+      expect(Number(row.p.toFixed(2))).toBe(p);
+      expect(Number(row.r.toFixed(2))).toBe(r);
+    });
+  });
+
+  it('is a plateau, not a knife edge: flat at 66.7 across τ ∈ [0.20, 0.35]', () => {
+    const flat = tauSweep().filter((t) => t.tau <= 0.35);
+    expect(new Set(flat.map((t) => Number(t.overall.toFixed(1))))).toEqual(new Set([66.7]));
+    expect(tauSweep().find((t) => t.shipped)!.tau).toBe(0.35);
   });
 });
 

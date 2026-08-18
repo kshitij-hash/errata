@@ -22,6 +22,7 @@ import {
   pct,
   question,
   questionsIn,
+  tauSweep,
 } from '../../lib/results';
 
 export const metadata: Metadata = {
@@ -371,6 +372,40 @@ export default function ResultsPage() {
         corpus owns is inside the reported test set by design, so a fitted τ would be in-sample and saying otherwise
         would be false. A sensitivity sweep ships instead: overall is <b>{PUBLISHED.tau.plateau}</b> — a plateau, not a
         knife edge.
+      </p>
+      <div className="tablewrap">
+        <table className="restable compact">
+          <thead>
+            <tr>
+              <th>τ</th>
+              <th>overall %</th>
+              <th>answered</th>
+              <th>answered-prec. %</th>
+              <th>abstention P</th>
+              <th>abstention R</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tauSweep().map((t) => (
+              <tr key={t.tau} className={t.shipped ? 'ours' : undefined}>
+                <th scope="row" className="mono">
+                  {t.tau.toFixed(2)}
+                  {t.shipped && ' ←shipped'}
+                </th>
+                <td className="mono flat big">{pct(t.overall)}</td>
+                <td className="mono flat">{t.answered}</td>
+                <td className="mono flat">{pct(t.answeredPrec)}</td>
+                <td className="mono flat">{t.p.toFixed(2)}</td>
+                <td className="mono flat">{t.r.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="cap">
+        The sweep is deterministic and model-free — it treats τ as a veto on the recorded synthesis answers — so it is
+        recomputed here from the same rows the table above is counted from, and it reproduces the committed{' '}
+        <span className="mono">eval/out/tau-sweep-arith.md</span> line for line.
       </p>
 
       <p className="cap repro mono">
