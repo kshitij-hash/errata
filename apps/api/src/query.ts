@@ -24,11 +24,14 @@ import {
   idfWeights,
   isRegistered,
   lexTokens,
+  buildTimeline,
   rankByRelevance,
+  renderTimeline,
   resolveAsOf,
   resolveBelief,
   scoreEvidence,
   stem,
+  temporalIntent,
   tokenF1,
 } from '@errata/core';
 import { ANSWER_PROMPT } from '@errata/core';
@@ -229,6 +232,10 @@ export interface AskTrace {
   best_attribute: string | null;
   best_score: number;
   material: { attribute: string; value: string; s: number; session_id: string; turn_index: number; span: string }[];
+  /** the MATERIAL exactly as synthesis saw it — span-grouped lines plus, on a temporal question,
+   *  the computed timeline. `material` above is the ranked rows; this is the rendered text, which
+   *  is what actually has to be right. Diagnostic only; never sent when `debug` is false. */
+  context: string;
   decision: string;
   synth: 'none' | 'insufficient' | 'answer' | 'empty';
   /** the gate that produced an abstention, or null when the ask answered. */
@@ -380,6 +387,7 @@ export async function askQuery(client: GraphClient, historyId: string, question:
     claim_rows: 0,
     attributes: [] as string[],
     focus_attributes: [] as string[],
+    context: '',
     synth: 'none' as AskTrace['synth'],
   };
   const traceOf = (decision: string, reason: AskTrace['abstain_reason']): { trace?: AskTrace } =>
@@ -391,6 +399,7 @@ export async function askQuery(client: GraphClient, historyId: string, question:
             claim_rows: dbg.claim_rows, attributes: dbg.attributes,
             focus_attributes: dbg.focus_attributes,
             best_attribute: dbg.best_attribute, best_score: dbg.best_score, material: dbg.material,
+            context: dbg.context,
             decision, synth: dbg.synth, abstain_reason: reason, history_claims: historyClaims,
           },
         }
@@ -509,12 +518,66 @@ export async function askQuery(client: GraphClient, historyId: string, question:
         session_id: String(c._row.session_id), turn_index: Number(c._row.turn_index),
         span: String(c._row.evidence_span ?? ''),
       }));
-      const material = ordered
-        .map((c) => `[${dateOf(c._row)}] ${c.attribute.replace(/_/g, ' ')}: ${c.value} (session ${String(c._row.session_id)}, turn ${Number(c._row.turn_index)}) — "${String(c._row.evidence_span ?? '')}"`)
+
+      // ---- span-grouped material -------------------------------------------------------------
+      //
+      // The evidence span — the transcript's own verbatim words — has been in the material since
+      // v2 synthesis, and that is what lets an answer reproduce a name or a figure exactly. What
+      // was NOT true is that each span appeared once: several claims are routinely extracted from
+      // ONE sentence ("I earn 95k at Acme" → employer AND salary), and each of them printed the
+      // whole span again. Measured over the comparison-150: 148 of 150 windows repeated at least
+      // one span and 729 of 4,500 slots (16.2%) were duplicate quotes.
+      //
+      // So the span becomes the unit and its claims hang off it — one quote, every value that was
+      // read out of it. No claim is dropped and no value is lost; the repetition is.
+      const groups = new Map<string, { rows: typeof ordered; span: string; eventTime: number }>();
+      for (const c of ordered) {
+        const span = String(c._row.evidence_span ?? '');
+        const key = `${String(c._row.session_id)} ${Number(c._row.turn_index)} ${span}`;
+        const g = groups.get(key);
+        if (g) g.rows.push(c);
+        else groups.set(key, { rows: [c], span, eventTime: Number(c._row.event_time) });
+      }
+      const material = [...groups.values()]
+        .map((g) => {
+          const head = g.rows[0]!;
+          const values = g.rows.map((c) => `${c.attribute.replace(/_/g, ' ')}: ${c.value}`).join(' | ');
+          return `[${dateOf(head._row)}] ${values} (session ${String(head._row.session_id)}, turn ${Number(head._row.turn_index)}) — "${g.span}"`;
+        })
         .join('\n');
+
+      // ---- the graph does time, not the prompt ------------------------------------------------
+      //
+      // Temporal reasoning was the weakest named type (41.0% / 39). The dates were always in the
+      // material; the ARITHMETIC over them was not — ordering, gaps, ages, elapsed spans were left
+      // for the model to do in its head from a column of ISO strings. Every one of those is a
+      // deterministic fold over `event_time`, which the graph stores on every claim, so the code
+      // computes them and synthesis is left to phrase the result.
+      //
+      // Gated on a cheap lexical intent probe (no model call, hard rule 2), and it degrades rather
+      // than invents: claims with `event_time = -1` are counted and never placed, and a window with
+      // fewer than two dated claims renders no block at all.
+      const timeSignal = temporalIntent(question);
+      const timeline = timeSignal.temporal
+        ? renderTimeline(
+            buildTimeline(
+              [...groups.values()].map((g) => ({
+                eventTime: g.eventTime,
+                attribute: '',
+                value: g.rows.map((c) => `${c.attribute.replace(/_/g, ' ')}: ${c.value}`).join(' | '),
+                sessionId: String(g.rows[0]!._row.session_id),
+                turnIndex: Number(g.rows[0]!._row.turn_index),
+              })),
+              opts.questionDate ?? null,
+            ),
+            config.materialMax,
+          )
+        : '';
+      const context = timeline ? `${material}\n${timeline}` : material;
+      dbg.context = context;
       const prompt = ANSWER_PROMPT
         .replace('{question_date}', opts.questionDate ?? new Date().toISOString().slice(0, 10))
-        .replace('{context}', material)
+        .replace('{context}', context)
         .replace('{question}', question);
       const res = await opts.completer.complete({
         role: 'answer',
