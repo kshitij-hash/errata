@@ -64,13 +64,16 @@ per question is cached without the seed, so seeds 22 and 33 replay seed 11 byte-
 `$/Q` and latency are measured on `rerunF-wave`, the last cold-cache run; the current run replayed
 447 of 450 answers from cache, which would flatter both columns.
 
-**The ordering is defended; the point estimates are not oversold.** On paired McNemar over the same
-rows, Errata beats full-context 33 wins / 15 losses (p = 0.013) and naive 31/14 (p = 0.016) on the
-overall-120, with both gaps holding on the all-450 count (p = 0.0032 / 0.040). The bootstrap 95%
-CI on Errata's 60.0 is [50.8, 68.3] — wide, because n = 120. Correcting every arm for the judge's
-own measured false-accept rate **widens** Errata's lead (12.5 → 14.6 points; 17.5 at the judge's
-worst-case envelope), because the arm that abstains more gives a fallible judge less to inflate.
-Recompute all of it: [`eval/stats.py`](eval/stats.py) → `eval/out/stats.md`.
+**The ordering is defended; the point estimates are not oversold.** On paired exact McNemar
+(questions as the pairing unit, seeds majority-collapsed), Errata beats full-context 29 wins / 15
+losses (p = 0.049) and naive 31/14 (p = 0.016) on the overall-120, and 33/15 (p = 0.013) / 31/15
+(p = 0.026) on the all-450 — significant at 0.05 under **every** seed-collapse rule tested, with
+the rule-sensitivity grid published. The paired-bootstrap 95% CI on Errata's 60.0 is [51.7, 69.2]
+(percentile; basic [50.8, 68.3]) — wide, because n = 120 — but every paired *gap* interval
+excludes zero. Correcting every arm for the judge's own measured false-accept rate **widens**
+Errata's lead (12.5 → 14.5 points; 17.5 at the judge's worst-case envelope), because the arm that
+abstains more gives a fallible judge less to inflate. Recompute all of it:
+[`eval/stats.py`](eval/stats.py) → `eval/out/stats.md`.
 
 **Honest gap, kept next to the headline.** Single-fact **information extraction is 44.7 against
 full-context's 80.7** — the one column Errata loses, and it loses it badly. Cut by the corpus's own
@@ -226,7 +229,8 @@ node packages/ingest/dist/cli.js 852ce960 --extractor rule --history-suffix -cle
 
 ERRATA_DEMO_HISTORY=852ce960-clean node apps/api/dist/index.js &   # API on 127.0.0.1:8787
 
-# the demo: a pre-approval amount that was revised $350,000 → $400,000
+# the demo: a pre-approval amount that was revised $350,000 → $400,000. (The deployed demo carries
+# one more hop — a $425,000 correction appended live through POST /api/correction.)
 curl -s 'http://127.0.0.1:8787/api/belief?subject=the%20user&attribute=mortgage_preapproval_amount'
 curl -s -X POST http://127.0.0.1:8787/api/ask -H 'content-type: application/json' \
   -d '{"question":"What was the amount I was pre-approved for from Wells Fargo?"}'

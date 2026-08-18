@@ -105,6 +105,15 @@ the errata arm requires ingesting histories at a measured $0.0574 each — the s
 documented under the full-500 section, stated here as an evaluation limitation and not only a
 budget one.
 
+One out-of-sample number now exists, with its limits stated: the 20 canary histories from the
+full-500 attempt (ingested, disjoint from the comparison-150) have 20 corresponding questions the
+arm had never answered. It scores **14/20** on them (judge spend $0.0231; one verdict
+unparseable, envelope 14–15). The draw is all `single-session-user` — the corpus is ordered by
+type — so this is a confirm-only sanity check, not a stress test; but it is worth placing next to
+the in-sample per-type table, where the same question type reads **100.0**. Two small samples, and
+4 of the 6 misses are over-abstentions rather than wrong answers — still, a concrete reason not to
+read any in-sample per-type 100.0 as the stratum's true accuracy. Reproduce: `eval/holdout.py`.
+
 Two smaller disclosures in the same spirit. **Abstention detection is asymmetric across arms**:
 Errata self-reports a structured `abstained` field, while the baselines must emit the literal
 `INSUFFICIENT_INFORMATION` prefix; applying the looser reading to the committed baseline rows
@@ -473,7 +482,7 @@ Both bottom rows are write-path gaps, not answer-path gaps: the graph does not c
   7th job in the list you gave me", "the move after 27. Kg2 Bd5+". The extractor now reads each
   session's main assistant reply, and the chess case works end to end, but a ten-item enumerated
   answer cannot survive a batch capped at 10 claims across 12 turns. Lifting that cap is exactly the
-  configuration measured at **$20.72** to re-extract the 150 histories; the shipped configuration
+  configuration projected at **$20.72** to re-extract the 150 histories; the shipped configuration
   cost $4.19. This is a disclosed budget decision, not a modelling result.
 - **single-session-preference (0.0%).** The gold answer is a paragraph about how the user would like
   to be answered ("would prefer responses that use their existing Suica card and TripIt app…"),
