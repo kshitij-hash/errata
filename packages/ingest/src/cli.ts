@@ -6,6 +6,7 @@
 //        --mem-guard-gb <n> (default 4.5; 0 disables) drain-and-restart the local HydraDB container
 //        at a HISTORY BOUNDARY when its RSS crosses n GiB, instead of letting the kernel SIGKILL it
 //        --aliases  one extractor-model call per history bakes entity/attribute aliases into the lexicon
+//        --families <a,b> which typed families to run (default: all; list_item is the big one)
 //        --typed    ADD the deterministic typed-fact pass (money/durations/dates/enumerations) as a
 //        second extractor alongside the selected one. Zero LLM, reads every turn (not just salient
 //        ones). Off by default: it multiplies claim volume, so it is an explicit, measured choice.
@@ -25,7 +26,8 @@ import { LlmExtractor, makeJudge } from './llm.js';
 import type { ConflictJudge } from './llm.js';
 import { LlmAliasGenerator } from './aliases.js';
 import type { AliasGenerator } from './aliases.js';
-import { TypedExtractor, UnionExtractor } from './typed.js';
+import { ALL_FAMILIES, TypedExtractor, UnionExtractor } from './typed.js';
+import type { TypedFamily } from './typed.js';
 import { ingestHistory } from './pipeline.js';
 
 function arg(name: string, fallback = ''): string {
@@ -130,14 +132,38 @@ async function main(): Promise<void> {
     if (useJudge) judge = makeJudge(or, 'ingest');
     if (useAliases) aliases = new LlmAliasGenerator(or);
   } else {
-    extractor = extractorName === 'replay' ? new ReplayExtractor(arg('replay-dir', 'fixtures/replay')) : new RuleExtractor();
+    extractor =
+      extractorName === 'replay'
+        ? new ReplayExtractor(arg('replay-dir', 'fixtures/replay'))
+        : // `none` emits nothing, which is what makes `--typed --extractor none` a TYPED-ONLY apply.
+          // Without it the smallest `--typed` run is `rule + typed`, and appending a rule pass to
+          // histories that were extracted by the LLM pass would add a second, unmeasured variable to
+          // the very run that is supposed to isolate the typed one.
+          extractorName === 'none'
+          ? new NullExtractor()
+          : new RuleExtractor();
   }
   // --typed is purely ADDITIVE: the selected extractor is untouched and the typed pass runs beside
   // it. Every typed attribute is namespaced `typed_*` → unregistered → MULTI, so nothing it writes
   // can supersede (or be superseded by) a claim from the pass it joins.
   if (has('typed')) {
     if (structuralOnly) console.error('--typed ignored: --structural-only means no claims at all');
-    else extractor = new UnionExtractor([extractor, new TypedExtractor()]);
+    else {
+      // `--families` selects which typed families run, exactly as `errata-typed-dryrun` does. It
+      // has to exist at APPLY time and not only in the dry run: the default is ALL families and
+      // `list_item` is by far the highest-volume one, so a bare `--typed` commits to a much larger
+      // write than the five scalar families. Selecting in the rehearsal and not in the performance
+      // would mean the two were never the same pass.
+      const fam = arg('families');
+      const families = fam ? (fam.split(',').map((s) => s.trim()).filter(Boolean) as TypedFamily[]) : undefined;
+      const unknown = (families ?? []).filter((f) => !ALL_FAMILIES.includes(f));
+      if (unknown.length > 0) {
+        console.error(`--families: unknown ${unknown.join(', ')} (known: ${ALL_FAMILIES.join(', ')})`);
+        process.exit(2);
+      }
+      extractor = new UnionExtractor([extractor, new TypedExtractor(families ? { families } : {})]);
+      console.log(`typed pass: families ${(families ?? ALL_FAMILIES).join(', ')}`);
+    }
   }
 
   console.log(`ingesting ${records.length} histor${records.length === 1 ? 'y' : 'ies'} with ${extractor.model}${structuralOnly ? ' (structural only)' : ''}`);
