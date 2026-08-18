@@ -55,15 +55,70 @@ Information-extraction stays at **44.7** and single-session-assistant at **7.1**
 answer-path problem and neither was expected to move here. `d851d5ba` (gold `$3,750`) was fixed
 alongside the flagship, and **zero questions regressed**.
 
-## τ, re-swept
+## τ, and what actually produces an abstention — a correction to our own description
 
-The plateau survives this change too (`uv run python tau_sweep.py --run rerunJ-arith`): overall is
-flat at **66.7 across τ ∈ [0.20, 0.35]** and falls only from 0.40. τ itself stays at its a-priori
-0.35, unfitted, for the reason given under the prior runs.
+An adversarial pre-submission audit of this repo found that earlier versions of this document (and
+the README) described abstention as "gated at E ≥ τ." **That describes a code path that did not
+produce these abstentions, and we are correcting it rather than quietly rewording it.** What the
+artifacts show, and what the shipped v2 synthesis path actually does:
+
+- The evidence score E (five a-priori weights) is computed for every ask and recorded on every row.
+- In the shipped path, an abstention happens when the answer model returns
+  `INSUFFICIENT_INFORMATION` from the material it was given. All 59 abstentions on this run are
+  `synth_insufficient` in the committed taxonomy; `below_tau` fired **0** times. The deterministic
+  `decide(E, τ)` gate governs the fold-only fallback path (the keyless configuration), not the
+  synthesis path.
+- On this corpus a τ = 0.35 veto over the synthesis answers would bind on **exactly one question**
+  (`54026fce`, E = 0.348, answered on all three seeds, judged INCORRECT on all three) — which is
+  the entire difference between the headline row (279 answered / 77.4%) and the sweep's "←shipped"
+  row (276 / 78.3%). Overall is 66.7 either way.
+- The sweep (`uv run python tau_sweep.py --run rerunJ-arith`, committed as `out/tau-sweep-arith.md`)
+  therefore shows **what a τ veto would cost**, not that τ calibrates the shipped abstentions. Its
+  flatness across [0.20, 0.30] is an empty band — no answered row has E < 0.30 — not demonstrated
+  insensitivity.
+
+τ itself remains at its a-priori 0.35 and remains unfitted, for the reason given under the prior
+runs: every abstention-positive question the corpus owns is inside this test set, so there is no
+honest held-out slice to fit it on.
+
+## Measuring the same 150 questions repeatedly — the fit we cannot fully rule out
+
+This set was judged in full six times while the answer path was being built (`rerunA` → `D` → `F`
+→ `J`, plus `rerunG-max45` and `rerunH-typed` judged and rejected). That is adaptive evaluation,
+and the in-sample argument this document makes about τ applies to parts of it:
+**`ERRATA_MATERIAL_MAX = 30` was kept because 45 scored worse on these 150 questions, and the
+typed-fact pass was rejected because it scored 62.7 on these 150.** Both are in-sample decisions,
+and calling them "tested and rejected" does not change that.
+
+The changes divide unevenly. The temporal layer is question-agnostic — chronological ordinals and
+gaps are true whichever subset a question wanted — and it moved a whole ability column (+7 of 33
+temporal questions); we expect it to transfer. The arithmetic layer is not: its activation probe
+was designed while reading one question's failure trace in this set, its entire measured effect is
+**2 questions**, and `rerunF → rerunJ` alone is not statistically distinguishable from noise
+(McNemar p = 0.50). Its third changed answer is also disclosed here rather than only in the web
+bundle: `2b8f3739` moved $565 → $465 against gold $495 — **still wrong**, on a question that
+enumerates nothing and by this document's own stated design should have received no computed total.
+Read `66.7` as `65.3 plus a two-question patch`. The `rerunD → rerunJ` gain (12 improved, 3
+regressed, McNemar p ≈ 0.035) is real but modest; the last 1.4 points of it are the least likely
+to survive contact with a corpus we have not seen. There is no held-out slice because extending
+the errata arm requires ingesting histories at a measured $0.0574 each — the same constraint
+documented under the full-500 section, stated here as an evaluation limitation and not only a
+budget one.
+
+Two smaller disclosures in the same spirit. **Abstention detection is asymmetric across arms**:
+Errata self-reports a structured `abstained` field, while the baselines must emit the literal
+`INSUFFICIENT_INFORMATION` prefix; applying the looser reading to the committed baseline rows
+moves full-context's abstention recall 0.800 → 0.833 and its all-450 count 54.0 → 54.7 (one
+genuine prose refusal missed), and changes nothing else. **The comparison-150's composition tilts
+toward Errata's strongest categories** as a mechanical consequence of taking all 30 abstention
+questions whole (the corpus has zero abstention items in the two categories Errata loses):
+post-stratifying the all-450 count to the true 500-question type mix reads Errata **64.6** (−2.1),
+naive 56.3, full-context 54.1 — the ordering is unchanged and the headline overall-120 is
+essentially unaffected, but the number is printed here so no one else has to derive it.
 
 ## Spend, and a note on latency
 
-Judging cost **$0.0023** — the run changed three answers and the judge cache replayed the other 447
+Judging cost **$0.0023** — the run changed three answers and the judge cache replayed the other 448
 pairs at $0. Answer synthesis added $0.0004.
 
 **Latency is deliberately not republished for this run**; the published p50/p95 stays
@@ -151,7 +206,8 @@ cross-arm baselines `rerunB-nothink` / `rerunC-nothink` are unchanged and were n
 | Errata — `rerunD-g5` | 61.3 | 53.3 | 44.7 | 61.3 | 30.3 | 100.0 | 0.47 / 0.93 | 273 | 70.3% | 2,095 |
 | **Errata — `rerunF-wave`** | **65.3** | **58.3** | 44.7 | 61.3 | **51.5** | 94.4 | **0.49** / 0.93 | 279 | **75.3%** | 2,521 |
 
-By the corpus's own `question_type`, over all 450 rows:
+By the corpus's own `question_type`, over all 450 rows (`n` here counts rows — 3 seeds × questions;
+the older table further down counts questions):
 
 | question_type | n | `rerunD-g5` | `rerunF-wave` | full-context | naive |
 |---|---:|---:|---:|---:|---:|
@@ -287,7 +343,15 @@ it could honestly be fitted. The sweep (`uv run python tau_sweep.py --run rerunF
 | answered wrong · a gold-supporting claim was in the material | 7 | **5** |
 | answered wrong · no claim in the history supports the gold answer | 15 | 12 |
 | answered a gold-abstention question | 2 | 2 |
+| abstained correctly on a gold-abstention question | 28 | 28 |
+| answered right but judged INCORRECT (judge rejected) | 3 | 3 |
 | no anchor resolved / no attribute fit / below τ | 0 / 0 / 0 | 0 / 0 / 0 |
+
+The two rows above the sentinel row were previously omitted from this rendering of the committed
+table and are restored: the 28 correct abstentions, and — the one that matters for the judge story
+— **3 rows where the judge rejected an answer**. All three were read individually: in each the
+judge was right and the failure is a lexical-containment mismatch in the answer, not judge error.
+The full 11-bucket table is `out/failure-taxonomy-wave.md`, committed; the rows here sum to 150.
 
 ## Two harness defects found and fixed while running this
 
@@ -310,7 +374,11 @@ numbers:
 
 This wave cost **$0.2047** all-in: $0.1763 judging (two full re-judges, 900 rows) on the eval
 ledger and $0.0284 of synthesis on Errata's own ledger across the three 450-row runs. Eval ledger
-now $12.5256; ingest ledger $8.2126 against its $50 cap.
+now $12.5256 at that run's close ($12.5542 after two later judging clusters — the committed ledger
+is the source of truth and recomputes to the cent); ingest ledger $8.2126 against its $50 cap at
+the same point. One asymmetry disclosed: the baselines' $/Q and latency reproduce from the
+committed eval ledger, while Errata's server-side synthesis ledgers to a gitignored file — its
+per-question cost is derived from the committed per-row token counts instead.
 
 ## Reproducing
 

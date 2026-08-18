@@ -81,8 +81,9 @@ design, so this corpus has no held-out slice on which τ could honestly be fitte
 **This projection is OVER the $15.00 hard cap (`spend.hard_cap_usd`), so `estimate` exits 3.** That
 is the gate working rather than a defect, and the figure is not what the campaign cost: the
 estimator prices a COLD, cache-empty run of all three arms from nothing, while the published runs
-were produced incrementally against a warm on-disk LLM cache. Actual spend is **$12.53** on the
-eval ledger (`out/ledger.jsonl`), plus $8.21 on Errata's separate ingest ledger.
+were produced incrementally against a warm on-disk LLM cache. Actual spend is **$12.55** on the
+eval ledger (`out/ledger.jsonl` — the committed file is the source of truth; recompute it), plus
+$9.37 on Errata's separate ingest ledger.
 
 The two numbers answer different questions — `estimate` answers "what would reproducing all of this
 from scratch cost today", the ledger answers "what has this actually cost" — and the earlier version

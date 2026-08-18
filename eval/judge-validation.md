@@ -124,8 +124,23 @@ All **6** unparseable verdicts are attribution-flip items, and every one of them
 wanted to write more about precisely the family it finds hardest. The deployed judge config is left
 **frozen** (same 64-token budget as the published runs) so this measurement stays comparable with
 `RESULTS.md`; raising it would produce a number that no longer describes the judge that graded
-those runs. Across all 3,128 real judge calls in the ledger only 21 hit the cap, so the artifact is
-rare overall (0.7%) and concentrated here.
+those runs. Across all 3,128 real judge calls in the ledger as of 2026-08-17 (later runs appended
+more rows; recompute from the committed ledger for the current count) only 21 hit the cap, so the
+artifact is rare overall (0.7%) and concentrated here.
+
+Two calibration caveats a careful reader should have before trusting the 8.3%. First, the
+deterministic negative controls are *easier* than the errors the judge grades in-run: entity swaps
+substitute unrelated entities and value shifts are ±1, while real wrong answers are plausible
+retrieved-but-wrong values — so 8.3% is best read as a lower bound on the in-distribution FAR. The
+counterweight is that the one family built from genuine in-history distractors — superseded-value,
+drawn from earlier values that literally appear in the history — is the realistic family, and it is
+0/12 in both control sets. Second, the judge prompt itself enumerates "the candidate gives an
+earlier value for a fact the reference states was later changed" as a rejection condition, so the
+superseded-value 0/12 demonstrates a rubric the judge was told to apply, not fully independent
+judgment. Both cuts are visible in the committed control sets; neither is hidden by the headline.
+Also disclosed: 16 of the 60 negatives and 8 of the 60 positives are built from comparison-150
+questions (9 question ids carry both a positive and a negative), so the control set is not fully
+disjoint from the reported test set.
 
 Per the pre-registered rule an unparseable verdict counts as a **rejection**, which is the
 conservative direction: it can only inflate FRR, never flatter FAR. But it means the headline is
