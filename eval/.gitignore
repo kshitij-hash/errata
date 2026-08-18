@@ -19,6 +19,7 @@ out/*
 !out/tau-sweep.md
 !out/tau-sweep-wave.md
 !out/tau-sweep-arith.md
+!out/stats.md
 
 # The scored control set is the evidence behind the published FAR/FRR, and kappa.py joins the
 # human labels against it — so it is committed, unlike the run outputs beside it. `-v1` is the
