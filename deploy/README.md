@@ -164,12 +164,76 @@ it at pod-creation time unless overriding. Set only what `deploy/pod/env.pod.exa
 |---|---|
 | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | **Required.** RunPod Secrets (`{{ RUNPOD_SECRET_<name> }}`), not plain env. `entrypoint.sh` refuses to start without them and derives `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` from them itself. |
 | `ERRATA_DEMO_HISTORY` | Plain env — which ingested history `/api/*` routes default to. |
-| `OPENROUTER_API_KEY`, `ERRATA_BUDGET_CAP` | Optional. The `/api/ask` demo path works without it (verified tonight: `answer_mechanism` reports the deterministic graph-fold, not an LLM call, when this is unset). Leave it off the pod unless something there genuinely needs it — fewer secrets in fewer places. If set, use RunPod Secrets. |
+| `OPENROUTER_API_KEY` | **Required** — see *The key has to be on the pod* below. RunPod Secrets. |
+| `ERRATA_BUDGET_CAP` | **Set it alongside the key.** Hard cap on cumulative USD ledger spend; default 50. Plain env. |
+| `ERRATA_WRITE_KEY` | **Required.** The shared secret gating `POST /api/correction`. RunPod Secrets, and the *same value* in the Vercel project so its proxy can inject it. See *The write path* below. |
+| `ERRATA_DEBUG_OK` | **Never set this on the pod.** `=1` makes `POST /api/ask` honour `"debug": true`. See *The debug trace* below. |
 | `ERRATA_TAU`, `ERRATA_MATERIAL_MAX` | Optional answer-path tuning; both have working defaults. |
 | `GIT_SHA`, `ERRATA_CORPUS_REVISION` | Optional; surfaced read-only by `GET /api/meta`. |
 
 Editing env on a live pod restarts it and wipes the container disk (not the volume) — get the env
 map right at creation and treat the pod as immutable afterwards; redeploy by recreating, not editing.
+
+#### The key has to be on the pod
+
+Earlier guidance here said to leave `OPENROUTER_API_KEY` off the pod because `/api/ask` "works
+without it". It does — but *works* is carrying far too much weight in that sentence. With no key
+`answerCompleter()` returns null (`apps/api/src/deps.ts`) and every ask falls back to the
+deterministic fold. That is not a degraded flourish, it is a different system: **8.3 overall against
+the 60.0 published in `eval/RESULTS.md`** — and it degrades *silently*, with 200s and citations and
+no error anywhere. A judge opening the deployed URL while the README claims reproducibility would be
+measuring the fold and attributing it to the published numbers.
+
+So set it, behind RunPod Secrets, and set `ERRATA_BUDGET_CAP` with it. What made "leave it off"
+tempting was fear of unbounded spend on an always-on box, and that fear was well founded while the
+cap re-armed on every restart: `deps.ts` used to construct the client with `initialSpent: 0`, so a
+restarted pod began drawing against a fresh cap no matter what the ledger already recorded. It now
+seeds from `rollup(defaultLedgerDir(), cap).spent_usd` — the same on-disk ledger, and the same
+rollup, that the ingest CLI seeds from and that `GET /api/meta/costs` reports. The cap is cumulative
+across restarts, which is what "hard cap" was always meant to mean. The ledger lives under the API
+process's `var/ledger`, so put that on the network volume if the cap should also survive a *recreate*
+and not just a restart.
+
+#### The write path
+
+`POST /api/correction` is the only route that writes, the write is append-only by design, and there
+is therefore no undo. On a public URL that needs a gate, and it has one: `apps/api/src/auth.ts`
+refuses any correction not carrying `X-Errata-Write-Key` equal to `ERRATA_WRITE_KEY`.
+
+The gate **fails open when the variable is unset, closed when it is set.** That asymmetry is
+deliberate — a laptop, `vitest`, the compose stack and the eval harness all keep working untouched,
+and the pod, the one place a stranger can reach the route, sets it. It also means *forgetting* to
+set it leaves the write path wide open with no complaint, so treat it as required rather than
+optional and verify after boot (§5).
+
+The browser app never sees the secret: the Vercel proxy
+(`apps/web/app/api/errata/[...path]/route.ts`) injects the header server-side from its own env, so
+set the same value in the Vercel project too. That proxy now also requires an `Origin` header on
+POSTs — browsers send one on every POST, including same-origin — because without it an
+`Origin`-less caller could have used the proxy as a relay that attaches the write key on its behalf.
+
+#### The debug trace
+
+`POST /api/ask` accepts `"debug": true`, which attaches a diagnostic trace carrying the verbatim
+evidence spans of every ranked claim plus a bounded scan of the history's own claims. That is a
+transcript read-out any caller could request by setting one body field, so it is now gated on
+`ERRATA_DEBUG_OK=1`, and **the pod must never set that variable**. Where it is absent `debug: true`
+is silently ignored rather than rejected, so an older client that sends it keeps working.
+
+`eval/failure_review.py` *does* depend on the trace — its `replay()` posts `"debug": True` and reads
+`trace.material`, `trace.history_claims` and `trace.abstain_reason` — so **run it against a local or
+dev API with `ERRATA_DEBUG_OK=1` set, never against the pod.** The scoring harness does not depend on
+it: `eval/errata_eval/arms.py` sends no `debug` field at all, so a full eval run against a pod
+without the variable is unaffected. Verified both directions against the local API tonight: no
+`trace` key without the variable, trace present with it.
+
+#### Rate limiting
+
+Every route sits behind a per-caller fixed-window cap (`apps/api/src/ratelimit.ts`): 60 requests per
+minute, keyed on `X-Forwarded-For`'s leftmost entry (RunPod's proxy and Vercel's both set one) or
+else the socket address, answering `429` with a `retry-after` past that. Loopback callers are exempt,
+which is what stops an in-pod ingest run or a local eval sweep from capping itself. It is one Map in
+the API process: nothing to deploy, nothing to configure, and nothing that survives a restart.
 
 ### 4. Start
 
@@ -188,6 +252,28 @@ curl -sS -X POST "$BASE/api/ask" -H 'content-type: application/json' \
 ```
 
 A real round-tripped `/api/ask`, not just the liveness ping — matches the local smoke test above.
+
+Then verify the three hardening gates actually took, because each of them fails *silently* in the
+unsafe direction if the env map was wrong:
+
+```bash
+# the write gate is CLOSED — this must be 401, not 201. A 201 means ERRATA_WRITE_KEY is unset
+# on the pod and you have just appended a real claim to the demo history (there is no undo).
+curl -sS -o /dev/null -w 'no key -> %{http_code}\n' -X POST "$BASE/api/correction" \
+  -H 'content-type: application/json' \
+  -d '{"subject":"probe","attribute":"probe","value":"probe"}'          # expect 401
+
+# the answer path is the PUBLISHED one, not the fold: expect "errata-graph-synthesis@2".
+curl -sS "$BASE/api/meta" | grep -o '"answer_mechanism":"[^"]*"'
+
+# the debug trace is OFF: the response must carry no `trace` key.
+curl -sS -X POST "$BASE/api/ask" -H 'content-type: application/json' \
+  -d '{"question":"<a real question>","history_id":"<id>","debug":true}' | grep -c '"trace"'   # expect 0
+```
+
+The correction probe above is deliberately written to be refused. Do **not** re-run it with the real
+key "just to check the happy path": it would append a junk claim to the demo history, and the
+append-only invariant means the only way to walk that back is another correction on top of it.
 
 ### 6. Loading data onto the pod
 
