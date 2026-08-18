@@ -15,6 +15,7 @@ veto on the recorded synthesis answers; no model call). Shipped τ = 0.35, unfit
 | 0.55 | 48.0 | 147 | 87.8 | 0.29 | 0.97 |
 
 Overall is flat at 66.7 across τ ∈ [0.20, 0.35] and falls only from 0.40 — the plateau, not a
-knife edge. The 78.3% answered-precision at the shipped τ is the figure the submission footnotes;
-its full per-row provenance is `out/rerunJ-arith/` (run outputs, reproducible via the command in
-RESULTS.md).
+knife edge. The 78.3% answered-precision at the shipped τ is the figure the submission footnotes.
+Per-row provenance ships in `apps/web/data/results.json` — the same judged rows these cells are
+computed from, committed and browsable at `/results`. The raw run directory `out/rerunJ-arith/` is
+gitignored, so it is reproducible (the command in RESULTS.md) rather than readable from a clone.

@@ -3,6 +3,15 @@
 Load-bearing queries are cross-validated against a running HydraDB before they are trusted (the
 substrate is days old). Verdicts are captured here; throwaway probe code is deleted.
 
+**Substrate under test.** Every verdict below was taken against
+`ghcr.io/hydra-db/hydradb@sha256:db78309a233be54662db29744047e985a39b51c45a270d1a1f47c31a62cdb709`
+— the digest pinned in `docker-compose.yml` and `deploy/pod/Dockerfile`, published 2026-08-12 from
+hydra-db/hydradb `02a40025d2d57e97ab2754c8256219cdbfeab379`. The image is labelled **v0.1.1**; the
+`graph-node` binary inside self-reports **0.1.0** in every log line. We cannot reconcile the two
+from here, so the digest is the identifier to quote — it is the only one that is unambiguous. The
+running node exposes no version over HTTP: the admin port (9090) serves `/readyz` and `/metrics`
+and nothing else, and `/metrics` carries no `build_info`.
+
 ## G0 — Bolt round-trip smoke (Day 0) — PASS
 
 `neo4j-driver-lite@6` over `bolt://127.0.0.1:7687`, `disableLosslessIntegers: true`. Two binding
@@ -269,12 +278,14 @@ history-level extraction hole.
 Effect on the front door: questions where no token matched the lexicon went **67 → 4** of 150;
 claims per history **127–269 → 392–571**; over-abstentions **42 → 31**; anchor failures **1 → 0**.
 
-### Write-path economics — the $20.72 prompt that was measured and rejected
+### Write-path economics — the $20.72-projected prompt that was priced and rejected
 
 Extraction cost is ~92% output tokens, so scope and volume are separate dials and only one of them
 is affordable. The first cut of the broadened prompt ended with "prefer many small specific claims
-over one broad one", measured **6,077 output tokens per 12-turn batch** (≈7 claims per turn) and
-projected **$20.72** to re-extract the comparison-150 — 6x the old pass and 4x the sprint's ceiling.
+over one broad one", measured **6,077 output tokens per 12-turn batch** (≈7 claims per turn), which
+projects to **$20.72** to re-extract the comparison-150 — 6x the old pass and 4x the sprint's
+ceiling. The tokens were measured; the $20.72 is a projection from them and was never spent, so it
+is called projected everywhere in this document.
 Two cheaper extractors were tried and both failed on quality, not price: `qwen/qwen3.7-flash`
 returned 0 claims across 34 batches (reasoning ate the whole budget — the Arm-B incident again, now
 fixed by `reasoningEnabled: false` on the extraction call, which every extractor benefits from), and
@@ -310,6 +321,16 @@ sum of each Session's own `turn_count`, and the Entity/Claim traversals are opt-
 `?counts=deep` returning the same numbers the old label scan did (Claim 152, Entity 24). Three
 findings fell out of doing it, all measured against the live store:
 
+> **Superseded at the current store size.** Those deep counts no longer reproduce. The typed
+> backfill has since added 271,544 Claim vertices, so the **Claim label itself** now exceeds the
+> same ceiling (`actual 250001 exceeds limit 250000`) — the second time admission control was hit,
+> and this time it is the label, not one route's scan. The remaining label scan is the debug-only
+> `claimsForHistory` replay the failure taxonomy uses, and it was failing the ENTIRE ask with a 500.
+> It now **degrades to an empty list** instead (`apps/api/src/query.ts`, the `opts.debug` branch),
+> so the taxonomy's extraction-gap denominator is simply unavailable at this size rather than
+> fatal. `/api/ask` proper is unaffected in both incidents for the same reason: it is id-anchored
+> and never scans.
+
 - **A label scan's candidate set is the whole LABEL, not the filtered subset.** Adding a `LIMIT`
   does not help — the same reads then time out at 30 s instead. `Speaker`, two nodes per history,
   timed out for exactly this reason.
@@ -328,8 +349,8 @@ A held-out fit needs abstention-positive examples. LongMemEval has exactly 30 an
 `sample.abstention_whole = true` puts all 30 inside the comparison set by design, so every
 abstention-positive example the corpus owns is inside the reported test set and any τ fitted against
 them is in-sample. τ stays at its a-priori **0.35** and `eval/tau_sweep.py` publishes the
-sensitivity instead: overall is flat at 61.3 across τ ∈ [0.20, 0.40], so the result is a plateau
-rather than a knife edge. On the *previous* run the same veto at τ = 0.35 would have cut overall
+sensitivity instead: overall is flat at 61.3 across τ ∈ [0.20, 0.35] and falls from 0.40 (60.0), so
+the result is a plateau rather than a knife edge. On the *previous* run the same veto at τ = 0.35 would have cut overall
 from 51.3 to 35.3 — E and τ were on different scales, and a veto is not something to switch on
 quietly. Reasoning and table: `eval/RESULTS.md`.
 
