@@ -1,5 +1,11 @@
-// apps/api/src/index.ts — the API server. Binds 127.0.0.1 on the pod behind its HTTPS proxy;
-// Bolt is localhost . Ingest runs as a CLI; every route here is read-only.
+// apps/api/src/index.ts — the API server. HOST decides the bind, and the two modes differ:
+//   - unset (local dev, the compose stack, vitest): 127.0.0.1, reachable only from this machine.
+//   - HOST=0.0.0.0 (baked into deploy/pod/Dockerfile): every interface in the container, because
+//     RunPod's HTTPS proxy reaches the API from outside the container's own loopback.
+// Either way 8787 is the only port anything outside can reach: Bolt (7687) and the HydraDB admin
+// port stay on the container's localhost and are never in the pod's port list.
+// Ingest runs as a CLI. Every route here is read-only except POST /api/correction, which appends
+// and, on the pod, requires ERRATA_WRITE_KEY (apps/api/src/auth.ts).
 import { serve } from '@hono/node-server';
 import { app } from './app.js';
 
