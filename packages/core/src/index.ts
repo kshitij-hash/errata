@@ -5,4 +5,5 @@ export * from './revision.js';
 export * from './evidence.js';
 export * from './lexical.js';
 export * from './temporal.js';
+export * from './arithmetic.js';
 export * from './prompt.js';

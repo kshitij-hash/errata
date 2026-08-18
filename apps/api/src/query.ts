@@ -24,9 +24,12 @@ import {
   idfWeights,
   isRegistered,
   lexTokens,
+  arithmeticIntent,
   buildTimeline,
+  computeTotals,
   rankByRelevance,
   renderTimeline,
+  renderTotals,
   resolveAsOf,
   resolveBelief,
   scoreEvidence,
@@ -573,7 +576,30 @@ export async function askQuery(client: GraphClient, historyId: string, question:
             config.materialMax,
           )
         : '';
-      const context = timeline ? `${material}\n${timeline}` : material;
+      // ---- the graph does the sum, not the prompt ---------------------------------------------
+      //
+      // Same finding as the timeline, one operation over. On `85fa3a3f` all four addends ($15, $5,
+      // $10, $20 — gold $50) were extracted, retrieved AND present in this window, and the reader
+      // answered $45. Nothing was missing; four small numbers were added wrong. So the sum is
+      // computed here and synthesis is left to phrase it.
+      //
+      // The sum is over DISTINCT amounts per currency because this corpus restates figures heavily
+      // (those four purchases arrive as eight claims); adding every claim would confidently return
+      // $80. See packages/core/src/arithmetic.ts for that trade-off and its limitation.
+      const totals = arithmeticIntent(question).total
+        ? renderTotals(
+            computeTotals(
+              ordered.map((c) => ({
+                attribute: c.attribute,
+                value: c.value,
+                sessionId: String(c._row.session_id),
+                turnIndex: Number(c._row.turn_index),
+              })),
+              question,
+            ),
+          )
+        : '';
+      const context = [material, timeline, totals].filter((s) => s !== '').join('\n');
       dbg.context = context;
       const prompt = ANSWER_PROMPT
         .replace('{question_date}', opts.questionDate ?? new Date().toISOString().slice(0, 10))
