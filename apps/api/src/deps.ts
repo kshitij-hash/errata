@@ -1,7 +1,7 @@
 // apps/api/src/deps.ts — process singletons: config, the Bolt client, the lexicon cache.
 import { existsSync, readFileSync } from 'node:fs';
 import { GraphClient } from '@errata/graph';
-import { OpenRouterClient } from '@errata/llm';
+import { OpenRouterClient, defaultLedgerDir, rollup } from '@errata/llm';
 import type { AnswerCompleter } from './query.js'; // type-only: no runtime cycle with query.ts
 
 export interface Config {
@@ -58,7 +58,14 @@ export function answerCompleter(): AnswerCompleter | null {
     _completer = null;
     return _completer;
   }
-  const client = new OpenRouterClient({ initialSpent: 0 });
+  // Seed the running spend from the on-disk ledger — the SAME source and the same rollup the ingest
+  // CLI seeds from (packages/ingest/src/cli.ts) and that GET /api/meta/costs reports. Seeding 0
+  // re-armed the budget cap on every process start: a pod that restarted (or was redeployed) began
+  // spending from zero against a cap the ledger had already drawn down, which makes a "hard cap" on
+  // cumulative spend hold only until the next restart. rollup() of a missing or empty ledger dir is
+  // 0, so a fresh checkout with no ledger behaves exactly as before.
+  const cap = process.env.ERRATA_BUDGET_CAP ? Number(process.env.ERRATA_BUDGET_CAP) : 50;
+  const client = new OpenRouterClient({ initialSpent: rollup(defaultLedgerDir(), cap).spent_usd });
   _completer = {
     complete: (args) => client.complete({ ...args, run_id: 'api-ask' }),
   };
