@@ -53,9 +53,16 @@ export const CHIPS: Chip[] = [
     question: 'What is my job title?',
   },
   {
-    id: 'price',
-    label: 'How much did I pay for the new home? → abstains',
-    question: 'How much did I pay for the new home?',
+    // The gold chip has to ABSTAIN on the live history, and that is a measured property, not an
+    // editorial one. "How much did I pay for the new home?" used to sit here and stopped being
+    // true: the history does hold a purchase price, so the ask answers $325,000 at E = 0.379,
+    // above τ — a chip labelled "→ abstains" over an answered question is the worst possible lie
+    // for this demo to tell. This one is verified against the live demo history: E = 0.293, below
+    // τ, and it still lands one nearest miss with a citation, so the refusal card has something to
+    // set aside rather than rendering empty.
+    id: 'dog',
+    label: "What is my dog's name? → abstains",
+    question: "What is my dog's name?",
     abstains: true,
   },
 ];
