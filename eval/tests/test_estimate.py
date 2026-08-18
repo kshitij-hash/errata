@@ -17,6 +17,13 @@ from errata_eval.estimate import ANSWER_ARM_TOKENS, estimate_cost
 _EVAL = Path(__file__).resolve().parents[1]
 SAMPLE = _EVAL / "sample-150.json"
 HARD_CAP_USD = 18.00
+# The runtime ledger cap is a SEPARATE control from the projection gate — the assertion below
+# already said so in prose, it just happened to bound both by the same number. They came apart on
+# 2026-08-18 when `spend.hard_cap_usd` was raised to 30.00 (approved budget extension for the
+# errata arm's full-500 run, which needs the 350 un-sampled histories ingested and judged). The
+# projection gate stays at $18: what a cold full campaign is projected to cost is not the same
+# question as how much key headroom one mid-campaign run may consume.
+MAX_RUNTIME_LEDGER_CAP_USD = 30.00
 
 
 def _estimate():
@@ -33,7 +40,7 @@ def test_projected_total_is_under_the_hard_cap() -> None:
     assert est.projected_usd < HARD_CAP_USD
     # the runtime ledger cap is a separate control: it tracks REMAINING key headroom mid-campaign,
     # so it may sit below the full-run projection once part of the run has already been spent.
-    assert 0 < config.spend.hard_cap_usd <= HARD_CAP_USD
+    assert 0 < config.spend.hard_cap_usd <= MAX_RUNTIME_LEDGER_CAP_USD
 
 
 def test_estimate_consumes_the_sample_artifact() -> None:
