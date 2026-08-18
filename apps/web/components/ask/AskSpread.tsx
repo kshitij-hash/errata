@@ -4,7 +4,7 @@ import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, usd } from '../../lib/api';
 import type { AskResponse } from '../../lib/api';
-import { citeLabel, prefersReducedMotion, sameValue } from '../../lib/format';
+import { citeLabel, citeMark, prefersReducedMotion, sameValue } from '../../lib/format';
 import { readParam, writeParams } from '../../lib/urlstate';
 import { CHIPS, DEMO_HISTORY_ID, DEMO_SUBJECT, FULL_CONTEXT_USD, HISTORY_TOKEN_COUNT } from '../../config/demo';
 import { CypherDisclosure } from '../CypherDisclosure';
@@ -190,8 +190,8 @@ export function AskSpread() {
                     <span className="stk" style={{ '--sx': struck ? 1 : 0 } as CSSProperties} />
                   </span>
                   {resp.citations.map((c, i) => (
-                    <span className="fn" key={i}>
-                      {citeLabel(c.session_id, c.turn_index)}
+                    <span className="fn" key={i} title={citeLabel(c.session_id, c.turn_index)}>
+                      {citeMark(c.session_id, c.turn_index)}
                     </span>
                   ))}
                   {predecessors.map((s, i) => (
@@ -232,6 +232,21 @@ export function AskSpread() {
                   {usd(FULL_CONTEXT_USD)} · <span style={{ opacity: 0.75 }}>≈ estimate</span>
                 </div>
 
+                {/*
+                  The losing pane, inline. Every /api/ask response already carries `vector_baseline`
+                  — the highest-cosine candidate from the committed bge-small measurement — and it
+                  was only ever visible on /compare. Beside the answer it costs one line and makes
+                  the whole thesis legible without a page change: same question, what similarity
+                  ranks first, and the fact that it is the retired value.
+                */}
+                {resp.vector_baseline && (
+                  <div className="vbase">
+                    a vector store would have returned{' '}
+                    <span className="vv">&ldquo;{resp.vector_baseline.answer}&rdquo;</span> @ cos{' '}
+                    {resp.vector_baseline.cosine.toFixed(4)} · {resp.vector_baseline.embedder}
+                  </div>
+                )}
+
                 <div className="corrbar">
                   <button type="button" className="act" onClick={() => setCorrOpen((v) => !v)}>
                     That&apos;s wrong — correct it
@@ -258,7 +273,7 @@ export function AskSpread() {
                 )}
 
                 <ErratumSlip slip={slip} />
-                <CypherDisclosure statements={resp.cypher} />
+                <CypherDisclosure statements={resp.cypher} defaultOpen />
               </>
             )}
 
