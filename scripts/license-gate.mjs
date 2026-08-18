@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // scripts/license-gate.mjs — fail if any production dependency carries a non-permissive license.
-// The JS tree is deliberately MIT/Apache-2.0/BSD/ISC only (no copyleft); this enforces it in CI.
+// The prod JS tree is overwhelmingly MIT/Apache-2.0/BSD/ISC, plus four deliberate exceptions the
+// ALLOW list below admits by name: 0BSD (tslib), CC-BY-4.0 (caniuse-lite, a data file),
+// MPL-2.0 (lightningcss) and LGPL-3.0-or-later (sharp's libvips binary). It is NOT copyleft-free;
+// what it is free of is STRONG copyleft (GPL-*, AGPL-*), and that is what this enforces in CI.
 // FAIL-CLOSED: if the license listing itself cannot be produced or parsed, the gate fails — a
 // broken data source must never read as "clean".
 import { execFileSync } from 'node:child_process';
