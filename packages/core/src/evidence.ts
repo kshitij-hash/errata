@@ -5,7 +5,11 @@
 
 import type { AnswerDecision, EvidenceScore } from './types.js';
 
-// weights are FIXED a priori (evidence-scoring design); only tau is fitted on the held-out slice.
+// Weights are FIXED a priori (evidence-scoring design). tau is the one free quantity — and it is
+// NOT fitted: LongMemEval's 30 abstention questions are all inside the comparison set by design
+// (`sample.abstention_whole`), so no held-out slice exists on which it could honestly be fitted.
+// tau stays at its a-priori 0.35 and eval/tau_sweep.py publishes the sensitivity instead
+// (eval/RESULTS.md, "τ was NOT re-fitted, deliberately").
 const W = { a: 0.3, s: 0.3, c: 0.15, p: 0.15, d: 0.1 } as const;
 
 const STOPWORDS = new Set(
