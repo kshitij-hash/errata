@@ -2,10 +2,29 @@ import { DEMO_SESSIONS } from '../config/demo';
 
 const BY_ID = new Map(DEMO_SESSIONS.map((s) => [s.session_id, s]));
 
+/**
+ * The synthetic session a correction's own claim cites (apps/api/src/correction.ts, via
+ * @errata/ingest's buildCorrection): `session_id "user-correction"`, `turn_index -1`. It is a real
+ * citation — it just points at this conversation instead of a transcript line, and there is no
+ * ordinal to number it with.
+ */
+export const CORRECTION_SESSION = 'user-correction';
+
+export function isCorrection(sessionId: string): boolean {
+  return sessionId === CORRECTION_SESSION;
+}
+
 /** Positional citation label: s<session ordinal>:t<turn index> (integration seam — turn identity is positional). */
 export function citeLabel(sessionId: string, turnIndex: number): string {
+  if (isCorrection(sessionId)) return 'your correction';
   const s = BY_ID.get(sessionId);
   return `s${s ? s.ordinal + 1 : '?'}:t${turnIndex}`;
+}
+
+/** The same citation as a superscript footnote marker, where "your correction" is too long to sit
+ *  beside three others on one line. */
+export function citeMark(sessionId: string, turnIndex: number): string {
+  return isCorrection(sessionId) ? '✎you' : citeLabel(sessionId, turnIndex);
 }
 
 export function sessionOrdinal(sessionId: string): number | null {

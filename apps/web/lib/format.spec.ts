@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEMO_SESSIONS } from '../config/demo';
-import { citeLabel, monthStamp, sameValue, sessionOrdinal, stamp } from './format';
+import { CORRECTION_SESSION, citeLabel, isCorrection, monthStamp, sameValue, sessionOrdinal, stamp } from './format';
 
 describe('citation labelling', () => {
   it('labels a citation by its session ordinal, not its session_id (13 of 500 histories reuse ids)', () => {
@@ -13,6 +13,12 @@ describe('citation labelling', () => {
   it('degrades visibly rather than silently when a session is not in the pinned history', () => {
     expect(citeLabel('not-a-session', 7)).toBe('s?:t7');
     expect(sessionOrdinal('not-a-session')).toBeNull();
+  });
+
+  it('names a correction claim by its provenance — it cites this conversation, not a transcript turn', () => {
+    expect(isCorrection(CORRECTION_SESSION)).toBe(true);
+    expect(citeLabel(CORRECTION_SESSION, -1)).toBe('your correction');
+    expect(isCorrection('answer_3a6f1e82_2')).toBe(false);
   });
 
   it('numbers every session of the pinned history exactly once, in corpus order', () => {

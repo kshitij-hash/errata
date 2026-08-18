@@ -512,6 +512,26 @@ export async function askQuery(client: GraphClient, historyId: string, question:
   const belief = resolveBelief(claims, edges);
   const head = belief.head ?? belief.heads[0] ?? null;
 
+  // ---- the answer's own claim cites itself (hard rule 3, sharpened) --------------------------
+  //
+  // The synthesis path cited the MATERIAL WINDOW, which is ranked by relevance to the question.
+  // On a corrected chain that is not the same set as the answer's own evidence: the flagship head
+  // is a user correction whose span ("corrected by the user to $425,000") echoes none of the
+  // question's words, so it ranked below the two transcript spans it displaced — and the answer
+  // "$425,000" shipped citing only $350,000 and $400,000. The head's own citation now leads.
+  //
+  // PACKAGING ONLY. `window` below — the material sent to synthesis — is untouched, so the prompt
+  // is byte-identical and the eval's prompt-keyed cache still hits. Nothing here can change the
+  // answer text.
+  const headCitation = head ? cite(head.citation, head.evidence_span) : null;
+  const sameCitation = (a: ReturnType<typeof cite>, b: ReturnType<typeof cite>): boolean =>
+    a.claim_id != null && b.claim_id != null
+      ? a.claim_id === b.claim_id
+      : a.session_id === b.session_id && a.turn_index === b.turn_index && a.span === b.span;
+  /** head citation first, then the rest with any duplicate of it removed. */
+  const headFirst = (rest: ReturnType<typeof cite>[]): ReturnType<typeof cite>[] =>
+    headCitation ? [headCitation, ...rest.filter((c) => !sameCitation(c, headCitation))] : rest;
+
   // `fit` hands the calibrated score the SAME relevance number the material ranking used, instead
   // of recomputing a token-F1 that the taxonomy showed is near-zero on most real questions.
   const cand = head ? [{ attribute: bestAttr, value: head.value, registryMatched: isRegistered(bestAttr), fit: Math.min(1, bestSc), headConfidence: head.confidence, judgeConfidence: head.judge_status === 'UNJUDGED' ? 0.5 : 1.0, corroboration: head.corroboration }] : [];
@@ -648,7 +668,7 @@ export async function askQuery(client: GraphClient, historyId: string, question:
           abstained: false,
           disputed: belief.disputed,
           confidence: score.E,
-          citations: window.slice(0, 3).map((c) => cite({ session_id: String(c._row.session_id), turn_index: Number(c._row.turn_index), claim_id: Number(c._row.claim_id) }, String(c._row.evidence_span ?? ''))),
+          citations: headFirst(window.slice(0, 3).map((c) => cite({ session_id: String(c._row.session_id), turn_index: Number(c._row.turn_index), claim_id: Number(c._row.claim_id) }, String(c._row.evidence_span ?? '')))),
           subject: subjectNorm || undefined,
           attribute: bestAttr,
           superseded: belief.superseded.map(shapeValue),

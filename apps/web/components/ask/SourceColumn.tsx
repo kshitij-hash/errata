@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import type { AskResponse, BeliefValue, TurnRow } from '../../lib/api';
 import { DEMO_HISTORY_ID } from '../../config/demo';
-import { citeLabel, sessionDate, sessionOrdinal } from '../../lib/format';
+import { citeLabel, isCorrection, sessionDate, sessionOrdinal } from '../../lib/format';
 
 interface Line {
   key: string;
@@ -27,6 +27,8 @@ function group(lines: Line[]): { sessionId: string; lines: Line[] }[] {
 }
 
 function header(sessionId: string, tail: string): string {
+  // a correction cites this conversation, not a transcript session — it gets its own plate.
+  if (isCorrection(sessionId)) return `THE CORRECTION · APPENDED BY YOU${tail}`;
   const ord = sessionOrdinal(sessionId);
   const date = sessionDate(sessionId);
   return `SESSION ${ord == null ? sessionId : ord + 1}${date ? ` · ${date}` : ''}${tail}`;
@@ -164,7 +166,8 @@ export function SourceColumn({
                 <span className="who">{citeLabel(l.sessionId, l.turnIndex)} ·</span>{' '}
                 <span className={`hlspan${swept ? ' swept' : ''}`}>{l.span}</span>
               </div>
-              <TurnWindow line={l} />
+              {/* a correction has no surrounding transcript to open — it IS the turn */}
+              {isCorrection(l.sessionId) ? null : <TurnWindow line={l} />}
             </div>
           ))}
         </div>
