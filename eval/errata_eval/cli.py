@@ -582,7 +582,10 @@ def cmd_judge(args: argparse.Namespace) -> int:
         run_id=config.run.run_id,
     )
     client = OpenRouterClient(
-        cfg.load_prices(cfg.default_prices_path()), ledger, run_id=config.run.run_id
+        cfg.load_prices(cfg.default_prices_path()),
+        ledger,
+        run_id=config.run.run_id,
+        cache_dir=_cache_dir(args),
     )
     model = args.judge or config.models.judge_primary
     gen = config.generation
@@ -621,13 +624,32 @@ def cmd_report(args: argparse.Namespace) -> int:
     judge_model = next((j.get("judge_model") for j in judgments if j.get("judge_model")), "")
     judge_sha = next((j.get("judge_prompt_sha") for j in judgments if j.get("judge_prompt_sha")), "")
     n_q = len({a["question_id"] for a in answers})
+    # The caption's FAR defaults to the COMMITTED scored control set rather than to "not yet
+    # measured": the number has been measured (8.3%, 5/60) and published in judge-validation.md
+    # since the control-set revision, but it only reached the caption if someone remembered to pass
+    # --far, so the generated table kept claiming the judge was unvalidated. Reading it from the
+    # same rows judge-validate wrote means the caption cannot drift from the measurement.
+    far = args.far
+    if far is None:
+        from .judge_validation import control_items_from_scored, evaluate as evaluate_controls
+
+        scored = _read_jsonl(Path("out") / "judge-controls-scored.jsonl")
+        if scored:
+            jv = config.judge_validation
+            far = evaluate_controls(
+                judge_model or config.models.judge_primary,
+                control_items_from_scored(scored),
+                far_gate=jv.far_gate,
+                far_gate_superseded=jv.far_gate_superseded,
+                frr_gate=jv.frr_gate,
+            ).far
     caption = render_caption(
         config=config,
         manifest={},
         answer_prompt_sha=ANSWER_PROMPT_SHA256,
         judge_model=judge_model or config.models.judge_primary,
         judge_prompt_sha=judge_sha or "",
-        judge_far=args.far,
+        judge_far=far,
         n_questions=n_q,
     )
     out = write_report(reports, outdir=Path("out") / "report", caption=caption)
@@ -685,6 +707,11 @@ def build_parser() -> argparse.ArgumentParser:
     jd.add_argument("--run", required=True, help="run_id under out/")
     jd.add_argument("--judge", default=None, help="override judge model")
     jd.add_argument("--resume", action="store_true")
+    # The judge is a temperature-0, content-addressed call like every other pass here, but this
+    # subcommand alone built its client WITHOUT a cache dir — so re-judging a run in which only a
+    # handful of answers moved paid full price for every unchanged (question, answer) pair. The
+    # flag matches `controls-positive` / `judge-validate`; '' still disables the cache outright.
+    jd.add_argument("--cache-dir", default=None, help="LLM cache dir ('' disables)")
     jd.set_defaults(func=cmd_judge)
 
     jv = sub.add_parser("judge-validate", help="score the committed control set; publish FAR/FRR")
