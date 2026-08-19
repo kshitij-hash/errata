@@ -1,5 +1,5 @@
 // packages/mcp/src/shape.ts — pure response shaping: raw apps/api JSON -> the MCP tool result.
-// Zero I/O, zero LLM (CLAUDE.md hard rule 6) — this is what packages/mcp/src/shape.spec.ts
+// Zero I/O, zero LLM (CONVENTIONS.md hard rule 6) — this is what packages/mcp/src/shape.spec.ts
 // exercises directly, with fixture JSON, no live server required.
 
 import type { AskApiResponse, ApiBeliefValue, ApiCitation, ApiCypherStmt, BeliefApiResponse, CorrectionApiError, CorrectionApiResponse, DiffApiResponse } from './types.js';
@@ -31,7 +31,7 @@ export interface AskAbstained {
 
 export type AskResult = AskAnswered | AskAbstained;
 
-/** Calibrated abstention is a first-class answer (AGENTS.md), never an error: this always returns
+/** Calibrated abstention is a first-class answer (CONVENTIONS.md), never an error: this always returns
  *  a normal result. Hard rule 3 (every answer carries a citation) is enforced right here — an
  *  "answered" result with no citations is reshaped into an abstention rather than shipped uncited. */
 export function shapeAsk(raw: AskApiResponse): AskResult {
@@ -141,7 +141,7 @@ function entry(v: ApiBeliefValue, struck: boolean): HistoryEntry {
   return { value: v.value, event_time: v.event_time, citation: v.citation, struck };
 }
 
-/** Nothing is ever mutated or deleted (AGENTS.md: "the edge IS the history") — this is the view
+/** Nothing is ever mutated or deleted (CONVENTIONS.md: "the edge IS the history") — this is the view
  *  that makes that visible: current values alongside every value they displaced, and the exact
  *  chain of revision edges that connects them. */
 export function shapeHistory(subject: string, attribute: string, belief: BeliefApiResponse, diff: DiffApiResponse | null): HistoryResult {

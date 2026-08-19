@@ -8,7 +8,7 @@
 // The bridge is built ONCE, HERE, at ingest: the same extractor model that produced the claims is
 // asked for the surface forms and question phrasings of each entity and each attribute. The result
 // is baked into the lexicon artifact and is a plain string→string map thereafter. The answer path
-// therefore stays what CONTEXT rule 2 requires: deterministic, no model, no vectors. Every call
+// therefore stays what hard rule 2 requires: deterministic, no model, no vectors. Every call
 // goes through @errata/llm, so it is budget-guarded, ledgered, and $0 on replay.
 
 import { z } from 'zod';

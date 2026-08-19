@@ -40,7 +40,7 @@ Every comparison is significant at 0.05 and the direction is Errata's in all fou
 
 The counts move by at most 4 and no rule changes a single verdict at 0.05. The conclusion does not rest on the choice.
 
-> **An audit pass reported 33/15, 31/14, 37/15 and 31/16 for these four cells. Three of the four do not reproduce, and they cannot all be right at once.** The grid above is exhaustive over the sensible seed-collapse rules, and no single row matches all four: `unanimous` alone reproduces the two full-context `b` counts (33, 37), while the reported `c` counts (15, 15) come only from a per-seed or majority rule, and the two naive cells (31/14, 31/16) reproduce together only under seed1. A pairing rule has to be one rule. The most likely explanation is that the audit's cells were collected under different collapse conventions rather than one. The data itself is not in question: these counts were recomputed independently from the raw `out/rerun*/judgments.jsonl` and `answers.jsonl` and agree with `results.json` exactly, arm by arm and seed by seed. Nothing here changes a verdict — every cell in the grid is significant at 0.05 bar `majority`/`seed2` on overall-120 vs full-context (p = 0.049), which is the one number worth quoting carefully.
+> A pairing rule has to be one rule, applied to every cell: quoting cells collected under mixed collapse conventions produces count sets no single rule reproduces. These counts were recomputed independently from the raw `out/rerun*/judgments.jsonl` and `answers.jsonl` and agree with `results.json` exactly, arm by arm and seed by seed. Every cell in the grid is significant at 0.05 bar `majority`/`seed2` on overall-120 vs full-context (p = 0.049), which is the one number worth quoting carefully.
 
 ## Paired cluster bootstrap, 95%
 
@@ -57,7 +57,7 @@ The counts move by at most 4 and no rule changes a single verdict at 0.05. The c
 
 Both conventions are printed because they are not interchangeable and the choice moves the ends by about a point: percentile takes the empirical quantiles, basic reflects them through the point estimate. Every gap interval excludes 0, which is the same conclusion McNemar reached by a different route.
 
-The same audit pass reported [50.8, 68.3] for Errata overall-120 and [58.7, 74.0] for all-450. The first is the **basic** column here to the decimal, which identifies the convention it used; the second differs by 0.6 on the lower end and matches on the upper. Quote the convention with the interval — an unlabelled bootstrap CI is ambiguous by about a point at this sample size.
+Quote the convention with the interval — an unlabelled bootstrap CI is ambiguous by about a point at this sample size.
 
 ## Judge-error sensitivity
 

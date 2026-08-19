@@ -79,7 +79,7 @@ design, so this corpus has no held-out slice on which τ could honestly be fitte
 | **Projected total** | | | | **$16.67** |
 
 **This projection is OVER the $15.00 hard cap (`spend.hard_cap_usd`), so `estimate` exits 3.** That
-is the gate working rather than a defect, and the figure is not what the campaign cost: the
+is the gate working rather than a defect, and the figure is not what was actually spent: the
 estimator prices a COLD, cache-empty run of all three arms from nothing, while the published runs
 were produced incrementally against a warm on-disk LLM cache. Actual spend is **$12.55** on the
 eval ledger (`out/ledger.jsonl` — the committed file is the source of truth; recompute it), plus

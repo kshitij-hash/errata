@@ -2,12 +2,12 @@
 
 **Memory that keeps its corrections.**
 
-Errata is an agent-memory layer on [HydraDB](https://github.com/hydra-db/hydradb): a conversation is
-ingested as an append-only, bitemporal graph of **claims**, and a contradiction is never an update —
-it is a new claim plus a `SUPERSEDES` edge, so the correction *and* the thing it corrected are both
-still queryable. Ask what is true now and you get the current belief with a session-and-turn
-citation; ask what was believed on a date and you get the revision chain; ask something the
-transcript never said and you get an **abstention** with the nearest misses, scored as an answer.
+Errata is an agent-memory layer on [HydraDB](https://github.com/hydra-db/hydradb). A conversation is
+ingested as an append-only, bitemporal graph of claims, and a contradiction lands as a new claim
+plus a `SUPERSEDES` edge rather than an update, so the correction and the thing it corrected both
+stay queryable. Ask what is true now and you get the current belief with a session-and-turn
+citation. Ask what was believed on a date and you get the revision chain. Ask something the
+transcript never said and you get an abstention with the nearest misses, scored as an answer.
 
 It ships as three surfaces on one API: a **web app** — ask, timeline, compare, and an auditable
 [`/results`](#the-web-app) page where every published eval number opens the raw judged rows behind
@@ -15,10 +15,10 @@ it; an **MCP server** ([`packages/mcp`](packages/mcp)) that lets any MCP-capable
 memory — ask it, correct it, and read the revision history, live-captured in
 [`docs/mcp-demo.md`](docs/mcp-demo.md); and the HTTP API itself.
 
-Memory layers routinely claim contradiction handling. This one **measured** it — on LongMemEval,
+Memory layers routinely claim contradiction handling. This one measured it: on LongMemEval,
 against a full-context and a naive-RAG baseline, with a judge whose false-accept rate was measured
-before any result was believed, the losing categories printed with the price of fixing them, and
-the experiments that failed published beside the ones that shipped.
+before any result was believed. The losing categories are printed with the price of fixing them,
+and the experiments that failed are published beside the ones that shipped.
 
 <!-- TODO(submission day): live URL line goes here — web app + API. -->
 
@@ -39,12 +39,12 @@ repository starts on or after 2026-08-12, per the hackathon rules.
 
 **Errata scores 60.0 overall against 47.5 for reading the full history and 45.8 for naive top-k
 RAG — at 1/43rd the context tokens, roughly 1/430th the $/question, and 31× lower p50 latency,
-with a citation on every answer.** All three arms answer with the **same small model**
-(`qwen/qwen3.7-flash`) and the same prompt, sha-verified before any spend — so this table measures
-the memory layer, not the reader, and its numbers are **deliberately not comparable** to
+with a citation on every answer.** All three arms answer with the same small model
+(`qwen/qwen3.7-flash`) and the same prompt, sha-verified before any spend, so this table measures
+the memory layer rather than the reader. Its numbers are deliberately not comparable to
 leaderboard scores produced with frontier readers, including HydraDB's own published LongMemEval
 results. On abstention, Errata has higher recall than full-context (0.93 vs 0.80) and lower
-precision (0.49 vs 0.58): it catches more truly-unanswerable questions *and* over-refuses more
+precision (0.49 vs 0.58): it catches more truly-unanswerable questions and also over-refuses more
 often, and both halves are scored and printed.
 
 | Arm | Overall | Info. extraction | Multi-session | Temporal | Knowledge update | Abstention P / R | Ctx tok/Q | $/Q | p50 / p95 (s) |
@@ -59,7 +59,7 @@ often, and both halves are scored and printed.
 abstention is scored deterministically by exact match and never reaches the judge. Counting all
 450 rows including abstention, the same runs read Errata 66.7, naive 56.2, full-context 54.0.
 The `±` column is per-seed sd, and it is not symmetric evidence: the baselines' spread is provider
-nondeterminism across three real draws, while **Errata's ±0.0 is structural** — its one LLM call
+nondeterminism across three real draws, while Errata's ±0.0 is structural — its one LLM call
 per question is cached without the seed, so seeds 22 and 33 replay seed 11 byte-for-byte. Errata's
 `$/Q` and latency are measured on `rerunF-wave`, the last cold-cache run; the current run replayed
 447 of 450 answers from cache, which would flatter both columns.
@@ -67,10 +67,10 @@ per question is cached without the seed, so seeds 22 and 33 replay seed 11 byte-
 **The ordering is defended; the point estimates are not oversold.** On paired exact McNemar
 (questions as the pairing unit, seeds majority-collapsed), Errata beats full-context 29 wins / 15
 losses (p = 0.049) and naive 31/14 (p = 0.016) on the overall-120, and 33/15 (p = 0.013) / 31/15
-(p = 0.026) on the all-450 — significant at 0.05 under **every** seed-collapse rule tested, with
+(p = 0.026) on the all-450 — significant at 0.05 under every seed-collapse rule tested, with
 the rule-sensitivity grid published. The paired-bootstrap 95% CI on Errata's 60.0 is [51.7, 69.2]
 (percentile; basic [50.8, 68.3]) — wide, because n = 120 — but every paired *gap* interval
-excludes zero. Correcting every arm for the judge's own measured false-accept rate **widens**
+excludes zero. Correcting every arm for the judge's own measured false-accept rate widens
 Errata's lead (12.5 → 14.5 points; 17.5 at the judge's worst-case envelope), because the arm that
 abstains more gives a fallible judge less to inflate. Recompute all of it:
 [`eval/stats.py`](eval/stats.py) → `eval/out/stats.md`.
@@ -78,25 +78,25 @@ abstains more gives a fallible judge less to inflate. Recompute all of it:
 **Honest gap, kept next to the headline.** Single-fact **information extraction is 44.7 against
 full-context's 80.7** — the one column Errata loses, and it loses it badly. Cut by the corpus's own
 question types, the entire remaining deficit is 22 of 150 questions:
-`single-session-assistant` **7.1%** (against 92.9% for both baselines) and
-`single-session-preference` **0.0%** (against 20.8% for full-context). Both are write-path gaps —
-the fact is not in the graph to retrieve — and the first one is a **priced** decision, not a
+`single-session-assistant` 7.1% (against 92.9% for both baselines) and
+`single-session-preference` 0.0% (against 20.8% for full-context). Both are write-path gaps —
+the fact is not in the graph to retrieve — and the first one is a priced decision rather than a
 modelling result: lifting the extraction cap that drops long enumerated assistant answers was
-projected at **$20.72** to re-extract the 150 histories against the **$4.19** the shipped
-configuration cost — and a $0 deterministic recall pass aimed at the same gap was **built, applied,
+projected at $20.72 to re-extract the 150 histories against the $4.19 the shipped
+configuration cost. A $0 deterministic recall pass aimed at the same gap was built, applied,
 measured at 62.7 (below the then-shipped 65.3), reverted, and the revert verified
-answer-for-answer**. Across the two published waves, knowledge-update regressed 100.0 → 94.4 and
+answer-for-answer. Across the two published waves, knowledge-update regressed 100.0 → 94.4 and
 context cost rose 21% (2,095 → 2,532 tokens/question); three questions regressed against eleven
 improved (nine in the temporal wave, two in the arithmetic wave), each one traced. And because the
 same 150 questions were measured repeatedly while the answer path improved,
-[`eval/RESULTS.md`](eval/RESULTS.md) discloses **which gains are question-agnostic and which are
-in-sample patches**, with the significance tests — rather than leaving that to be discovered.
+[`eval/RESULTS.md`](eval/RESULTS.md) discloses which gains are question-agnostic and which are
+in-sample patches, with the significance tests, rather than leaving that to be discovered.
 
-**The judge was validated before the table was believed.** False-accept rate **8.3%** (5/60) on
-committed perturbed negatives against a ≤10% gate — **15.0%** before a disclosed control-set
-revision that fixed 7 defective controls with the judge itself untouched; false-reject **0.0%**
-(0/60) on paraphrased golds. Per family: **superseded-value 0.0% (0/12)** — the category this
-table's thesis rests on — and **attribution-flip 25.0% (3/12), which FAILS its own gate and is
+**The judge was validated before the table was believed.** False-accept rate 8.3% (5/60) on
+committed perturbed negatives against a ≤10% gate — 15.0% before a disclosed control-set
+revision that fixed 7 defective controls with the judge itself untouched; false-reject 0.0%
+(0/60) on paraphrased golds. Per family: superseded-value 0.0% (0/12), the category this
+table's thesis rests on, and **attribution-flip 25.0% (3/12), which FAILS its own gate and is
 published as a failure**, worst-case 75% once the six truncated verdicts are counted as accepts.
 The calibration caveats (the controls are easier than in-run errors; the superseded-value rubric
 is prompted, not emergent) are in [`eval/judge-validation.md`](eval/judge-validation.md).
@@ -173,11 +173,11 @@ sweep on the cited span, a per-answer economics line and the exact Cypher behind
 **Timeline** — the revision chain replaying over event time, with a Constellation view of the same
 claims; **Compare** — vector similarity against the belief graph; **Exhibit**; **Limits** — the
 twelve HydraDB operating limits this project hit, measured, with workarounds. The audit surfaces:
-[`/results`](apps/web) — the published table where **every cell, including the losing ones and the
-two rejected experiments, opens the raw judged rows behind it**, recomputed at build time from a
+[`/results`](apps/web) — the published table where every cell, including the losing ones and the
+two rejected experiments, opens the raw judged rows behind it, recomputed at build time from a
 committed per-row bundle; and `/results/judge` — all 120 judge-validation controls, the failing
 family included. The demo surfaces render from the API at request time; the `/results` pages render
-a committed, frozen bundle of judged rows — an eval artifact, deliberately not a live query.
+a committed, frozen bundle of judged rows — a fixed eval artifact rather than a live query.
 
 Three deliberate properties: **no UI, motion, icon or graph library** (the scrubber is
 `<input type=range>`, the disclosure is `<details>`, the graph is ~60 lines of SVG physics, the icons

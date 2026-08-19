@@ -1,5 +1,5 @@
 // packages/mcp/src/client.ts — the ONE seam that talks to the network. Everything else in this
-// package is pure. HTTP to apps/api only (CLAUDE.md's boundary discipline: never Bolt, never
+// package is pure. HTTP to apps/api only (CONVENTIONS.md's boundary discipline: never Bolt, never
 // HydraDB directly — the eval harness holds the same line).
 //
 // Non-2xx responses are NOT thrown: apps/api answers a bad correction with a structured 400/404/409

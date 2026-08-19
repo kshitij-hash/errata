@@ -1,6 +1,6 @@
 // packages/mcp/src/tools/history.ts — memory_history: the revision chain for one
 // (subject, attribute) over GET /api/belief + GET /api/diff. Every claim that ever held, struck
-// values included — nothing is ever mutated or deleted (AGENTS.md: "the edge IS the history").
+// values included — nothing is ever mutated or deleted (CONVENTIONS.md: "the edge IS the history").
 //
 // NOT an as-of view. /api/belief takes `at` + `axis` and will fold the belief as it stood at time
 // t; this tool sends neither, so it returns the whole chain as of now. `from`/`to` bound the /diff

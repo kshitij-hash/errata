@@ -22,7 +22,7 @@ const csp = [
 ].join('; ');
 
 const nextConfig: NextConfig = {
-  // the repo already carries its conventions in the root CLAUDE.md; don't scatter generated copies
+  // the repo already carries its conventions in the root CONVENTIONS.md; don't scatter generated copies
   agentRules: false,
   // the dev overlay sits on top of the paper in every review screenshot
   devIndicators: false,

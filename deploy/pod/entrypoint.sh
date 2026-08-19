@@ -7,7 +7,7 @@ set -euo pipefail
 
 DATA_ROOT="${ERRATA_DATA_ROOT:-/data}"
 
-# --- hard rule: never CLOUD_PROVIDER=local for real data (CLAUDE.md / docs/gauntlets.md) ---------
+# --- hard rule: never CLOUD_PROVIDER=local for real data (CONVENTIONS.md / docs/gauntlets.md) ---------
 if [ "${CLOUD_PROVIDER:-}" != "aws" ]; then
   echo "entrypoint: refusing to start — CLOUD_PROVIDER must be 'aws', got '${CLOUD_PROVIDER:-<unset>}'" >&2
   exit 1

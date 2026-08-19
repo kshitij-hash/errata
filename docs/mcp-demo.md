@@ -17,9 +17,9 @@ pnpm typecheck                      # builds packages/mcp/dist
 node packages/mcp/scripts/demo.mjs > transcript.json
 ```
 
-The one write in this transcript (`memory_correct`) landed on the demo history, `852ce960-clean` — the
-ground rule for this build ("append only to the demo history or a synthetic session, never an
-eval-sample history, keep writes minimal") — and appends exactly one claim + one SUPERSEDES edge. It
+The one write in this transcript (`memory_correct`) landed on the demo history, `852ce960-clean` —
+the demo's standing rule: writes go only to the demo history or a synthetic session, never to an
+eval-sample history, and stay minimal — and appends exactly one claim + one SUPERSEDES edge. It
 is still there: append-only means there is no path to take it back, which is the entire point of the
 demo.
 
@@ -61,7 +61,7 @@ Tools registered by the server (`tools/list`, captured from the same run):
 The answer is right (`$400,000`), it names a citation, and it already shows the value it displaced
 (`$350,000`) — this is the flagship supersession from `docs/gauntlets.md` G2/G4, served live.
 
-## 6 (shown here, since it costs nothing to interleave). An abstention — first-class, not an error
+## An abstention — first-class, not an error
 
 ```jsonc
 // memory_ask({ question: "What is my favorite color?", history_id: "852ce960-clean" })

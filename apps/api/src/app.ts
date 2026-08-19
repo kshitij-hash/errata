@@ -117,7 +117,7 @@ app.post('/api/ask', async (c) => {
 // it displaces. It never updates, re-keys or deletes an existing vertex or edge — the displaced
 // claim keeps its id, value, citation and confidence and only gains an inbound revision edge.
 // Filing the same correction twice appends a second claim rather than overwriting the first. Any
-// future route that mutates or deletes is a bug (CLAUDE.md hard rule 1).
+// future route that mutates or deletes is a bug (CONVENTIONS.md hard rule 1).
 // ---------------------------------------------------------------------------------------------
 app.post('/api/correction', async (c) => {
   const raw = await c.req.json().catch(() => null);

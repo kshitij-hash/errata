@@ -3,7 +3,7 @@
 // apps/api's ONLY mutating route is POST /api/correction (apps/api/src/app.ts banner comment); it
 // appends a Claim + a SUPERSEDES edge to the belief it displaces. There is no separate ingest/turns
 // write route — turn-level extraction is an offline, LLM-backed pipeline (packages/ingest), never
-// exposed over HTTP (CLAUDE.md hard rule 6: no LLM call inside this server). `memory_remember`
+// exposed over HTTP (CONVENTIONS.md hard rule 6: no LLM call inside this server). `memory_remember`
 // records a new observation about a (subject, attribute) the memory already has SOME claim about,
 // auto-superseding the current head. A genuinely first-ever fact about a (subject, attribute) this
 // history has never seen needs the offline ingest pipeline first; this tool reports that plainly

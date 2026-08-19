@@ -57,7 +57,7 @@ alongside the flagship, and **zero questions regressed**.
 
 ## τ, and what actually produces an abstention — a correction to our own description
 
-An adversarial pre-submission audit of this repo found that earlier versions of this document (and
+Our own pre-submission audit of this repo found that earlier versions of this document (and
 the README) described abstention as "gated at E ≥ τ." **That describes a code path that did not
 produce these abstentions, and we are correcting it rather than quietly rewording it.** What the
 artifacts show, and what the shipped v2 synthesis path actually does:
@@ -320,7 +320,7 @@ So it was reverted, and the revert is verified rather than asserted: the graph w
 pre-apply snapshot, and `rerunI-restored` differs from `rerunF-wave` in **0 of 450 answers**,
 re-scoring an identical 65.3 from a full judge-cache replay at $0. The pass itself is retained on
 its branch with its tests; a future configuration could re-admit it behind a read-time
-`extractor_model` filter with its own retrieval budget, but that is a design change, not tonight's
+`extractor_model` filter with its own retrieval budget, but that is a design change, not this wave's
 patch. The published number stays on the build that earned it.
 
 ## τ, unchanged and still not fitted

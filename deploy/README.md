@@ -4,7 +4,7 @@ Two targets are documented here, in the order they matter today:
 
 - **Part 1 — Railway.** The deploy that ships. Builds the image from the GitHub repo, restores the
   graph onto a volume on first boot, serves the API on Railway's injected `$PORT`.
-- **Part 2 — RunPod.** The earlier design, fully tested end-to-end the night before deploy day.
+- **Part 2 — RunPod.** The earlier design, fully tested end-to-end locally.
   It is kept verbatim as the fallback and as the source of every gauntlet mitigation Part 1
   inherits. Nothing in it was changed to make room for Railway.
 
@@ -151,9 +151,9 @@ the real GitHub-release download path. Those are first exercised on the real dep
 ### 0. Prerequisites
 
 - The GitHub repo **public** (the container downloads release assets unauthenticated).
-- A Railway account on a **paid plan**. This is not optional: the restored graph is 4.0 GB of MinIO
-  objects plus a block cache that grows to its 2 GiB ceiling, and **Hobby caps a volume at 5 GB**.
-  Pro (50 GB max) is what fits.
+- A Railway account. The deployment fits the **Hobby plan's 5 GB volume cap by design**: only the
+  ~4.0 GB of durable state lives on the volume, while the block cache (2 GiB ceiling) and the
+  transient restore staging stay on the container's ephemeral disk — see step 5 for the sizing.
 - `gh` authenticated locally, and `zstd` installed (`brew install zstd`) for the packaging script.
 
 ### 1. Push the repo public
@@ -355,7 +355,7 @@ service and `rm /data/.snapshot-restored`, then restart; or detach and recreate 
 
 # Part 2 — RunPod (the tested alternative)
 
-This is the deploy design that was built and verified end-to-end the night before deploy day, and
+This is the deploy design that was built and verified end-to-end locally first, and
 it is unchanged. It is not what ships today — Part 1 is — but it is the fallback if Railway is a
 dead end, and it is where every gauntlet mitigation Part 1 inherits was first worked out. Read
 "pod" as RunPod throughout; the `deploy/pod/` tree it describes still exists exactly as written.
@@ -407,16 +407,16 @@ actively override to lose — not a runbook step that can be skipped under deadl
 | Finding | Where it's fixed |
 |---|---|
 | `graph-node` aborts on the first query without a 32 MiB thread stack | `RUST_MIN_STACK=33554432`, baked as an image `ENV` in `deploy/pod/Dockerfile` |
-| The upstream image's default stop behaviour SIGKILLs before the writer lease is released | `deploy/pod/supervisord.conf`: `[program:hydradb]` sets `stopsignal=TERM stopwaitsecs=58`, so supervisord itself waits up to 58s before escalating. Verified locally tonight — see below. |
+| The upstream image's default stop behaviour SIGKILLs before the writer lease is released | `deploy/pod/supervisord.conf`: `[program:hydradb]` sets `stopsignal=TERM stopwaitsecs=58`, so supervisord itself waits up to 58s before escalating. Verified locally — see below. |
 | Writer-lease churn on write-idle re-opens SlateDB and leaks ~200MB per re-open, ratcheting RSS to OOM | `GRAPH_WRITER_LEASE_MS=120000`, baked as an image `ENV` — outlives the write gaps between ingest bursts |
 | `CLOUD_PROVIDER=local` silently drops writes under load | `entrypoint.sh` refuses to start unless `CLOUD_PROVIDER=aws`; the image also bakes `CLOUD_PROVIDER=aws` as the default so it takes an explicit override to break |
 | The default `GRAPH_DATA_CACHE_BYTES` (8 GiB) exceeds a modest container's headroom and was the proximate trigger of an 8GB-VM OOM kill | `GRAPH_DATA_CACHE_BYTES=4294967296` (4 GiB), baked as an image `ENV`; pod RAM sizing below leaves real headroom above that ceiling, not just above the cache figure |
 | Upstream image ships no `curl`/`wget`/`nc` | `entrypoint.sh` and `supervisord.conf` use bash's own `/dev/tcp` for every internal wait/probe — nothing here assumes a tool the base image doesn't have |
 
-## Local build + verification (tonight — no cloud, no registry push, no API spend)
+## Local build + verification (no cloud, no registry push, no API spend)
 
 Built with `docker buildx build -f deploy/pod/Dockerfile -t errata-pod:dryrun .` on this machine
-(Apple Silicon → `linux/arm64`). **The real build tomorrow must add `--platform linux/amd64`** —
+(Apple Silicon → `linux/arm64`). **The real build for RunPod must add `--platform linux/amd64`** —
 RunPod CPU pods are x86_64; an arm64 image will fail at container start on the pod, not at push.
 
 Image size locally: **868 MB**. The base is HydraDB's own image (Ubuntu 24.04, ships the
@@ -460,7 +460,7 @@ Smoke test performed, in order:
 7. Torn down: `docker rm -f errata-poddry`, its network, and its scratch data directory. Only
    resources named `errata-poddry` were touched at any point.
 
-## Tomorrow morning: build → push → create → verify
+## Deploying: build → push → create → verify
 
 ### 0. Prerequisites (once)
 
@@ -468,10 +468,10 @@ Smoke test performed, in order:
   credential registered with RunPod (`POST /v2/registries` or the console — record the returned
   credential id, never the token itself, anywhere durable).
 - A RunPod network volume, created once: **50 GB, `STANDARD`, data center `US-TX-3`** (verified live
-  tonight via the RunPod catalog API: `US-TX-3` carries `STANDARD` network volumes and
+  via the RunPod catalog API: `US-TX-3` carries `STANDARD` network volumes and
   `GDPR`/`ISO_IEC_27001`/`SOC_2_TYPE_2`/`HIPAA` compliance flags; a network volume pins whatever pod
   attaches it to that same data center, so pick the DC before creating either). **Do not use
-  `AP-IN-1` or `US-KS-2`** — both were confirmed tonight to report `networkVolumeTypes: []`, so
+  `AP-IN-1` or `US-KS-2`** — both were confirmed to report `networkVolumeTypes: []`, so
   anything written there is gone on the next stop, not just the next terminate.
 
 ### 1. Build and push
@@ -488,7 +488,7 @@ docker buildx build --platform linux/amd64 \
 
 ### 2. Instance sizing
 
-Verified live against the RunPod CPU catalog tonight: `cpu3m` (Memory-Optimized, CPU3 generation)
+Verified live against the RunPod CPU catalog: `cpu3m` (Memory-Optimized, CPU3 generation)
 is **8 GB RAM per vCPU** at **$0.055/vCPU/hr**. At 2 vCPU that's **16 GB RAM for $0.11/hr**
 (≈$2.64/day). That headroom is the direct fix for the OOM-kill lesson: the image caps HydraDB's own
 cache at 4 GiB, and 16 GB total leaves the rest for MinIO, the OS, `graph-node`'s non-cache memory,
@@ -579,7 +579,7 @@ is silently ignored rather than rejected, so an older client that sends it keeps
 `trace.material`, `trace.history_claims` and `trace.abstain_reason` — so **run it against a local or
 dev API with `ERRATA_DEBUG_OK=1` set, never against the pod.** The scoring harness does not depend on
 it: `eval/errata_eval/arms.py` sends no `debug` field at all, so a full eval run against a pod
-without the variable is unaffected. Verified both directions against the local API tonight: no
+without the variable is unaffected. Verified both directions against the local API: no
 `trace` key without the variable, trace present with it.
 
 #### Rate limiting
@@ -650,14 +650,14 @@ is cattle — never patch a live one.
 
 - **Outer container stop-timeout.** `supervisord.conf` waits up to 58s for `graph-node` to flush
   before it escalates to SIGKILL — verified locally that a real shutdown finishes in ~1.5s once
-  given the chance. What was *not* verified tonight is whether RunPod's own stop/restart path grants
+  given the chance. What was *not* verified is whether RunPod's own stop/restart path grants
   the container that long before it forces a kill itself; there's no cloud pod to test this against
-  without spending money. Confirm this first thing tomorrow, ideally by an actual `docker stop`
+  without spending money. Confirm this first, ideally by an actual `docker stop`
   timing test against the running pod before it holds real data.
-- **`cpu3m` stock in `US-TX-3`.** The catalog call tonight confirmed the flavor and rate exist;
+- **`cpu3m` stock in `US-TX-3`.** The catalog call confirmed the flavor and rate exist;
   it does not confirm current availability. Check the console's deploy form before committing to a
   data center.
-- **Registry credential flow.** Not exercised tonight (would require creating a real registry
+- **Registry credential flow.** Not exercised (would require creating a real registry
   credential against a live account) — the `POST /v2/registries` step in §0 is written from the API
   shape, not from having run it.
 - **`errata-ingest` isn't in the pod image.** §6 above documents SSH-based ingestion as the

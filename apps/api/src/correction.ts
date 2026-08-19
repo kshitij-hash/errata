@@ -4,7 +4,7 @@
 // SUPERSEDES edge from it to the claim it displaces. It never updates a property of an existing
 // vertex, never deletes anything, and never re-keys an existing claim. The displaced claim keeps
 // its id, its value, its citation and its confidence; it only gains an inbound revision edge — the
-// edge IS the history (AGENTS.md). Filing the same correction twice appends a SECOND claim (the
+// edge IS the history (CONVENTIONS.md). Filing the same correction twice appends a SECOND claim (the
 // natural key carries the correction's wall-clock instant), because a repeat correction is a
 // second assertion, not an overwrite of the first.
 //

@@ -47,7 +47,7 @@ const LooseExtractSchema = z.object({ claims: z.array(z.unknown()) });
  *
  * Extraction cost is ~92% output tokens. A first cut of the broadened prompt below ended with
  * "prefer many small specific claims", measured 6,077 output tokens per batch (≈7 claims per turn)
- * and projected $20.72 to re-extract the comparison-150 — 6x the old pass and far past the sprint's
+ * and projected $20.72 to re-extract the comparison-150 — 6x the old pass and far past the budgeted
  * $5 ceiling. Scope and volume are separate dials: the prompt below is BROADER than its predecessor
  * about what counts as a claim and no looser about how many to emit.
  */

@@ -58,7 +58,7 @@ error appears on a left-directed `(e)<-[:ABOUT]-(c) … LIMIT 5` returning many 
 in place: (1) `GraphClient.verify()` retries the handshake, recreating the driver on failure — the
 full live suite then passes 129/129 across repeated runs; (2) the demo/ask path uses the
 right-directed, id-anchored `MATCH (c:Claim)-[:ABOUT]->(e {id})` form, unaffected by the left-directed
-case. Flagged for a possible upstream report (our pre-build notes anticipated the legacy/manifest handshake risk).
+case. Flagged for a possible upstream report; the legacy/manifest handshake was a known risk area going in.
 
 **Verdict: PASS.** Loader usable, traversals stable, every load-bearing read form verified; the one
 rejected primitive (MSpaths list param) was already scoped out of the demo path.
@@ -192,7 +192,7 @@ two spellings of one amount could not meet on one vertex.
 | Attribute drift | `current_job_title` added to the `job_title` synonyms — the LLM extractor's own name for it on this history, previously landing unregistered |
 | Regression | `ingest.spec.ts` "re-ingest idempotence (B5)": assembling the same history twice yields identical counts AND identical vertex ids, so a second load adds nothing; plus `normValue` behaviour and the version-bump re-key |
 
-**Method — a fresh namespace, not a wipe.** The ruling's wipe branch did not apply: today's funded
+**Method — a fresh namespace, not a wipe.** A full wipe was ruled out: the day's funded
 runs are in this graph (G3: 150 histories LLM-extracted + judged, $3.44, plus the full-500
 structural store from Block A). Every vertex key is history-scoped (`h:<history_id>|…`), so the
 clean re-ingest went into its own history-id namespace, `852ce960-clean` (`errata-ingest
@@ -260,7 +260,7 @@ the entire headline gap, and they were not a retrieval failure at all: the salie
 assistant turns unless they contained a first-person cue, and the extraction prompt asked only for
 "durable personal facts stated by the user", so the fact was never in the graph to retrieve.
 
-Verified while there, as asked: all 150 sampled histories had extracted claims (127–269 each). No
+Also verified in the same pass: all 150 sampled histories had extracted claims (127–269 each). No
 history-level extraction hole.
 
 ### Fixes
@@ -270,7 +270,7 @@ history-level extraction hole.
 | Answer-path ranking | `packages/core/src/lexical.ts` — lemma-lite stemming, `normValue`-v2-shaped number/currency/date canonicalization, and IDF-weighted **asymmetric** coverage over attribute + value + **evidence span**. Replaces `tokenF1(question, attribute + " " + value)` everywhere the ask path ranked |
 | Anchoring | SELF is now **always** an anchor, not only on first-person questions. A question naming one rare entity used to narrow retrieval to that entity alone (one case reached the model with 1 claim out of 147); a question naming nothing resolved to zero anchors and abstained without a read. Bigram probes catch multi-word entity names; a most-mentioned-entity fallback catches the rest |
 | Material window | 12 → `ERRATA_MATERIAL_MAX` (30) claims. Prompt goes 923 → 2,095 tokens/question — still 1/52nd of full-context |
-| Write-side aliases | `packages/ingest/src/aliases.ts` — ONE extractor-model call per history produces entity surface forms and, for each attribute, the phrasings a person would ASK with (`direct_report_count` → "team size", "how many people", "reports"). Baked into the lexicon artifact; a frozen string→string map by the time a question arrives, so the answer path stays model-free and vector-free (CONTEXT rule 2) |
+| Write-side aliases | `packages/ingest/src/aliases.ts` — ONE extractor-model call per history produces entity surface forms and, for each attribute, the phrasings a person would ASK with (`direct_report_count` → "team size", "how many people", "reports"). Baked into the lexicon artifact; a frozen string→string map by the time a question arrives, so the answer path stays model-free and vector-free (hard rule 2) |
 | Extraction scope | The prompt now names all six things the corpus asks about — profile facts, quantities with units, dates/plans, preferences, reported events, and **substantive content the assistant provided** |
 | Salience | `isSalient` keeps a session's main substantive assistant reply (≥40 tokens, following a salient user turn, one per session), not only assistant turns that restate a user fact |
 | Calibration | E's `s` term now takes the same relevance the retrieval used, via a `fit` field on `ScoredClaim`, instead of recomputing a worse number |
@@ -283,7 +283,7 @@ claims per history **127–269 → 392–571**; over-abstentions **42 → 31**; 
 Extraction cost is ~92% output tokens, so scope and volume are separate dials and only one of them
 is affordable. The first cut of the broadened prompt ended with "prefer many small specific claims
 over one broad one", measured **6,077 output tokens per 12-turn batch** (≈7 claims per turn), which
-projects to **$20.72** to re-extract the comparison-150 — 6x the old pass and 4x the sprint's
+projects to **$20.72** to re-extract the comparison-150 — 6x the old pass and 4x the budgeted
 ceiling. The tokens were measured; the $20.72 is a projection from them and was never spent, so it
 is called projected everywhere in this document.
 Two cheaper extractors were tried and both failed on quality, not price: `qwen/qwen3.7-flash`
@@ -307,7 +307,7 @@ to **one writer with `--mem-guard-gb 5.0`**: the existing graceful drain-and-res
 times across the run, all clean, zero failed histories**, and RSS oscillated between ~20 MiB and 5
 GiB instead of climbing. The G3 lease RCA fixed the *corruption* mode; this is the *capacity* one,
 and the operating rule that follows is: **bulk ingest is single-writer, and the writer needs a
-memory guard sized to the box.** For Wednesday's pod: 16 GB and one ingest process, not N.
+memory guard sized to the box.** For the deployed pod: 16 GB and one ingest process, not N.
 
 One related limit surfaced at the new store size: `GET /api/meta/health` returned 503 with
 `cypher_vertex_label_index_candidates rejected by admission control: actual 250001 exceeds limit
@@ -369,7 +369,7 @@ run of record because `rerunE-g5` answered from a warm cache and its latency is 
 
 ### Spend
 
-Sprint incremental **$5.59**: $0.53 exploratory (including the $20.72-projected prompt and the two
+Incremental spend **$5.59**: $0.53 exploratory (including the $20.72-projected prompt and the two
 rejected extractors), $4.19 re-extraction + alias pass over 150 histories, $0.01 for 450 answers
 (**$0.000021/question**), $0.87 judge across the two runs. Ingest ledger $8.18 of a $50 cap; eval
 ledger $12.10 of the then-$13.00 cap (raised to $15.00 the same day to fund the 120-item

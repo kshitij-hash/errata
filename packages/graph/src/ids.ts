@@ -1,6 +1,6 @@
 // packages/graph/src/ids.ts
 //
-// THE single place Errata computes vertex and edge ids (CLAUDE.md hard rule 5).
+// THE single place Errata computes vertex and edge ids (CONVENTIONS.md hard rule 5).
 // 53-bit, non-negative, JS-safe, and byte-identical across TS and Python (the id design, design decision).
 //
 //   vid(key) = be_uint64(blake2b(utf8(key), dkLen=8)) >> 11

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // packages/mcp/src/index.ts — errata-mcp: an MCP stdio server over apps/api's HTTP surface.
 //
-// This process makes NO LLM calls of its own (CLAUDE.md hard rule 6) and never touches Bolt or
+// This process makes NO LLM calls of its own (CONVENTIONS.md hard rule 6) and never touches Bolt or
 // HydraDB directly — every tool is a thin, typed wrapper around apps/api's read/write routes
 // (same boundary discipline as the eval harness). All synthesis, retrieval and calibration happen
 // server-side; this package only shapes the JSON into MCP tool results.

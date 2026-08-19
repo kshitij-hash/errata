@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 /*
  * This plaque used to carry a verbatim quote of a stored memory (including a named individual), a
  * quoted line attributed to another project's staff, and the framing "the market leader stamped
- * 2026 on a 2023 event". None of that is verifiable from here tonight, and the framing read as an
+ * 2026 on a 2023 event". None of that is verifiable from here, and the framing read as an
  * attack rather than an argument. What is checkable is the public issue itself, so the claim is now
  * attributed to it, at the level of detail the tracker supports, and nothing more is asserted about
  * what any other team did or said. Our own two timestamps below are the actual exhibit.

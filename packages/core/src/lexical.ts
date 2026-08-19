@@ -9,7 +9,7 @@
 //
 // This module is the replacement, and it is deliberately boring: suffix stripping, number/currency/
 // date canonicalization, and IDF-weighted coverage over a bag of tokens. No vectors, no embeddings,
-// no model — it is a pure function of the question text and the retrieved rows (CONTEXT rule 2).
+// no model — it is a pure function of the question text and the retrieved rows (hard rule 2).
 
 import { contentTokens } from './evidence.js';
 

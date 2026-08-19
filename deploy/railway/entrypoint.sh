@@ -28,7 +28,7 @@ CACHE_DIR="${GRAPH_DATA_CACHE_DIR:-/cache}"
 log()  { printf '[entrypoint] %s\n' "$*"; }
 fail() { printf '[entrypoint] FATAL: %s\n' "$*" >&2; exit 1; }
 
-# --- hard rule: never CLOUD_PROVIDER=local for real data (CLAUDE.md / docs/gauntlets.md) ---------
+# --- hard rule: never CLOUD_PROVIDER=local for real data (CONVENTIONS.md / docs/gauntlets.md) ---------
 if [ "${CLOUD_PROVIDER:-}" != "aws" ]; then
   fail "refusing to start — CLOUD_PROVIDER must be 'aws', got '${CLOUD_PROVIDER:-<unset>}'"
 fi

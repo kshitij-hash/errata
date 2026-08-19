@@ -1,4 +1,4 @@
-// packages/mcp/src/shape.spec.ts — pure response shaping. No network, no LLM (CLAUDE.md hard rule
+// packages/mcp/src/shape.spec.ts — pure response shaping. No network, no LLM (CONVENTIONS.md hard rule
 // 6): fixtures below are trimmed from a real POST /api/ask / GET /api/belief / GET /api/diff
 // response captured against the demo history (docs/mcp-demo.md).
 
