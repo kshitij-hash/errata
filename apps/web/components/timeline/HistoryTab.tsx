@@ -3,7 +3,8 @@
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Chain } from '../../lib/chain';
-import { citeLabel, monthStamp, prefersReducedMotion, stamp } from '../../lib/format';
+import { citeConv, citeHuman, citeLabel, monthStamp, prefersReducedMotion, provenanceLabel, stamp } from '../../lib/format';
+import { IconElbow, IconPause, IconPlay, IconReplay } from '../icons';
 
 const AUTOPLAY_MS = 5000;
 
@@ -115,7 +116,7 @@ export function HistoryTab({ chain }: { chain: Chain }) {
           aria-label={playing ? 'pause' : done ? 'replay' : 'play'}
           onClick={() => (playing ? pause() : play(v >= 100 ? 0 : v))}
         >
-          {playing ? '⏸' : done && v >= 99.5 ? '⟲' : '▶'}
+          {playing ? <IconPause /> : done && v >= 99.5 ? <IconReplay /> : <IconPlay />}
         </button>
         <input
           type="range"
@@ -146,14 +147,14 @@ export function HistoryTab({ chain }: { chain: Chain }) {
               style={c.id === chain.headId ? { color: 'var(--teal)' } : undefined}
             >
               {c.value}
-              <span className="cite">{citeLabel(c.session_id, c.turn_index)}</span>
+              <span className="cite" title={citeLabel(c.session_id, c.turn_index)}>{citeHuman(c.session_id, c.turn_index)}</span>
             </div>
           ))}
         </div>
         <div className="nowmeta">
           {current == null
             ? 'the history begins…'
-            : `held since ${stamp(current.event_time)} · ${struckIds.size} superseded, kept · chain length ${chain.claims.length} · ${current.provenance.toLowerCase()}`}
+            : `held since ${stamp(current.event_time)} · ${struckIds.size} superseded, kept · chain length ${chain.claims.length} · ${provenanceLabel(current.provenance)}`}
         </div>
       </div>
 
@@ -167,19 +168,19 @@ export function HistoryTab({ chain }: { chain: Chain }) {
             <div key={c.id}>
               <div className={`lc${isBorn ? ' in' : ''}${isOld ? ' old' : ''}`}>
                 <div className="when">
-                  {stamp(c.event_time)} · {citeLabel(c.session_id, c.turn_index)}
+                  <span title={citeLabel(c.session_id, c.turn_index)}>{stamp(c.event_time)} · {citeConv(c.session_id, c.turn_index)}</span>
                 </div>
                 <span className="what">
                   {c.value}
                   <span className="stk" style={{ '--sx': isOld ? 1 : 0 } as CSSProperties} />
                 </span>
                 <span className="cite">
-                  conf {c.confidence.toFixed(2)} · {c.provenance}
+                  confidence {c.confidence.toFixed(2)} · {provenanceLabel(c.provenance)}
                 </span>
               </div>
               {rev && (
                 <div className={`redgeL${isBorn ? ' in' : ''}`}>
-                  ↳ {rev.relation}
+                  <IconElbow className="iel" /> {rev.relation}
                   {older ? ` · ${older.value}` : ''}
                 </div>
               )}

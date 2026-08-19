@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, usd } from '../lib/api';
-import { DEMO_HISTORY_ID } from '../config/demo';
+import { DEMO_HISTORY_ID, HISTORY_BLURB, HISTORY_LABEL } from '../config/demo';
 
 /** Masthead cost meter: the ledger rollup, polled every 30s, in mono tabular figures. */
 export function CostMeter() {
@@ -29,9 +29,8 @@ export function CostMeter() {
   }, []);
 
   return (
-    <div className="meter" title="ledger rollup — every model call this project has ever made">
-      spend <b>{spend == null ? '$——.————' : usd(spend)}</b> · h:
-      {DEMO_HISTORY_ID}
+    <div className="meter" title={`ledger rollup — every model call this project has ever made · ${HISTORY_BLURB} · namespace h:${DEMO_HISTORY_ID}`}>
+      spend <b>{spend == null ? '$——.————' : usd(spend)}</b> · {HISTORY_LABEL}
     </div>
   );
 }

@@ -5,15 +5,14 @@ import { usePathname } from 'next/navigation';
 import { CostMeter } from './CostMeter';
 import { TAGLINE } from '../config/demo';
 
-// Demo order first (ask → timeline → compare), then Limits: it is the strongest artifact here —
-// the failure modes named and measured rather than hidden — and it was buried in last place.
+// The instrument first (ask → timeline → compare), then the evidence. The appendix pages —
+// field notes on the substrate, the exhibit — live in the footer's docs cluster, not here:
+// they are for the reader who is already convinced, and a warning label is a poor greeting.
 const NAV = [
-  { href: '/', label: 'Ask' },
+  { href: '/ask', label: 'Ask' },
   { href: '/timeline', label: 'Timeline' },
   { href: '/compare', label: 'Compare' },
-  { href: '/limits', label: 'Limits' },
   { href: '/results', label: 'Results' },
-  { href: '/exhibit', label: 'Exhibit' },
 ];
 
 export function Masthead() {

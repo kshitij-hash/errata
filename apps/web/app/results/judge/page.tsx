@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { IconCaretLeft } from '../../../components/icons';
 import { JUDGE_CONTROLS, JUDGE_FAMILIES, PROVENANCE, judgeFAR, judgeFRR, judgeFamily, pct } from '../../../lib/results';
 
 export const metadata: Metadata = {
@@ -24,7 +25,7 @@ export default function JudgePage() {
   return (
     <main className="route res drill">
       <p className="crumb mono">
-        <Link href="/results">← results</Link> · judge validation · {PROVENANCE.judge_model} (prompt sha{' '}
+        <Link href="/results" className="backlink"><IconCaretLeft /> results</Link> · judge validation · {PROVENANCE.judge_model} (prompt sha{' '}
         {PROVENANCE.judge_prompt_sha}, temperature 0)
       </p>
       <h1 className="rtitle">What the judge accepted that it should not have</h1>

@@ -1,6 +1,6 @@
 // packages/ingest/src/structural.ts — the deterministic structural pass .
 //
-// Zero LLM. This pass alone makes a history queryable and citable — it is the Tier-3 floor made
+// Zero LLM. This pass alone makes a history queryable and citable — it is the zero-LLM floor made
 // structural, and it must run before any budget is spent. Every row carries EVERY property (the
 // graph is null-free; unknowns use typed sentinels), so a SET never writes a null.
 

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { IconCheck, IconX } from '../icons';
 import { type ArmKey, type Cut, cell, pct } from '../../lib/results';
 
 /**
@@ -50,7 +51,7 @@ export function SeedMarks({ marks }: { marks: boolean[] }) {
     <span className="seeds" title="seeds 11 / 22 / 33">
       {marks.map((m, i) => (
         <i key={i} className={m ? 'y' : 'n'}>
-          {m ? '✓' : '✗'}
+          {m ? <IconCheck /> : <IconX />}
         </i>
       ))}
     </span>

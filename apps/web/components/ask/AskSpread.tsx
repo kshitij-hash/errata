@@ -4,7 +4,8 @@ import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, usd } from '../../lib/api';
 import type { AskResponse } from '../../lib/api';
-import { citeLabel, citeMark, prefersReducedMotion, sameValue } from '../../lib/format';
+import { citeHuman, citeLabel, citeMark, isCorrection, prefersReducedMotion, sameValue } from '../../lib/format';
+import { IconPencil, IconReturn } from '../icons';
 import { ASK_EVENT } from '../../lib/askbus';
 import { readParam, writeParams } from '../../lib/urlstate';
 import { CHIPS, DEMO_HISTORY_ID, DEMO_SUBJECT, FULL_CONTEXT_USD, HISTORY_TOKEN_COUNT } from '../../config/demo';
@@ -76,7 +77,7 @@ export function AskSpread() {
     return () => window.removeEventListener(ASK_EVENT, onAsk);
   }, [run]);
 
-  // keyboard demo mode (add-on №5): '.' re-runs the current choreography
+  // keyboard demo mode: '.' re-runs the current choreography
   useEffect(() => {
     if (readParam('stage') == null) return;
     const onKey = (e: KeyboardEvent) => {
@@ -97,11 +98,11 @@ export function AskSpread() {
     setStruck(true);
     setSlip({
       value,
-      caption: `appending… · SUPERSEDES ${supersedes ? citeLabel(supersedes.session_id, supersedes.turn_index) : '—'} · source: you`,
+      caption: `appending… · supersedes ${supersedes ? citeHuman(supersedes.session_id, supersedes.turn_index) : '—'} · source: you`,
       nonce: Date.now(),
     });
     try {
-      const out = await api.correct({
+      await api.correct({
         history_id: DEMO_HISTORY_ID,
         subject: resp.subject ?? DEMO_SUBJECT,
         attribute: resp.attribute ?? '',
@@ -112,8 +113,8 @@ export function AskSpread() {
         s
           ? {
               ...s,
-              caption: `appended, not edited · claim ${out.claim_id} SUPERSEDES ${
-                supersedes ? citeLabel(supersedes.session_id, supersedes.turn_index) : '—'
+              caption: `appended, not edited · the new claim supersedes ${
+                supersedes ? citeHuman(supersedes.session_id, supersedes.turn_index) : '—'
               } · source: you`,
             }
           : s,
@@ -124,7 +125,7 @@ export function AskSpread() {
           ? {
               ...s,
               error: true,
-              caption: `not appended — the API has no write route yet (${String(e instanceof Error ? e.message : e).slice(0, 60)}). nothing was mutated; nothing was deleted.`,
+              caption: `not appended — the write was refused (${String(e instanceof Error ? e.message : e).slice(0, 60)}). nothing was mutated; nothing was deleted.`,
             }
           : s,
       );
@@ -176,7 +177,7 @@ export function AskSpread() {
           placeholder="…or free-text, scoped to this history"
           aria-label="Ask a free-text question about this history"
         />
-        <button type="submit">ask ↵</button>
+        <button type="submit">ask <IconReturn className="iret" /></button>
       </form>
 
       <div className="card">
@@ -202,8 +203,8 @@ export function AskSpread() {
                     <span className="stk" style={{ '--sx': struck ? 1 : 0 } as CSSProperties} />
                   </span>
                   {resp.citations.map((c, i) => (
-                    <span className="fn" key={i} title={citeLabel(c.session_id, c.turn_index)}>
-                      {citeMark(c.session_id, c.turn_index)}
+                    <span className="fn" key={i} title={citeHuman(c.session_id, c.turn_index)}>
+                      {isCorrection(c.session_id) ? <><IconPencil className="ipen" /> you</> : citeMark(c.session_id, c.turn_index)}
                     </span>
                   ))}
                   {predecessors.map((s, i) => (
@@ -212,7 +213,7 @@ export function AskSpread() {
                         {s.value}
                         <span className="stk" style={{ '--sx': 1 } as CSSProperties} />
                       </span>
-                      <span className="fn">{citeLabel(s.citation.session_id, s.citation.turn_index)}</span>
+                      <span className="fn" title={citeLabel(s.citation.session_id, s.citation.turn_index)}>{citeHuman(s.citation.session_id, s.citation.turn_index)}</span>
                     </span>
                   ))}
                 </div>
@@ -230,8 +231,14 @@ export function AskSpread() {
                     className="conf"
                     title={`claim = the head claim's own confidence; evidence = the calibrated answer-evidence score E, which answered because it cleared τ ${(resp.evidence?.tau ?? 0).toFixed(2)}`}
                   >
-                    {resp.claim_confidence != null ? `claim ${resp.claim_confidence.toFixed(2)} · ` : ''}
+                    {resp.claim_confidence != null && (
+                      <>
+                        claim {resp.claim_confidence.toFixed(2)}
+                        <i className="mtr" style={{ '--v': resp.claim_confidence } as CSSProperties} /> {' · '}
+                      </>
+                    )}
                     evidence {resp.confidence.toFixed(2)}
+                    <i className="mtr" style={{ '--v': resp.confidence } as CSSProperties} />
                   </span>
                   <span>{resp.corroboration ?? resp.citations.length} supporting</span>
                   <span className="sup">{predecessors.length} superseded</span>

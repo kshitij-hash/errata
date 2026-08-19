@@ -8,16 +8,16 @@ const ANSWERING = CHIPS.find((c) => !c.abstains)!;
 const ABSTAINING = CHIPS.find((c) => c.abstains)!;
 
 /**
- * Add-on №5: keyboard demo mode. With `?stage` on the URL, → and ← step through the five
+ * Keyboard demo mode. With `?stage` on the URL, → and ← step through the five
  * beats; the routes carry the stage flag onward so each one arrives already choreographed.
  * `.` re-runs the current choreography (handled by the route that owns it). No visible UI.
  */
 const BEATS = [
   '/?stage=cover',
   '/compare?stage=1',
-  `/?stage=1&q=${encodeURIComponent(ANSWERING.question)}&correct=1`,
+  `/ask?stage=1&q=${encodeURIComponent(ANSWERING.question)}&correct=1`,
   '/timeline?stage=1',
-  `/?stage=1&q=${encodeURIComponent(ABSTAINING.question)}`,
+  `/ask?stage=1&q=${encodeURIComponent(ABSTAINING.question)}`,
 ];
 
 let index = -1;

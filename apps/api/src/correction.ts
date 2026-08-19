@@ -26,7 +26,7 @@ export interface WriteClient {
   loadTwoPhase(nodes: NodeBatch[], edges: EdgeBatch[]): Promise<{ nodeBatches: number; edgeBatches: number }>;
 }
 
-/** The request contract the web app is already wired to (var/frontend-blockers.md B1). */
+/** The request contract the web app is wired to. */
 export const CorrectionBody = z.object({
   history_id: z.string().min(1).optional(),
   subject: z.string().min(1).max(200),

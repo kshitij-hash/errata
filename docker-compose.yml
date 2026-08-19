@@ -1,4 +1,4 @@
-# docker-compose.yml — LOCAL ONLY. Everything binds 127.0.0.1 (build plan §5).
+# docker-compose.yml — LOCAL ONLY. Everything binds 127.0.0.1.
 name: errata
 
 services:
@@ -45,7 +45,7 @@ services:
       minio-init: { condition: service_completed_successfully }
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"     # image runs as UID 10001; bind mount is yours
     environment:
-      # --- object store: S3/MinIO, NEVER CLOUD_PROVIDER=local (constraints §5) ---
+      # --- object store: S3/MinIO, NEVER CLOUD_PROVIDER=local (docs/gauntlets.md) ---
       CLOUD_PROVIDER: aws
       AWS_BUCKET: hydra
       AWS_REGION: us-east-1

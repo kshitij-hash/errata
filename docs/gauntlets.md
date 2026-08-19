@@ -168,7 +168,7 @@ path without batching/caching it.
 
 ## G4 — the demo history's forked claim chain (2026-08-16) — FIXED BY RE-INGEST, NOTHING DELETED
 
-**Symptom (B5).** `mortgage_preapproval_amount` on the demo history held BOTH `$400,000` and
+**Symptom.** `mortgage_preapproval_amount` on the demo history held BOTH `$400,000` and
 `400000 USD` as separate claim vertices, each superseding `$350,000`. The answer card had to hide
 one of them (`lib/format.ts: sameValue`) so the hero answer did not read "$400,000, superseding
 400000 USD, superseding $350,000".
@@ -190,7 +190,7 @@ two spellings of one amount could not meet on one vertex.
 | Silent re-keying | the normalizer's version (`NORM_VERSION`, now 2) is an INPUT to `keys.claim` / `keys.correction`, so a normalization change moves a whole generation of claim ids visibly instead of silently merging or splitting claims |
 | Lexicon clobber | `writeLexicon` MERGES into the lexicon already on disk. It used to overwrite, so in a two-extractor ingest whichever pass ran last narrowed the ask path's anchors to its own entities |
 | Attribute drift | `current_job_title` added to the `job_title` synonyms — the LLM extractor's own name for it on this history, previously landing unregistered |
-| Regression | `ingest.spec.ts` "re-ingest idempotence (B5)": assembling the same history twice yields identical counts AND identical vertex ids, so a second load adds nothing; plus `normValue` behaviour and the version-bump re-key |
+| Regression | `ingest.spec.ts` "re-ingest idempotence": assembling the same history twice yields identical counts AND identical vertex ids, so a second load adds nothing; plus `normValue` behaviour and the version-bump re-key |
 
 **Method — a fresh namespace, not a wipe.** A full wipe was ruled out: the day's funded
 runs are in this graph (G3: 150 histories LLM-extracted + judged, $3.44, plus the full-500

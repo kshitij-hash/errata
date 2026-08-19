@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { AskResponse } from '../../lib/api';
-import { citeLabel, prefersReducedMotion } from '../../lib/format';
+import { citeHuman, citeLabel, prefersReducedMotion } from '../../lib/format';
 
 type RowState = 'hidden' | 'in' | 'aside';
 
@@ -52,7 +52,7 @@ export function Refusal({ resp, replayKey }: { resp: AskResponse; replayKey: num
           <span className="cw2">
             &ldquo;{m.value.length > 58 ? `${m.value.slice(0, 57)}…` : m.value}
             &rdquo;
-            <span className="cite2">{citeLabel(m.citation.session_id, m.citation.turn_index)}</span>
+            <span className="cite2" title={citeLabel(m.citation.session_id, m.citation.turn_index)}>{citeHuman(m.citation.session_id, m.citation.turn_index)}</span>
             <span className="cstk2" />
           </span>
           <span className="why">

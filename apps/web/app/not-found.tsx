@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { IconCaretLeft } from '../components/icons';
 
 /** In-theme 404: the author's-query card, gold — the same voice used for abstention. */
 export default function NotFound() {
@@ -10,7 +11,7 @@ export default function NotFound() {
         <div className="qs">no claim supports this route · nothing was deleted — it was never written</div>
       </div>
       <p className="q" style={{ marginTop: '1.2rem' }}>
-        <Link href="/">← back to Ask</Link>
+        <Link href="/ask" className="backlink"><IconCaretLeft /> back to Ask</Link>
       </p>
     </main>
   );

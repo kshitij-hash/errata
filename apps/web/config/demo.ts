@@ -16,7 +16,15 @@ export const DEMO_SUBJECT = 'the user';
 
 export const DEMO_HISTORY_ID: string = sessions.history_id;
 
-/** One tick per session of the demo history, in corpus order (add-on №2, the session spine). */
+/**
+ * The reader-facing name for the demo history. `852ce960-clean` is the ingest namespace — real, and
+ * kept for auditors in tooltips — but the thing itself is one person's chat history from the public
+ * LongMemEval corpus, and its recurring thread is a mortgage pre-approval that changed twice.
+ */
+export const HISTORY_LABEL = 'the homebuyer’s history';
+export const HISTORY_BLURB = `${sessions.sessions.length} conversations · ${sessions.turn_count} turns · ingested read-only from LongMemEval`;
+
+/** One tick per session of the demo history, in corpus order (the session spine). */
 export const DEMO_SESSIONS: {
   ordinal: number;
   session_id: string;

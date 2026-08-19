@@ -6,10 +6,11 @@ import beat from '../../fixtures/beat-0.94.json';
 import { CHIPS, DEMO_HISTORY_ID, DEMO_SUBJECT } from '../../config/demo';
 import { loadChain } from '../../lib/chain';
 import type { Chain } from '../../lib/chain';
-import { citeLabel, prefersReducedMotion } from '../../lib/format';
+import { citeHuman, prefersReducedMotion } from '../../lib/format';
+import { IconReplay } from '../icons';
 
 // Two measurements, both from eval/embed_beat.py against the real demo history, both in the
-// fixture with their provenance (B3):
+// fixture with their provenance:
 //   pair.cosine  — the superseded claim's span against the current claim's span. THIS is the beat's
 //                  number: two claims an embedder cannot tell apart, one of them retired.
 //   retrieval    — the question against dated session chunks, the granularity a vector store
@@ -145,7 +146,7 @@ export function Duel() {
             <br />
             <span style={{ font: '400 .74rem var(--mono)', color: 'var(--sub)' }}>
               the claim no SUPERSEDES points away from ·{' '}
-              {head ? citeLabel(head.session_id, head.turn_index) : FIXTURE_CURRENT.citation.session_id}
+              {head ? citeHuman(head.session_id, head.turn_index) : FIXTURE_CURRENT.citation.session_id}
               {struck.length > 0 && (
                 <>
                   {' '}
@@ -170,7 +171,7 @@ export function Duel() {
       <div className={`verdict${verdict ? ' in' : ''}`}>&ldquo;Similar, sure. Relevant? Almost never.&rdquo;</div>
       <div className="corrbar">
         <button type="button" className="act" onClick={replay}>
-          ⟲ replay the duel
+          <IconReplay /> replay the duel
         </button>
       </div>
       <p className="mono" style={{ fontSize: '.74rem', color: 'var(--faint)', marginTop: '1.1rem' }}>

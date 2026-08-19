@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { ArmChart, ContextChart } from '../../components/results/ArmChart';
 import { ScoreCell } from '../../components/results/Cells';
 import {
   ARITH_DIFF,
@@ -80,27 +81,42 @@ export default function ResultsPage() {
     <main className="route res">
       <h1 className="rtitle">What it scores — and what it lost</h1>
       <p className="q" style={{ maxWidth: '640px' }}>
-        Every number below is recomputed in the browser-free build step from the judged rows of the runs of record, and
-        every one of them opens those rows. The cells Errata loses are printed as losses.
+        Three arms, the same {QUESTIONS.length} LongMemEval questions, the same answer model and prompt — so the
+        comparison measures the memory layer, not the reader. Every number on this page is recomputed at build time
+        from the judged rows, and every one of them opens those rows. The cells Errata loses are printed as losses.
       </p>
 
-      <div className="prov mono">
-        <span>
-          {QUESTIONS.length} LongMemEval questions · {PROVENANCE.sample}
-        </span>
-        <span>
-          seeds {PROVENANCE.seeds.join('/')} · temperature 0 · answer model {PROVENANCE.answer_model} · answer prompt
-          sha {PROVENANCE.answer_prompt_sha} across all three arms
-        </span>
-        <span>
-          judge {PROVENANCE.judge_model} (sha {PROVENANCE.judge_prompt_sha}) · abstention scored by exact match, never
-          by the judge
-        </span>
-        <span>
-          runs of record: {ARMS.map((a) => `${a.short} ${a.run}`).join(' · ')} · dataset {PROVENANCE.dataset.repo_id} @{' '}
-          {PROVENANCE.dataset.revision.slice(0, 8)}… (sha256 {PROVENANCE.dataset.sha256.slice(0, 8)}…)
-        </span>
-      </div>
+      {/* ───────────────────────────── the verdict, drawn ───────────────────────────── */}
+      <ArmChart cuts={[cut('overall')!, ...ABILITY_CUTS]} />
+      <p className="cap">
+        Counting all {QUESTIONS.length * PROVENANCE.seeds.length} rows including abstention, the same runs read{' '}
+        <b>
+          Errata {pct(all450('errata'))}, naive {pct(all450('naive'))}, full-context {pct(all450('full_context'))}
+        </b>
+        . What the accuracies above cost to produce:
+      </p>
+      <ContextChart />
+
+      <details className="disc prov-disc">
+        <summary>Runs of record — the full provenance</summary>
+        <div className="prov mono">
+          <span>
+            {QUESTIONS.length} LongMemEval questions · {PROVENANCE.sample}
+          </span>
+          <span>
+            seeds {PROVENANCE.seeds.join('/')} · temperature 0 · answer model {PROVENANCE.answer_model} · answer prompt
+            sha {PROVENANCE.answer_prompt_sha} across all three arms
+          </span>
+          <span>
+            judge {PROVENANCE.judge_model} (sha {PROVENANCE.judge_prompt_sha}) · abstention scored by exact match,
+            never by the judge
+          </span>
+          <span>
+            runs of record: {ARMS.map((a) => `${a.short} ${a.run}`).join(' · ')} · dataset {PROVENANCE.dataset.repo_id}{' '}
+            @ {PROVENANCE.dataset.revision.slice(0, 8)}… (sha256 {PROVENANCE.dataset.sha256.slice(0, 8)}…)
+          </span>
+        </div>
+      </details>
 
       {/* ───────────────────────────── the three-arm table ───────────────────────────── */}
       <h2 className="sect" id="arms">
@@ -170,12 +186,8 @@ export default function ResultsPage() {
         <b>Overall</b> and the four ability columns are accuracy over the {questionsIn(cut('overall')!).length}{' '}
         non-abstention questions; the ± is the sample sd across the three seeds, which is provider nondeterminism rather
         than sampling spread — Errata and the naive arm are bit-identical across seeds, which is what their ± 0.0 means.
-        Abstention is scored deterministically by exact match and never reaches the judge. Counting all{' '}
-        {QUESTIONS.length * PROVENANCE.seeds.length} rows including abstention, the same runs read{' '}
-        <b>
-          Errata {pct(all450('errata'))}, naive {pct(all450('naive'))}, full-context {pct(all450('full_context'))}
-        </b>
-        . <span className="fn">†</span> $/Q and latency are the two columns not recomputed from these rows: Errata’s are
+        Abstention is scored deterministically by exact match and never reaches the judge.{' '}
+        <span className="fn">†</span> $/Q and latency are the two columns not recomputed from these rows: Errata’s are
         measured on <span className="mono">rerunF-wave</span>, the last cold-cache run, because{' '}
         <span className="mono">rerunJ-arith</span> replayed 447 of 450 answers from cache and would flatter both.
         Errata’s $/Q is <span className="mono">{PUBLISHED.errataUsdExact}</span>, not zero — the column rounds to four
@@ -196,6 +208,7 @@ export default function ResultsPage() {
           questionsIn(cut('type-single-session-preference')!).length}{' '}
         of {QUESTIONS.length} questions.
       </p>
+      <ArmChart cuts={TYPE_CUTS} groupW={190} note={'accuracy by the corpus\u2019s own question_type, over all rows \u00b7 tap a group for its judged rows'} />
       <div className="tablewrap">
         <table className="restable">
           <thead>
@@ -390,7 +403,7 @@ export default function ResultsPage() {
               <tr key={t.tau} className={t.shipped ? 'ours' : undefined}>
                 <th scope="row" className="mono">
                   {t.tau.toFixed(2)}
-                  {t.shipped && ' ←shipped'}
+                  {t.shipped && ' — shipped'}
                 </th>
                 <td className="mono flat big">{pct(t.overall)}</td>
                 <td className="mono flat">{t.answered}</td>

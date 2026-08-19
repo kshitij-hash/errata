@@ -24,7 +24,7 @@ export function citeLabel(sessionId: string, turnIndex: number): string {
 /** The same citation as a superscript footnote marker, where "your correction" is too long to sit
  *  beside three others on one line. */
 export function citeMark(sessionId: string, turnIndex: number): string {
-  return isCorrection(sessionId) ? '✎you' : citeLabel(sessionId, turnIndex);
+  return isCorrection(sessionId) ? 'you' : citeLabel(sessionId, turnIndex);
 }
 
 export function sessionOrdinal(sessionId: string): number | null {
@@ -34,6 +34,42 @@ export function sessionOrdinal(sessionId: string): number | null {
 
 export function sessionDate(sessionId: string): string | null {
   return BY_ID.get(sessionId)?.date ?? null;
+}
+
+const MONTHS_TITLE = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "2023-08-11" → "Aug 11, 2023" — the reader voice for a session date. */
+export function humanDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return iso;
+  return `${MONTHS_TITLE[m - 1]} ${d}, ${y}`;
+}
+
+/**
+ * The reader-facing citation. The positional `s3:t2` form stays the auditor's identity for a turn
+ * (citeLabel); this is the same citation said out loud: the conversation's date and the turn within
+ * it. Falls back to the positional form when the session is not in the demo index.
+ */
+export function citeHuman(sessionId: string, turnIndex: number): string {
+  if (isCorrection(sessionId)) return 'your correction, this session';
+  const s = BY_ID.get(sessionId);
+  if (!s) return citeLabel(sessionId, turnIndex);
+  return `${humanDate(s.date)} · turn ${turnIndex}`;
+}
+
+/** The same citation when the date is already printed beside it: which conversation, which turn. */
+export function citeConv(sessionId: string, turnIndex: number): string {
+  if (isCorrection(sessionId)) return 'your correction';
+  const s = BY_ID.get(sessionId);
+  if (!s) return citeLabel(sessionId, turnIndex);
+  return `conversation ${s.ordinal + 1} · turn ${turnIndex}`;
+}
+
+/** EXTRACTED/INFERRED said out loud. The uppercase tag stays the wire identity. */
+export function provenanceLabel(p: string): string {
+  if (p === 'EXTRACTED') return 'stated in the transcript';
+  if (p === 'INFERRED') return 'inferred';
+  return p.toLowerCase();
 }
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];

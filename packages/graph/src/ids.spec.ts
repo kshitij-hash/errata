@@ -82,7 +82,7 @@ describe('key builders ', () => {
     expect(() => keys.claim('h1', 'a|b', 'c', 'v', 0, 0, 1)).toThrow(/must not contain/);
   });
 
-  it('the normalization version is part of the claim key (B5)', () => {
+  it('the normalization version is part of the claim key (docs/gauntlets.md G4)', () => {
     // a normalizer bump must move the whole generation of claim ids, never silently collide
     expect(keys.claim('h1', 'the user', 'employer', 'globex', 9, 4, 1)).not.toBe(
       keys.claim('h1', 'the user', 'employer', 'globex', 9, 4, 2),

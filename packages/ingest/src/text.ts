@@ -3,7 +3,7 @@
 import type { Turn } from './reader.js';
 
 /**
- * The version of `normText` that claim natural keys are minted under (B5). It is an INPUT to
+ * The version of `normText` that claim natural keys are minted under (docs/gauntlets.md G4). It is an INPUT to
  * `keys.claim`, so two claims normalized by different generations of this function can never land
  * on the same vertex, and one claim can never silently split across two.
  *
@@ -13,7 +13,7 @@ import type { Turn } from './reader.js';
  * v2 — `normValue` canonicalizes monetary amounts. v1 keyed the demo history's pre-approval on the
  * raw surface form, so the rule extractor's `$400,000` and the LLM extractor's `400000 USD` — the
  * same sentence, the same turn, the same fact — minted two claim vertices, each superseding
- * `$350,000`, and the answer card had to hide one of them (B5).
+ * `$350,000`, and the answer card had to hide one of them (docs/gauntlets.md G4).
  */
 export const NORM_VERSION = 2;
 

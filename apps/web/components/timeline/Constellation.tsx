@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { loadChain } from '../../lib/chain';
 import type { ChainClaim } from '../../lib/chain';
-import { citeLabel, monthStamp, prefersReducedMotion } from '../../lib/format';
+import { citeLabel, monthStamp, prefersReducedMotion, provenanceLabel } from '../../lib/format';
+import { IconReplay } from '../icons';
 import { CONSTELLATION_ATTRIBUTES, DEMO_HISTORY_ID, DEMO_SUBJECT } from '../../config/demo';
 
 const W = 1000;
@@ -368,7 +369,7 @@ export function Constellation({ attribute }: { attribute: string }) {
           quote.className = 'hl2';
           quote.textContent = n.claim.span;
           const tail = document.createElement('div');
-          tail.textContent = `conf ${n.claim.confidence.toFixed(2)} · ${n.claim.provenance} · event ${monthStamp(n.claim.event_time)}`;
+          tail.textContent = `confidence ${n.claim.confidence.toFixed(2)} · ${provenanceLabel(n.claim.provenance)} · event ${monthStamp(n.claim.event_time)}`;
           const body = document.createElement('div');
           body.append('«', quote, `» — ${citeLabel(n.claim.session_id, n.claim.turn_index)}`);
           pop.append(cv, body, tail);
@@ -456,7 +457,7 @@ export function Constellation({ attribute }: { attribute: string }) {
     <div className="card" style={{ padding: 0 }}>
       <div className="bar" style={{ borderRadius: '8px 8px 0 0' }}>
         <button type="button" aria-label="replay the births" onClick={replay}>
-          ⟲
+          <IconReplay />
         </button>
         <input
           type="range"

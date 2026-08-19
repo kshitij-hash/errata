@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Limits',
+  title: 'Field notes',
   description:
     'What broke, honestly — the substrate limits we hit, the workaround beside each, and what we will not claim.',
 };
@@ -25,7 +25,7 @@ const ROWS: { limit: string; work: string; src: string }[] = [
   },
   {
     limit: 'algo.MSpaths with a list sourceValues: "composite parameter only supported as UNWIND input".',
-    work: 'co-mention expansion cut to Tier-2 before the build started; the ask path uses id-pinned UNION arms instead',
+    work: 'co-mention expansion deferred by design before the build started; the ask path uses id-pinned UNION arms instead',
     src: 'G1',
   },
   {
@@ -69,7 +69,7 @@ const ROWS: { limit: string; work: string; src: string }[] = [
 export default function LimitsPage() {
   return (
     <main className="route limits">
-      <h1 className="rtitle">What broke, honestly — and what we won&apos;t claim</h1>
+      <h1 className="rtitle">Field notes — what the substrate rejected, and the workaround beside each</h1>
       <div className="tablewrap">
         <table>
           <thead>

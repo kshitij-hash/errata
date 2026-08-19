@@ -8,7 +8,7 @@ import { CoverBeat } from '../components/CoverBeat';
 import { StageKeys } from '../components/StageKeys';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://errata.tools'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://errata-memory.vercel.app'),
   title: {
     default: 'Errata — memory that keeps its corrections',
     template: '%s · Errata',

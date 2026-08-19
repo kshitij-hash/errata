@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { IconCaretLeft, IconCheck, IconX } from '../../../../components/icons';
 import { notFound } from 'next/navigation';
 import { SeedMarks, Verdict } from '../../../../components/results/Cells';
 import {
@@ -62,7 +63,7 @@ export default async function DrillPage({ params }: Params) {
   return (
     <main className="route res drill">
       <p className="crumb mono">
-        <Link href="/results">← results</Link> · {armLabel(arm)} · <span className="mono">{run}</span>
+        <Link href="/results" className="backlink"><IconCaretLeft /> results</Link> · {armLabel(arm)} · <span className="mono">{run}</span>
       </p>
       <h1 className="rtitle">
         {c.label} <span className="hscore">{pct(stat.pct)}</span>
@@ -170,7 +171,7 @@ export default async function DrillPage({ params }: Params) {
                   const ok = isRight(a, q, 0);
                   return (
                     <Link key={a} href={`/results/${a}/${c.slug}#${q.id}`} className={ok ? 'y' : 'n'}>
-                      {ARMS.find((x) => x.key === a)!.short} {ok ? '✓' : '✗'}
+                      {ARMS.find((x) => x.key === a)!.short} {ok ? <IconCheck /> : <IconX />}
                       <span>{or.abstained[0] ? 'abstained' : or.answer.slice(0, 90) || '—'}</span>
                     </Link>
                   );

@@ -190,9 +190,9 @@ export const api = {
       `/diff?subject=${encodeURIComponent(subject)}&attribute=${encodeURIComponent(attribute)}&history_id=${encodeURIComponent(historyId)}&from=${from}&to=${to}`,
     ),
   /**
-   * The live-correction beat. Appends a claim + SUPERSEDES edge through the API's write path.
-   * NOTE: apps/api exposes no write route yet — see var/frontend-blockers.md (B1). Until it does,
-   * this resolves to an error and the slip files itself in its "not appended" state.
+   * The live-correction beat. Appends a claim + SUPERSEDES edge through POST /api/correction —
+   * the API's only write route. If the write is refused (no key, or the route is down), the slip
+   * files itself in its "not appended" state; nothing client-side pretends the append happened.
    */
   correct: (body: {
     history_id: string;

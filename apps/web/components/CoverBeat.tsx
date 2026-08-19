@@ -10,7 +10,7 @@ let decided: boolean | null = null;
 let replaying = false;
 
 /**
- * Add-on №3: first visit only — wordmark, the strike drawing through *forgets*, then it
+ * First visit only — wordmark, the strike drawing through *forgets*, then it
  * fades to Ask. `?stage=cover` replays it for the video title card. Any input skips it.
  * Reduced motion: the cover never plays at all (the choreography IS the content here).
  */

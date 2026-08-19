@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import type { AskResponse, BeliefValue, TurnRow } from '../../lib/api';
 import { DEMO_HISTORY_ID } from '../../config/demo';
-import { citeLabel, isCorrection, sessionDate, sessionOrdinal } from '../../lib/format';
+import { citeLabel, humanDate, isCorrection, sessionDate, sessionOrdinal } from '../../lib/format';
 
 interface Line {
   key: string;
@@ -31,7 +31,7 @@ function header(sessionId: string, tail: string): string {
   if (isCorrection(sessionId)) return `THE CORRECTION · APPENDED BY YOU${tail}`;
   const ord = sessionOrdinal(sessionId);
   const date = sessionDate(sessionId);
-  return `SESSION ${ord == null ? sessionId : ord + 1}${date ? ` · ${date}` : ''}${tail}`;
+  return `CONVERSATION ${ord == null ? sessionId : ord + 1}${date ? ` · ${humanDate(date).toUpperCase()}` : ''}${tail}`;
 }
 
 /** long assistant turns are prose; the source column shows the head of one, not a wall of it. */
@@ -128,7 +128,7 @@ export function SourceColumn({
         ) : (
           misses.map((m, i) => (
             <div className="tline" key={`${m.attribute}-${i}`}>
-              <span className="who">{citeLabel(m.citation.session_id, m.citation.turn_index)} ·</span> {m.span}
+              <span className="who" title={citeLabel(m.citation.session_id, m.citation.turn_index)}>turn {m.citation.turn_index} ·</span> {m.span}
             </div>
           ))
         )}
@@ -163,7 +163,7 @@ export function SourceColumn({
           {g.lines.map((l) => (
             <div key={l.key}>
               <div className="tline">
-                <span className="who">{citeLabel(l.sessionId, l.turnIndex)} ·</span>{' '}
+                <span className="who" title={citeLabel(l.sessionId, l.turnIndex)}>{isCorrection(l.sessionId) ? 'filed live' : `turn ${l.turnIndex}`} ·</span>{' '}
                 <span className={`hlspan${swept ? ' swept' : ''}`}>{l.span}</span>
               </div>
               {/* a correction has no surrounding transcript to open — it IS the turn */}
@@ -180,7 +180,7 @@ export function SourceColumn({
           {g.lines.map((l) => (
             <div key={l.key}>
               <div className="tline">
-                <span className="who">{citeLabel(l.sessionId, l.turnIndex)} ·</span>{' '}
+                <span className="who" title={citeLabel(l.sessionId, l.turnIndex)}>{isCorrection(l.sessionId) ? 'filed live' : `turn ${l.turnIndex}`} ·</span>{' '}
                 <span className="claimline">
                   {l.span}
                   <span className="stk" style={{ '--sx': 1, height: '1.6px' } as CSSProperties} />

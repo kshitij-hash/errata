@@ -170,25 +170,17 @@ workaround in [`docs/gauntlets.md`](docs/gauntlets.md), and rendered on the demo
 
 ## The web app
 
-`apps/web` (Next.js 16, App Router, React 19, Tailwind v4) serves eight routes. The demo surfaces:
+`apps/web` (Next.js 16, App Router, React 19, Tailwind v4). The demo surfaces:
 **Ask** — the answer with its struck predecessors, a live transcript column with a highlighter
 sweep on the cited span, a per-answer economics line and the exact Cypher behind the answer;
 **Timeline** — the revision chain replaying over event time, with a Constellation view of the same
-claims; **Compare** — vector similarity against the belief graph; **Exhibit**; **Limits** — the
+claims; **Compare** — vector similarity against the belief graph; **Exhibit**; **Field notes** — the
 twelve HydraDB operating limits this project hit, measured, with workarounds. The audit surfaces:
 [`/results`](apps/web) — the published table where every cell, including the losing ones and the
 two rejected experiments, opens the raw judged rows behind it, recomputed at build time from a
 committed per-row bundle; and `/results/judge` — all 120 judge-validation controls, the failing
 family included. The demo surfaces render from the API at request time; the `/results` pages render
 a committed, frozen bundle of judged rows — a fixed eval artifact rather than a live query.
-
-Three deliberate properties: **no UI, motion, icon or graph library** (the scrubber is
-`<input type=range>`, the disclosure is `<details>`, the graph is ~60 lines of SVG physics, the icons
-are Unicode glyphs — `apps/web` has **8 direct dependencies**); **nothing leaves the origin** (fonts
-vendored as woff2 and loaded with `next/font/local`, the API reached through an origin-only
-route-handler proxy, and a CSP of `connect-src 'self'` / `font-src 'self'` that enforces the promise
-rather than asserting it); and **light-only, on purpose** — the app is a print metaphor and
-declares `color-scheme: only light`.
 
 ## The MCP server
 
@@ -310,8 +302,8 @@ chosen so the id math is byte-identical to the Python (`hashlib.blake2b`) side a
 
 Third-party components: **HydraDB** (consumed unmodified as a server over Bolt), **MinIO** (local
 object store), **Hono**, **Next.js / React / Tailwind**, **neo4j-driver-lite** (Bolt wire protocol),
-**OpenRouter** (all LLM calls, ledgered), **`BAAI/bge-small-en-v1.5`** (the naive baseline arm only),
-and the fonts Fraunces, Inter and IBM Plex Mono (OFL 1.1, vendored). Dataset:
+**OpenRouter** (all LLM calls, ledgered), and **`BAAI/bge-small-en-v1.5`** (the naive baseline arm
+only). Dataset:
 **`xiaowu0162/longmemeval-cleaned`**, pinned by revision and sha256 in `eval/eval.toml` and verified
 by the harness; no private or self-collected data is used anywhere in this project.
 

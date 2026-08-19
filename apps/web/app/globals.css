@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
 /* ============================================================================
-   Galley Proof — the design tokens (work order 36 §2, exact values).
+   The design tokens.
    Tailwind v4 reads @theme and emits both the CSS variables and the utilities.
    ==========================================================================*/
 @theme {
@@ -74,7 +74,7 @@ button {
   font-family: var(--sans);
 }
 
-/* every number is tabular (craft rule 4) */
+/* every number is tabular */
 .mono,
 .tabular {
   font-family: var(--mono);
@@ -116,7 +116,7 @@ main a {
   text-decoration-thickness: 1px;
 }
 
-/* keyboard focus, in ink/red (36 §6b) */
+/* keyboard focus, in ink/red */
 :focus-visible {
   outline: 2px solid var(--red);
   outline-offset: 2px;
@@ -272,17 +272,43 @@ main a {
 }
 footer.colophon {
   border-top: 1px solid var(--rule2);
-  padding: 1.1rem 1.4rem;
+  padding: 1.3rem 1.4rem 1.6rem;
   max-width: 1080px;
   margin: 0 auto;
   font: 400 0.76rem var(--mono);
   color: var(--faint);
   display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.colo-docs {
+  display: flex;
+  gap: 0.4rem 1.6rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+.colo-h {
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sub);
+}
+.colo-docs a {
+  color: var(--sub);
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule2);
+}
+.colo-docs a:hover {
+  color: var(--ink);
+  border-bottom-color: var(--sub);
+}
+.colo-meta {
+  display: flex;
   gap: 2rem;
   flex-wrap: wrap;
 }
 
-/* hairline progress — the only loading state (36 §6b) */
+/* hairline progress — the only loading state */
 .hairline {
   height: 1px;
   background: var(--rule);
@@ -530,11 +556,19 @@ footer.colophon {
   display: none;
 }
 .cypher summary::before {
-  content: '▸ ';
-  color: var(--red);
+  content: '';
+  display: inline-block;
+  width: 0.72em;
+  height: 0.72em;
+  margin-right: 0.4em;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  background: var(--red);
 }
 .cypher[open] summary::before {
-  content: '▾ ';
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E");
 }
 .cypher pre {
   font: 400 0.76rem/1.6 var(--mono);
@@ -784,7 +818,7 @@ footer.colophon {
   font: 600 2rem/1.2 var(--serif);
   opacity: 0;
   transform: translateY(10px);
-  /* sharpened crossfade: outgoing fully exits before incoming arrives (36 §4.3) */
+  /* sharpened crossfade: outgoing fully exits before incoming arrives */
   transition:
     opacity 0.14s var(--ease-out),
     transform 0.14s var(--ease-out);
@@ -1177,140 +1211,125 @@ footer.colophon {
   overflow-x: auto;
 }
 
-/* ============ HERO BAND (Ask, the first thing under the masthead) ============ */
-.hero {
-  padding-bottom: 1.8rem;
-  margin-bottom: 1.7rem;
-  border-bottom: 1px solid var(--rule2);
+/* ============ LANDING — one story, told from the live graph ============ */
+.landing {
+  padding-top: 3rem;
 }
-.hero .kicker {
+.kicker {
   font: 600 0.65rem var(--mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--red);
   margin: 0;
 }
-.hero h1 {
-  font: 700 clamp(1.5rem, 5.2vw, 2.35rem) / 1.16 var(--serif);
-  letter-spacing: -0.012em;
-  margin: 0.55rem 0 0;
+.story-hero {
+  padding-bottom: 2.4rem;
+}
+.story-hero h1 {
+  font: 700 clamp(2rem, 6vw, 3.05rem) / 1.12 var(--serif);
+  letter-spacing: -0.014em;
+  margin: 0.6rem 0 0;
   text-wrap: balance;
 }
-.hero h1 span {
-  display: block;
-}
-.hero .dek {
-  font: italic 400 1.02rem/1.5 var(--serif);
+.story-hero .dek {
+  font: italic 400 1.08rem/1.55 var(--serif);
   color: var(--sub);
-  max-width: 62ch;
-  margin: 0.7rem 0 0;
+  max-width: 58ch;
+  margin: 0.9rem 0 0;
 }
-
-/* the three beats — one card per claim, each one a link to the thing that proves it */
-.beats {
+.story,
+.story-proof {
+  border-top: 1px solid var(--rule2);
+  padding: 2.2rem 0 2.6rem;
+}
+.story-title {
+  font: 600 1.3rem var(--serif);
+  margin: 0;
+}
+.story-sub {
+  font: italic 400 0.98rem/1.55 var(--serif);
+  color: var(--sub);
+  max-width: 66ch;
+  margin: 0.5rem 0 0;
+}
+.story-chain {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.9rem;
-  margin-top: 1.5rem;
+  gap: 1rem;
+  margin-top: 1.6rem;
 }
-.beat {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+.story-beat {
   background: var(--card);
   border: 1px solid var(--rule);
   border-radius: var(--radius-card);
-  padding: 0.95rem 1.15rem 1.05rem;
-  text-decoration: none !important;
-  color: inherit !important;
+  padding: 1.05rem 1.25rem 1.15rem;
+  box-shadow:
+    0 1px 2px rgba(26, 23, 18, 0.04),
+    0 10px 26px -20px rgba(26, 23, 18, 0.28);
 }
-.beat:hover {
-  border-color: var(--rule2);
+.story-beat.is-correction {
+  border-color: color-mix(in srgb, var(--red) 38%, var(--rule));
 }
-.beat .bh {
+.sb-when {
   font: 600 0.62rem var(--mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--faint);
   margin: 0;
 }
-.beat .bh i {
+.sb-when i {
   font-style: normal;
   color: var(--red);
   margin-right: 0.35rem;
 }
-.beat .bbody {
-  flex: 1;
+.sb-quote {
+  font: italic 400 0.95rem/1.5 var(--serif);
+  color: var(--sub);
   margin: 0.6rem 0 0;
 }
-.beat .bcap {
-  font: 400 0.7rem/1.55 var(--mono);
-  color: var(--sub);
-  margin: 0.75rem 0 0;
-}
-.beat .bcite {
-  font-style: normal;
-  font-family: var(--mono);
-  font-size: 0.68rem;
-  color: var(--teal);
-  margin-left: 0.35rem;
-}
-/* a struck predecessor: kept, legible, and visibly retired */
-.beat .bstruck {
-  display: block;
-  font: 400 0.98rem var(--serif);
-  color: var(--faint);
+.sb-value {
+  margin: 0.55rem 0 0;
+  font: 600 1.6rem var(--serif);
   font-variant-numeric: tabular-nums;
 }
-.beat .bstruck s {
+.sb-value s {
+  color: var(--faint);
+  font-weight: 400;
   text-decoration: line-through;
   text-decoration-color: var(--red);
   text-decoration-thickness: 2px;
 }
-.beat .bhead {
-  display: block;
-  font: 600 1.62rem var(--serif);
+.sb-value b {
   color: var(--ink);
-  margin-top: 0.25rem;
-  font-variant-numeric: tabular-nums;
 }
-.beat .bq {
-  display: block;
-  font: italic 400 0.95rem/1.45 var(--serif);
+.story-cap,
+.sa-cap {
+  font: 400 0.72rem/1.6 var(--mono);
   color: var(--sub);
+  margin: 0.9rem 0 0;
 }
-/* the abstention plate, in the refusal card's own gold */
-.beat .plate {
-  display: inline-block;
-  margin-top: 0.5rem;
+.story-chain .story-cap {
+  grid-column: 1 / -1;
+  margin-top: 0.1rem;
+}
+.mono {
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+.story-ask {
+  margin-top: 1.7rem;
   border: 1.5px solid var(--gold);
   background: var(--gold-bg);
-  border-radius: var(--radius-slip);
-  padding: 0.4rem 0.7rem;
-  font: 600 1.05rem var(--serif);
-  color: var(--ink);
+  border-radius: var(--radius-card);
+  padding: 1.15rem 1.35rem 1.25rem;
+  max-width: 46rem;
 }
-.beat .bloss {
-  display: block;
-  font: 700 1.62rem var(--serif);
-  color: var(--red);
-  font-variant-numeric: tabular-nums;
+.sa-q {
+  font: 600 1.18rem var(--serif);
+  margin: 0 0 0.8rem;
 }
-.beat .bloss i {
-  font-style: normal;
-  font-size: 0.62em;
-  color: var(--faint);
-}
-
-/* the door, and the compressed itinerary beside it */
-.herocta {
-  display: flex;
-  align-items: baseline;
-  gap: 0.9rem 1.3rem;
-  flex-wrap: wrap;
-  margin-top: 1.5rem;
-}
-.herocta .cta {
+.cta {
+  display: inline-block;
   font: 600 0.72rem var(--mono);
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1321,15 +1340,20 @@ footer.colophon {
   text-decoration: none !important;
   white-space: nowrap;
 }
-.herocta .itin {
-  font: 400 0.74rem/1.7 var(--mono);
-  color: var(--sub);
-  margin: 0;
-  min-width: 0;
+.cta.ghost {
+  background: transparent;
+  color: var(--ink) !important;
+  border: 1px solid var(--rule2);
 }
-.herocta .itin i {
-  font-style: normal;
-  color: var(--faint);
+.story-proof .story-sub b {
+  color: var(--ink);
+  font-size: 1.15em;
+}
+.story-ctas {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-top: 1.3rem;
 }
 
 /* ============ EVIDENCE STRIP (Ask, above the fold) ============ */
@@ -1517,9 +1541,14 @@ a.scell.lose b {
   color: var(--red);
 }
 a.scell.lose b::after {
-  content: ' ▼';
-  font-size: 0.6em;
-  vertical-align: 0.15em;
+  content: '';
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-left: 0.18em;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 /* judge-validation tiles */
@@ -1727,10 +1756,18 @@ details.cites summary::-webkit-details-marker {
   display: none;
 }
 details.cites summary::before {
-  content: '▸ ';
+  content: '';
+  display: inline-block;
+  width: 0.72em;
+  height: 0.72em;
+  margin-right: 0.4em;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 details.cites[open] summary::before {
-  content: '▾ ';
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E");
 }
 details.cites ul {
   list-style: none;
@@ -1814,7 +1851,7 @@ details.cites .cspan {
   .masthead nav {
     gap: 0.8rem;
   }
-  .beats,
+  .story-chain,
   .evidence,
   .tiles {
     grid-template-columns: 1fr;
@@ -1851,4 +1888,287 @@ details.cites .cspan {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+/* ============ RESULTS — the verdict drawn before it is tabulated ============ */
+.armchart {
+  margin: 1.6rem 0 0.4rem;
+}
+.ac-legend {
+  display: flex;
+  gap: 1.4rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-size: 0.72rem;
+  color: var(--sub);
+  margin-bottom: 0.6rem;
+}
+.ac-legend i {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 2px;
+  vertical-align: -0.08rem;
+  margin-right: 0.3rem;
+}
+.ac-legend .ac-note {
+  color: var(--faint);
+  margin-left: auto;
+}
+.ac-scroll {
+  position: relative;
+  overflow-x: auto;
+}
+.ac-grid {
+  font: 500 10px var(--mono);
+  fill: var(--faint);
+}
+.ac-val {
+  font: 600 13px var(--mono);
+  fill: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ac-val.lost {
+  fill: var(--red);
+}
+.ac-cat {
+  font: 600 10.5px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  fill: var(--sub);
+}
+.ac-links {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+.ac-links a {
+  display: block;
+  height: 100%;
+}
+.ac-links a:hover {
+  background: rgba(26, 23, 18, 0.035);
+  border-radius: var(--radius-btn);
+}
+.ctxchart {
+  margin: 1.1rem 0 0;
+  max-width: 46rem;
+}
+.cc-row {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr 9.5rem;
+  gap: 0.8rem;
+  align-items: center;
+  margin-top: 0.45rem;
+}
+.cc-arm {
+  font-size: 0.72rem;
+  color: var(--sub);
+  text-align: right;
+}
+.cc-track {
+  height: 0.85rem;
+  background: transparent;
+}
+.cc-track i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  min-width: 2px;
+}
+.cc-val {
+  font-size: 0.74rem;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.cc-cap {
+  font: 400 0.72rem/1.6 var(--mono);
+  color: var(--sub);
+  margin-top: 0.7rem;
+}
+.disc {
+  margin: 1.4rem 0 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  background: var(--card);
+}
+.disc > summary {
+  cursor: pointer;
+  padding: 0.75rem 1.1rem;
+  font: 600 0.72rem var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sub);
+  list-style: none;
+}
+.disc > summary::-webkit-details-marker {
+  display: none;
+}
+.disc > summary::before {
+  content: '';
+  display: inline-block;
+  width: 0.72em;
+  height: 0.72em;
+  margin-right: 0.4em;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.disc[open] > summary::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E");
+}
+.disc[open] > summary {
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+}
+.disc > *:not(summary) {
+  margin: 0.9rem 1.1rem 1rem;
+}
+
+/* ============ VENDORED ICONS — alignment ============ */
+.backlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+}
+.iret,
+.ipen,
+.iel {
+  vertical-align: -0.14em;
+}
+.seeds i svg {
+  vertical-align: -0.1em;
+}
+.bar button svg {
+  display: block;
+  margin: auto;
+}
+
+/* ============ MOTION — entrances and micro-interactions ============
+   All of it CSS, all of it killed globally by the prefers-reduced-motion rule at the bottom. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes fadein {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes growy {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes growx {
+  from {
+    transform: scaleX(0);
+  }
+}
+.story-hero .kicker {
+  animation: rise 0.6s var(--ease-out) backwards;
+}
+.story-hero h1 {
+  animation: rise 0.6s var(--ease-out) 0.07s backwards;
+}
+.story-hero .dek {
+  animation: rise 0.6s var(--ease-out) 0.14s backwards;
+}
+.story-title,
+.story-sub {
+  animation: rise 0.6s var(--ease-out) 0.2s backwards;
+}
+.story-beat:nth-child(1) {
+  animation: rise 0.55s var(--ease-out) 0.28s backwards;
+}
+.story-beat:nth-child(2) {
+  animation: rise 0.55s var(--ease-out) 0.42s backwards;
+}
+.story-beat:nth-child(3) {
+  animation: rise 0.55s var(--ease-out) 0.56s backwards;
+}
+.story-chain .story-cap {
+  animation: fadein 0.5s 0.75s backwards;
+}
+.story-ask {
+  animation: rise 0.55s var(--ease-out) 0.8s backwards;
+}
+.cta {
+  transition:
+    transform 0.18s var(--ease-out),
+    box-shadow 0.18s var(--ease-out);
+}
+.cta:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 8px 18px -10px rgba(26, 23, 18, 0.45);
+}
+.story-beat {
+  transition: transform 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out);
+}
+.story-beat:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 2px 4px rgba(26, 23, 18, 0.05),
+    0 16px 34px -22px rgba(26, 23, 18, 0.35);
+}
+/* the verdict chart draws itself: bars grow from the baseline, labels land after */
+.armchart svg rect {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: growy 0.65s var(--ease-out) backwards;
+}
+.armchart svg g > g:nth-of-type(2) rect {
+  animation-delay: 0.08s;
+}
+.armchart svg g > g:nth-of-type(3) rect {
+  animation-delay: 0.16s;
+}
+.ac-val {
+  animation: fadein 0.45s 0.6s backwards;
+}
+.cc-track i {
+  transform-origin: left;
+  animation: growx 0.8s var(--ease-out) 0.15s backwards;
+}
+
+/* tiny confidence meter beside the two labelled scores on the answer card */
+.mtr {
+  display: inline-block;
+  width: 2.9em;
+  height: 0.32em;
+  margin-left: 0.35em;
+  vertical-align: 0.08em;
+  background: var(--rule);
+  border-radius: 99px;
+  overflow: hidden;
+  position: relative;
+}
+.mtr::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: calc(var(--v, 0) * 100%);
+  background: var(--teal);
+  border-radius: 99px;
+  transition: width 0.5s var(--ease-out);
+}
+
+/* vendored icons render inline — Tailwind's preflight blocks svg by default */
+.pico {
+  display: inline-block;
+  vertical-align: -0.125em;
+}
+.bar button .pico {
+  display: block;
+  margin: auto;
+  vertical-align: initial;
 }

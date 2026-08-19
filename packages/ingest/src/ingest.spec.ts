@@ -118,7 +118,7 @@ describe('assemble — full batch shape', () => {
 // every vertex id is a pure function of (history, normalization version, position, normalized
 // text), so a second load is a MERGE onto the same ids and the counts do not move. These tests
 // pin exactly that, and pin that the normalization version is what a normalizer change moves.
-describe('re-ingest idempotence (B5)', () => {
+describe('re-ingest idempotence (docs/gauntlets.md G4)', () => {
   const idsOf = (a: ReturnType<typeof assemble>): { nodes: Map<string, number[]>; edges: Map<string, number[]> } => ({
     nodes: new Map(a.nodes.map((n) => [n.label, n.rows.map((r) => Number(r.id)).sort((x, y) => x - y)])),
     edges: new Map(a.edges.map((e) => [e.type, e.rows.map((r) => Number(r.id)).sort((x, y) => x - y)])),
