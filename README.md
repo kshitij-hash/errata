@@ -20,7 +20,10 @@ against a full-context and a naive-RAG baseline, with a judge whose false-accept
 before any result was believed. The losing categories are printed with the price of fixing them,
 and the experiments that failed are published beside the ones that shipped.
 
-<!-- TODO(submission day): live URL line goes here — web app + API. -->
+**Live: [errata-memory.vercel.app](https://errata-memory.vercel.app)** — ask it, replay the
+timeline, and open every published number on
+[/results](https://errata-memory.vercel.app/results). The API behind it:
+[errata-production-e59c.up.railway.app](https://errata-production-e59c.up.railway.app).
 
 Built for Hack Hydra (Track 3 — Memory & Context Retrieval). All participant-authored work in this
 repository starts on or after 2026-08-12, per the hackathon rules.
