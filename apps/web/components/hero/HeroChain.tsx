@@ -14,7 +14,7 @@ const MECHANISM = 'every strike is a SUPERSEDES edge; nothing deleted, all of it
 
 /**
  * The hero's first beat, read from the graph rather than typed into the page — the same read
- * ChainStrip makes, and for the same reason: a hero that asserts a chain the answer card below it
+ * the timeline makes, and for the same reason: a hero that asserts a chain the answer card below it
  * contradicts is the exact failure this demo exists to argue against. Before the read lands, and if
  * it never does, the claim is made without the figures and never with stale ones.
  */
