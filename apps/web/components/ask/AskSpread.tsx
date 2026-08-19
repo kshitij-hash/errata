@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, usd } from '../../lib/api';
 import type { AskResponse } from '../../lib/api';
 import { citeLabel, citeMark, prefersReducedMotion, sameValue } from '../../lib/format';
+import { ASK_EVENT } from '../../lib/askbus';
 import { readParam, writeParams } from '../../lib/urlstate';
 import { CHIPS, DEMO_HISTORY_ID, DEMO_SUBJECT, FULL_CONTEXT_USD, HISTORY_TOKEN_COUNT } from '../../config/demo';
 import { CypherDisclosure } from '../CypherDisclosure';
@@ -62,6 +63,17 @@ export function AskSpread() {
   // URL-addressable: ?q=… replays any question; the first chip otherwise
   useEffect(() => {
     void run(readParam('q') ?? DEFAULT_QUESTION);
+  }, [run]);
+
+  // the hero band's refusal beat asks through this same path, so its card and this one cannot
+  // disagree about what the history says
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const q = (e as CustomEvent<string>).detail;
+      if (typeof q === 'string' && q.trim()) void run(q);
+    };
+    window.addEventListener(ASK_EVENT, onAsk);
+    return () => window.removeEventListener(ASK_EVENT, onAsk);
   }, [run]);
 
   // keyboard demo mode (add-on №5): '.' re-runs the current choreography
