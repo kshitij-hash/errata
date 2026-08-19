@@ -2,6 +2,10 @@
 
 **Memory that keeps its corrections.**
 
+<p align="center">
+  <a href="https://errata-memory.vercel.app"><img src="docs/assets/cover.png" width="720" alt="Errata — memory that (forgets, struck through) keeps its corrections"></a>
+</p>
+
 Errata is an agent-memory layer on [HydraDB](https://github.com/hydra-db/hydradb). A conversation is
 ingested as an append-only, bitemporal graph of claims, and a contradiction lands as a new claim
 plus a `SUPERSEDES` edge rather than an update, so the correction and the thing it corrected both
@@ -24,6 +28,8 @@ and the experiments that failed are published beside the ones that shipped.
 timeline, and open every published number on
 [/results](https://errata-memory.vercel.app/results). The API behind it:
 [errata-production-e59c.up.railway.app](https://errata-production-e59c.up.railway.app).
+
+[![The landing page: the mortgage pre-approval chain read live from the graph — $350,000 and $400,000 struck through, the $425,000 correction current](docs/assets/landing.png)](https://errata-memory.vercel.app)
 
 Built for Hack Hydra (Track 3 — Memory & Context Retrieval). All participant-authored work in this
 repository starts on or after 2026-08-12, per the hackathon rules.
@@ -55,6 +61,11 @@ often, and both halves are scored and printed.
 | **Errata** | **60.0 ± 0.0** | 44.7 ± 0.0 | **67.7 ± 0.0** | **51.5 ± 0.0** | **94.4 ± 0.0** | 0.49 / 0.93 | **2,532** | **$0.000026** | **0.26 / 1.28** |
 | Full-context baseline | 47.5 ± 0.8 | **80.7 ± 1.5** | 35.5 ± 3.2 | 13.1 ± 1.7 | 61.1 ± 0.0 | 0.58 / 0.80 | 109,943 | $0.0110 | 8.00 / 8.68 |
 | Naive top-k RAG (k=10) | 45.8 ± 0.0 | 63.2 ± 0.0 | 29.0 ± 0.0 | 21.2 ± 0.0 | 83.3 ± 0.0 | 0.41 / 0.98 | 4,665 | $0.0005 | 0.86 / 1.34 |
+
+[![The /results page: the same numbers drawn as grouped bars — the one column Errata loses printed in red — with the log-scale context-cost comparison below](docs/assets/results.png)](https://errata-memory.vercel.app/results)
+
+*The same rows, drawn: [/results](https://errata-memory.vercel.app/results) recomputes every cell
+at build time from the committed judged rows, and every bar group and table cell opens them.*
 
 150 LongMemEval questions (`xiaowu0162/longmemeval-cleaned`, revision `98d7416c…`, sha256
 `d6f21ea9…`), a seeded stratified subsample with **all 30 abstention questions included**; 3 seeds
@@ -151,6 +162,27 @@ Seven invariants, each one enforced somewhere you can open:
   single `SET`; writes go in ≤1024-row `UNWIND` batches over Bolt; vertex ids are 53-bit blake2b
   hashes minted in exactly one file. The answer path's reads are id-anchored, never label scans.
 
+The demo history's own chain, as it is stored — three claims, two revision edges, one derived head:
+
+```mermaid
+flowchart LR
+  classDef struck fill:#faf3f0,stroke:#b11742,color:#6b6459
+  classDef head fill:#eef6f5,stroke:#0e7c86,color:#1a1712
+  classDef fold fill:#fffdf9,stroke:#a39b8c,color:#1a1712,stroke-dasharray:4 3
+
+  C3["$425,000<br/>event 2026-08-18 · your correction<br/>confidence 0.99"]:::head
+  C2["$400,000<br/>event 2023-11-30 · cited s37:t0<br/>confidence 0.72"]:::struck
+  C1["$350,000<br/>event 2023-08-11 · cited s3:t2<br/>confidence 0.72"]:::struck
+
+  C3 -- SUPERSEDES --> C2
+  C2 -- SUPERSEDES --> C1
+  B(["belief = $425,000 — derived by a<br/>deterministic fold, never stored"]):::fold
+  B -. folds the whole chain .-> C3
+```
+
+Nothing in that picture is ever edited: a correction *adds* the leftmost node and its edge, and the
+struck values stay exactly as citable as the day they were said.
+
 Read surface: `GET /api/belief` (current + as-of) · `GET /api/diff` (revision chain, cross-checked
 against `algo.SPpaths`) · `GET /api/turns` · `POST /api/ask` (graph-retrieved material composed by
 the shared answer model, or an abstention) · `GET /api/meta{,/health,/costs}`. One write:
@@ -182,6 +214,10 @@ committed per-row bundle; and `/results/judge` — all 120 judge-validation cont
 family included. The demo surfaces render from the API at request time; the `/results` pages render
 a committed, frozen bundle of judged rows — a fixed eval artifact rather than a live query.
 
+| Ask — struck predecessors, cited spans, the Cypher behind the answer | Timeline — the chain replaying over event time |
+|---|---|
+| [![The Ask page](docs/assets/ask.png)](https://errata-memory.vercel.app/ask) | [![The Timeline page](docs/assets/timeline.png)](https://errata-memory.vercel.app/timeline) |
+
 ## The MCP server
 
 [`packages/mcp`](packages/mcp) mounts the memory in any MCP-capable agent, over stdio, against the
@@ -192,6 +228,20 @@ why), `memory_remember`. [`docs/mcp-demo.md`](docs/mcp-demo.md) is a captured li
 agent asks and gets a cited answer, is corrected mid-conversation, writes the correction, and
 re-asks — with the `SUPERSEDES` chain, including the struck values, visible at every step. The
 mounting config is one JSON block in [`packages/mcp/README.md`](packages/mcp/README.md).
+
+```mermaid
+sequenceDiagram
+  participant U as user
+  participant A as agent
+  participant M as Errata (MCP)
+  A->>M: memory_ask — "How much was I pre-approved for?"
+  M-->>A: $400,000 · cited to its turn · supersedes $350,000
+  U->>A: "Actually, that was increased to $425,000."
+  A->>M: memory_correct — $425,000
+  M-->>A: appended (never edited) · SUPERSEDES edge to the $400,000 claim
+  A->>M: memory_ask — same question
+  M-->>A: $425,000 · both prior values still queryable, struck
+```
 
 ## Reproduce it
 
@@ -289,6 +339,29 @@ anyone with the deployed URL (and the funded key it requires) reproduces the num
 logic, vitest) · `packages/graph` (Bolt client + hand-written Cypher + blake2b ids) · `packages/llm`
 (OpenRouter client + cost ledger) · `packages/ingest` (pipeline CLI) · `packages/mcp` (the MCP
 memory server) · `eval/` (Python 3.13, uv, standalone).
+
+```mermaid
+flowchart LR
+  subgraph surfaces [three surfaces, one API]
+    WEB["apps/web · Next.js<br/>(Vercel)"]
+    MCP["packages/mcp<br/>MCP stdio server"]
+    EVAL["eval/ · Python harness<br/>(HTTP only, never imports TS)"]
+  end
+  API["apps/api · Hono<br/>(the only listener)"]
+  HY[("HydraDB<br/>claims + revision edges")]
+  S3[("MinIO<br/>object store")]
+  OR(["OpenRouter<br/>every call ledgered + capped"])
+  ING["packages/ingest · CLI<br/>(offline, occasional)"]
+
+  WEB -- "HTTP · origin-only proxy" --> API
+  MCP -- HTTP --> API
+  EVAL -- HTTP --> API
+  API -- "Bolt · hand-written Cypher,<br/>id-anchored reads" --> HY
+  HY --- S3
+  API -- "one synthesis call per ask" --> OR
+  ING -- "Bolt · append-only writes" --> HY
+  ING -- "extraction + conflict judge" --> OR
+```
 
 Every dependency is pinned to an exact version (no `^`/`~` — CI greps for them and fails), the
 lockfile is committed, and `allowBuilds` is empty: **no dependency may run an install script.** The
