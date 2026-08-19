@@ -155,5 +155,16 @@ fi
 # missing lexicon does not error — it degrades anchor resolution silently.
 log "lexicon dir ${ERRATA_LEXICON_DIR:-<unset>}: $(ls "${ERRATA_LEXICON_DIR:-$DATA_ROOT/lexicon}" 2>/dev/null | grep -c '\.json$' || true) json files"
 
+# The LLM ledger and answer cache live at CWD/var/* (packages/llm defaults, CWD=/app under
+# supervisord). On the ephemeral container disk both reset on every redeploy — which also re-arms
+# ERRATA_BUDGET_CAP, because the client seeds its running spend from the ledger rollup at startup.
+# Point both at the volume: spend stays cumulative across deploys, and already-paid answers keep
+# replaying from cache at $0 instead of being paid for again after each redeploy.
+mkdir -p "$DATA_ROOT/ledger" "$DATA_ROOT/llm-cache" /app/var
+rm -rf /app/var/ledger /app/var/llm-cache
+ln -s "$DATA_ROOT/ledger" /app/var/ledger
+ln -s "$DATA_ROOT/llm-cache" /app/var/llm-cache
+log "ledger + llm-cache linked to $DATA_ROOT — spend and cache survive redeploys"
+
 log "data root $DATA_ROOT ready, handing off to supervisord"
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/errata.conf -n
