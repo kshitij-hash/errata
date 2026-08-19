@@ -323,6 +323,9 @@ anyone with the deployed URL (and the funded key it requires) reproduces the num
 
 ## Known limitations
 
+- The eval is LongMemEval (the cleaned `-s` release, pinned by revision and sha256). The track's
+  other listed datasets — LongMemEval V2 and BEAM — are not measured, and nothing here claims
+  transfer to them.
 - `single-session-assistant` and `single-session-preference` are where the arm loses; see the
   honest-gap paragraph above. Both are extraction-scope decisions, one of them explicitly bought at
   a price and disclosed rather than described as a model limitation.
