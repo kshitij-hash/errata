@@ -40,7 +40,8 @@ accepts an explicit `supersedes_claim_id` and returns the full revision chain in
 
 | env var | default | meaning |
 |---|---|---|
-| `ERRATA_API_URL` | `http://127.0.0.1:8787` | Base URL of a running `apps/api` (matches its own default bind, `apps/api/src/index.ts`). |
+| `ERRATA_API_URL` | `http://127.0.0.1:8787` | Base URL of a running `apps/api` (matches its own default bind, `apps/api/src/index.ts`). Point it at the deployed API to mount the live demo memory read-only. |
+| `ERRATA_WRITE_KEY` | unset | Only needed for `memory_correct`/`memory_remember` against a deployed API whose write gate is configured — the key is attached as `X-Errata-Write-Key` on writes. Leave unset locally; without it the write tools return a structured refusal, never an error. |
 
 ## Run it
 

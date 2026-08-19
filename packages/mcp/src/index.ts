@@ -7,14 +7,14 @@
 // server-side; this package only shapes the JSON into MCP tool results.
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { apiBaseUrl, ErrataClient } from './client.js';
+import { apiBaseUrl, ErrataClient, writeKey } from './client.js';
 import { registerAsk } from './tools/ask.js';
 import { registerCorrect } from './tools/correct.js';
 import { registerHistory } from './tools/history.js';
 import { registerRemember } from './tools/remember.js';
 
 async function main(): Promise<void> {
-  const client = new ErrataClient(apiBaseUrl());
+  const client = new ErrataClient(apiBaseUrl(), writeKey());
   const server = new McpServer({ name: 'errata-mcp', version: '0.1.0' });
 
   registerAsk(server, client);

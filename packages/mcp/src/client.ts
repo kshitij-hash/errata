@@ -15,8 +15,10 @@ export interface ApiResult<T> {
 
 export class ErrataClient {
   private readonly baseUrl: string;
-  constructor(baseUrl: string) {
+  private readonly writeKey: string | undefined;
+  constructor(baseUrl: string, writeKey?: string) {
     this.baseUrl = baseUrl;
+    this.writeKey = writeKey;
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
@@ -35,11 +37,22 @@ export class ErrataClient {
   }
 
   post<T>(path: string, body: unknown): Promise<ApiResult<T>> {
-    return this.request<T>(path, { method: 'POST', body: JSON.stringify(body) });
+    // The API's one write route is gated by X-Errata-Write-Key when the server configures it
+    // (apps/api/src/auth.ts). Attached only when this process was given the key: a keyless local
+    // stack keeps working exactly as before, and against a deployed API the write tools carry the
+    // credential instead of bouncing off the 401.
+    const headers: Record<string, string> = this.writeKey ? { 'x-errata-write-key': this.writeKey } : {};
+    return this.request<T>(path, { method: 'POST', body: JSON.stringify(body), headers });
   }
 }
 
 /** `ERRATA_API_URL`, default matching apps/api's own default bind (apps/api/src/index.ts). */
 export function apiBaseUrl(): string {
   return process.env.ERRATA_API_URL ?? 'http://127.0.0.1:8787';
+}
+
+/** `ERRATA_WRITE_KEY` — required only for `memory_correct`/`memory_remember` against a deployed
+ *  API whose write gate is configured; leave unset against a local stack. */
+export function writeKey(): string | undefined {
+  return process.env.ERRATA_WRITE_KEY || undefined;
 }
