@@ -6,6 +6,7 @@ coverage/
 *.log
 .data/
 backups/
+dist-snapshot/
 .env
 .env.*
 !.env.example

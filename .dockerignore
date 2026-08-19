@@ -13,6 +13,7 @@ coverage
 *.log
 .data
 backups
+dist-snapshot
 .env
 .env.*
 !.env.example
@@ -29,3 +30,4 @@ apps/web/app
 apps/web/public
 apps/web/fixtures
 deploy/pod/*.md
+deploy/railway/*.md
