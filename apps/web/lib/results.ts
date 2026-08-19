@@ -458,3 +458,19 @@ export const PUBLISHED = {
 export function pct(x: number, digits = 1): string {
   return x.toFixed(digits);
 }
+
+/**
+ * The published p50 latency in seconds — the first half of the `p50 / p95` column above, which is
+ * itself copied from the README NUMBERS BLOCK. Latency is NOT in `data/results.json` (the judged
+ * rows carry tokens, not timings), so it cannot be recomputed here; splitting the published string
+ * is the next best thing, because it keeps the README the only place the figure is written down.
+ * Verified against the README NUMBERS BLOCK 2026-08-19: Errata 0.26 / 1.28, full-context 8.00 / 8.68.
+ */
+export function p50(arm: ArmKey): string {
+  return PUBLISHED.latency[arm].split(' / ')[0]!;
+}
+
+/** How many times faster the p50 is — README: "31× lower p50 latency". */
+export function p50Ratio(fast: ArmKey, slow: ArmKey): number {
+  return Math.round(Number(p50(slow)) / Number(p50(fast)));
+}
