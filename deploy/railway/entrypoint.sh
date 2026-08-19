@@ -20,7 +20,10 @@ set -euo pipefail
 
 DATA_ROOT="${ERRATA_DATA_ROOT:-/data}"
 MARKER="$DATA_ROOT/.snapshot-restored"
-STAGE="$DATA_ROOT/.restore-staging"
+# Staging lives on the EPHEMERAL disk, not the volume: the ~740 MB of archives are transient,
+# and keeping them off /data is what lets the volume fit Railway Hobby's 5 GB cap.
+STAGE="/tmp/.restore-staging"
+CACHE_DIR="${GRAPH_DATA_CACHE_DIR:-/cache}"
 
 log()  { printf '[entrypoint] %s\n' "$*"; }
 fail() { printf '[entrypoint] FATAL: %s\n' "$*" >&2; exit 1; }
@@ -46,7 +49,14 @@ export PORT="${PORT:-8787}"
 export HOST="${HOST:-0.0.0.0}"
 log "API will bind ${HOST}:${PORT}"
 
-mkdir -p "$DATA_ROOT/hydra" "$DATA_ROOT/cache" "$DATA_ROOT/minio" "$DATA_ROOT/lexicon" /var/log/supervisor
+mkdir -p "$DATA_ROOT/hydra" "$DATA_ROOT/minio" "$DATA_ROOT/lexicon" /var/log/supervisor
+# LAW (measured, docs/gauntlets.md): the block cache must start EMPTY over restored objects — a
+# stale cache is served in preference to the store and answers become a chimera of two graphs.
+# The cache is ephemeral here, but a same-container restart keeps the fs, so wipe on EVERY boot:
+# worst case is a cold start (~13 s to healthy, measured), never a chimera.
+rm -rf "$CACHE_DIR"
+mkdir -p "$CACHE_DIR"
+log "wiped $CACHE_DIR (block cache always starts cold)"
 
 # ------------------------------------------------------------------------------------------------
 # first-boot restore
@@ -116,13 +126,6 @@ restore_snapshot() {
   [ -d "$DATA_ROOT/minio/hydra" ]      || fail "restore produced no 'hydra' bucket under $DATA_ROOT/minio"
   [ -s "$DATA_ROOT/hydra/auth-token" ] || fail "restore produced no $DATA_ROOT/hydra/auth-token"
   ls "$DATA_ROOT"/lexicon/*.json >/dev/null 2>&1 || fail "restore produced no lexicon JSON under $DATA_ROOT/lexicon"
-
-  # LAW (measured, docs/gauntlets.md): HydraDB's local block cache must start EMPTY over restored
-  # objects. A cache left from an older object set is not stale-but-harmless — it is served in
-  # preference to the objects, and the answers come back as a chimera of two graphs.
-  rm -rf "$DATA_ROOT/cache"
-  mkdir -p "$DATA_ROOT/cache"
-  log "wiped $DATA_ROOT/cache (block cache must be cold over a restored object store)"
 
   rm -rf "$STAGE"
   {

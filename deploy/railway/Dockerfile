@@ -13,6 +13,9 @@
 #     supervisord's [program:api] passes it down by name.
 #   * curl + zstd are installed: deploy/railway/entrypoint.sh restores the graph snapshot from a
 #     GitHub release on first boot, which the pod never had to do (its volume already had data).
+#   * GRAPH_DATA_CACHE_DIR is /cache — the container's EPHEMERAL disk, deliberately not the volume:
+#     the cache is disposable by design (it must start cold over restored objects anyway), and
+#     keeping it off /data lets the volume fit Railway Hobby's 5 GB cap (objects are 4.0 GB).
 #   * GRAPH_DATA_CACHE_BYTES is 2 GiB, not the pod's 4 GiB — Railway bills actual usage on a box
 #     around 8 GB, and 2 GiB is the value docker-compose.yml has run under for every eval and demo
 #     to date. It is a measured working set, not a guess.
@@ -96,7 +99,7 @@ ENV RUST_LOG=info \
     GRAPH_NODE_ID=node-0 \
     GRAPH_BOLT_NODE_ADDRESSES=node-0=0.0.0.0:7687 \
     GRAPH_ADVERTISED_BOLT_ADDR=127.0.0.1:7687 \
-    GRAPH_DATA_CACHE_DIR=/data/cache \
+    GRAPH_DATA_CACHE_DIR=/cache \
     GRAPH_DATA_CACHE_BYTES=2147483648 \
     GRAPH_WRITER_LEASE_MS=120000 \
     GRAPH_AUTH_TOKEN_FILE=/data/hydra/auth-token \

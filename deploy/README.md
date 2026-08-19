@@ -196,13 +196,16 @@ be marked failed.
 
 ### 5. Attach the volume BEFORE the first deploy
 
-Service → **Data / Volumes** → mount path **`/data`**, size **15 GB**. Volumes are mounted at
-container start, not at build, and a first boot without one restores 4 GB onto the ephemeral
-container disk and loses it on the next deploy.
+Service → **Data / Volumes** → mount path **`/data`**, size **5 GB** (the Hobby-plan maximum —
+and enough, by design). Volumes are mounted at container start, not at build, and a first boot
+without one restores 4 GB onto the ephemeral container disk and loses it on the next deploy.
 
-Sizing: 4.0 GB objects + up to 2 GiB block cache + 22 MB lexicon + the LLM ledger, and transiently
-~740 MB of staged downloads during the restore itself. 15 GB leaves real headroom; volumes can be
-grown later but never shrunk.
+Sizing: the volume holds only the durable state — 4.0 GB of MinIO objects + 22 MB lexicon + the
+LLM ledger + whatever corrections judges append (kilobytes). The block cache (up to 2 GiB) and the
+~740 MB of transient restore staging both live on the container's EPHEMERAL disk on purpose: the
+cache must start cold anyway and the staging is deleted after unpack, so neither earns volume
+space, and keeping them off `/data` is what lets the whole deployment fit the Hobby plan. Peak
+volume usage ≈ 4.1 GB of 5 GB. Volumes can be grown later but never shrunk.
 
 ### 6. Set the variables
 
